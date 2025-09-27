@@ -1,0 +1,58 @@
+{
+  "imap": {
+    "server": "imap.gmail.com",
+    "port": 993,
+    "username": "",
+    "password": "",
+    "use_ssl": true,
+    "mailbox": "INBOX"
+  },
+  "processing": {
+    "check_interval_minutes": 5,
+    "max_emails_per_check": 50,
+    "mark_as_read": true,
+    "archive_processed": false
+  },
+  "job_alert_sources": [
+    {
+      "name": "LinkedIn",
+      "from_email": "jobs-noreply@linkedin.com",
+      "subject_contains": ["job alert", "jobs matching"],
+      "enabled": true
+    },
+    {
+      "name": "Indeed",
+      "from_email": "noreply@indeed.com",
+      "subject_contains": ["job alert"],
+      "enabled": true
+    },
+    {
+      "name": "Glassdoor",
+      "from_email": "noreply@glassdoor.com",
+      "subject_contains": ["job alert"],
+      "enabled": true
+    },
+    {
+      "name": "AngelList",
+      "from_email": "noreply@angel.co",
+      "subject_contains": ["job matches"],
+      "enabled": true
+    }
+  ],
+  "parsing": {
+    "job_title_patterns": [
+      "Job Title: (.+)",
+      "Position: (.+)",
+      "<title>(.+)</title>"
+    ],
+    "company_patterns": [
+      "Company: (.+)",
+      "at (.+?) -",
+      "employer-name\">(.+?)</span>"
+    ],
+    "link_patterns": [
+      "href=\"([^\"]+job[^\"]+)\"",
+      "Apply: (https?://[^\\s]+)"
+    ]
+  }
+}

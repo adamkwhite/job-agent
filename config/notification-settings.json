@@ -1,0 +1,34 @@
+{
+  "notifications": {
+    "sms": {
+      "enabled": true,
+      "service": "twilio",
+      "phone_number": "",
+      "account_sid": "",
+      "auth_token": ""
+    },
+    "email": {
+      "enabled": true,
+      "smtp_server": "smtp.gmail.com",
+      "smtp_port": 587,
+      "username": "",
+      "password": "",
+      "to_email": "",
+      "from_email": ""
+    }
+  },
+  "timing": {
+    "max_notification_delay_minutes": 30,
+    "quiet_hours": {
+      "enabled": false,
+      "start": "22:00",
+      "end": "07:00"
+    }
+  },
+  "content": {
+    "include_job_description": false,
+    "include_company_info": true,
+    "include_application_link": true,
+    "max_message_length": 160
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "include_keywords": [
+    "product manager",
+    "product management",
+    "senior product manager",
+    "principal product manager",
+    "product director",
+    "product lead",
+    "product owner",
+    "pm",
+    "senior pm",
+    "principal pm"
+  ],
+  "exclude_keywords": [
+    "EMR",
+    "electronic medical records",
+    "documentation",
+    "administrative",
+    "data entry",
+    "sales",
+    "marketing coordinator",
+    "intern",
+    "entry level",
+    "junior"
+  ],
+  "company_include": [
+    "mission-driven",
+    "patient impact",
+    "healthcare technology",
+    "medical device",
+    "biotech",
+    "digital health"
+  ],
+  "company_exclude": [
+    "consulting",
+    "staffing",
+    "recruiting",
+    "pharmaceutical sales"
+  ]
+}
