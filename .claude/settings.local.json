@@ -1,12 +1,37 @@
 {
   "permissions": {
     "allow": [
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(rm:*)",
+      "Bash(chmod:*)",
+      "Bash(curl:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
+      "Bash(git checkout:*)",
+      "Bash(git stash:*)",
+      "Bash(git stash push:*)",
+      "Bash(git fetch:*)",
+      "Bash(git pull:*)",
+      "Bash(git log:*)",
       "Bash(git remote add:*)",
       "Bash(git remote set-url:*)",
-      "Bash(mkdir:*)"
+      "Bash(gh pr create:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh issue create:*)",
+      "Bash(gh issue edit:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh issue view:*)",
+      "mcp__sequential-thinking__sequentialthinking",
+      "Read(//home/adam/Code/**)"
     ],
     "deny": [],
     "ask": []
