@@ -25,6 +25,12 @@
       "description": "Artemis company growth and executive hiring news"
     },
     {
+      "name": "builtin",
+      "enabled": true,
+      "type": "job_alert",
+      "description": "Built In job alert emails"
+    },
+    {
       "name": "indeed",
       "enabled": false,
       "type": "job_alert",

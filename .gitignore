@@ -34,6 +34,7 @@ wheels/
 htmlcov/
 .tox/
 .nox/
+test-report.html
 
 # Environment variables
 .env

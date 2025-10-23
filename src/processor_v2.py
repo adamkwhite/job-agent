@@ -20,6 +20,7 @@ from job_filter import JobFilter
 from models import OpportunityData
 from notifier import JobNotifier
 from parsers.artemis_parser import ArtemisParser
+from parsers.builtin_parser import BuiltInParser
 from parsers.f6s_parser import F6SParser
 from parsers.linkedin_parser import LinkedInParser
 from parsers.parser_registry import ParserRegistry
@@ -48,6 +49,7 @@ class JobProcessorV2:
         self.parser_registry.register(F6SParser())
         self.parser_registry.register(SupraParser())
         self.parser_registry.register(ArtemisParser())
+        self.parser_registry.register(BuiltInParser())
 
         print(f"Registered parsers: {', '.join(self.parser_registry.get_enabled_parsers())}")
 
