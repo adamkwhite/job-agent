@@ -2,18 +2,18 @@
 VentureLab job board scraper
 Scrapes https://www.venturelab.ca/job-board
 """
-import requests
-from bs4 import BeautifulSoup
-from typing import List, Dict
-import time
+
 import sys
 from pathlib import Path
+
+import requests
+from bs4 import BeautifulSoup
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from models import OpportunityData
 from job_filter import JobFilter
+from models import OpportunityData
 
 
 class VentureLabScraper:
@@ -23,21 +23,21 @@ class VentureLabScraper:
         self.base_url = "https://www.venturelab.ca"
         self.job_board_url = f"{self.base_url}/job-board"
         self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        })
+        self.session.headers.update(
+            {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        )
         self.filter = JobFilter()
 
-    def scrape_jobs(self) -> List[OpportunityData]:
+    def scrape_jobs(self) -> list[OpportunityData]:
         """
         Scrape all jobs from VentureLab job board
 
         Returns:
             List of job opportunities
         """
-        print(f"\n{'='*70}")
-        print(f"Scraping VentureLab Job Board")
-        print(f"{'='*70}")
+        print(f"\n{'=' * 70}")
+        print("Scraping VentureLab Job Board")
+        print(f"{'=' * 70}")
 
         try:
             response = self.session.get(self.job_board_url, timeout=10)
@@ -55,7 +55,7 @@ class VentureLabScraper:
             print(f"Error scraping VentureLab: {e}")
             return []
 
-    def _parse_page(self, html: str) -> List[OpportunityData]:
+    def _parse_page(self, html: str) -> list[OpportunityData]:
         """
         Parse jobs from HTML page
 
@@ -64,25 +64,25 @@ class VentureLabScraper:
         - Company name
         - Description
         """
-        soup = BeautifulSoup(html, 'lxml')
+        soup = BeautifulSoup(html, "lxml")
         jobs = []
 
         # Find all job listings
         # Look for links that go to job detail pages (/job-board-items/)
-        job_links = soup.find_all('a', href=lambda x: x and '/job-board-items/' in x)
+        job_links = soup.find_all("a", href=lambda x: x and "/job-board-items/" in x)
 
         seen_links = set()
 
         for link in job_links:
-            href = link.get('href', '')
+            href = link.get("href", "")
 
             # Skip duplicates
             if href in seen_links:
                 continue
 
             # Make absolute URL
-            if not href.startswith('http'):
-                if href.startswith('/'):
+            if not href.startswith("http"):
+                if href.startswith("/"):
                     href = f"{self.base_url}{href}"
                 else:
                     href = f"{self.base_url}/{href}"
@@ -107,7 +107,7 @@ class VentureLabScraper:
                 location="",  # VentureLab doesn't show location in listings
                 link=href,
                 description=description,
-                needs_research=False
+                needs_research=False,
             )
 
             jobs.append(job)
@@ -119,14 +119,14 @@ class VentureLabScraper:
         # Try link text first
         title = link_element.get_text(strip=True)
 
-        if title and len(title) > 5 and title.lower() not in ['learn more', 'read more', 'apply']:
+        if title and len(title) > 5 and title.lower() not in ["learn more", "read more", "apply"]:
             return title
 
         # Try nearby heading tags
         parent = link_element.parent
         for _ in range(3):  # Search up to 3 levels
             if parent:
-                heading = parent.find(['h1', 'h2', 'h3', 'h4', 'h5', 'strong', 'b'])
+                heading = parent.find(["h1", "h2", "h3", "h4", "h5", "strong", "b"])
                 if heading:
                     title = heading.get_text(strip=True)
                     if title and len(title) > 5:
@@ -146,16 +146,26 @@ class VentureLabScraper:
             for _ in range(5):  # Search up to 5 levels
                 if parent:
                     # Look for text that might be company name
-                    text = parent.get_text(separator='|', strip=True)
-                    parts = text.split('|')
+                    text = parent.get_text(separator="|", strip=True)
+                    parts = text.split("|")
 
                     # Company name is often the second item after title
                     if len(parts) >= 2:
                         potential_company = parts[1].strip()
                         # Filter out common non-company text
-                        if potential_company and len(potential_company) > 2 and potential_company.lower() not in [
-                            'learn more', 'apply', 'full-time', 'part-time', 'remote', 'hybrid'
-                        ]:
+                        if (
+                            potential_company
+                            and len(potential_company) > 2
+                            and potential_company.lower()
+                            not in [
+                                "learn more",
+                                "apply",
+                                "full-time",
+                                "part-time",
+                                "remote",
+                                "hybrid",
+                            ]
+                        ):
                             return potential_company
 
                     parent = parent.parent
@@ -171,11 +181,11 @@ class VentureLabScraper:
             for _ in range(5):
                 if parent:
                     # Find paragraph tags
-                    description_elem = parent.find('p')
+                    description_elem = parent.find("p")
                     if description_elem:
                         desc = description_elem.get_text(strip=True)
                         # Filter out short text and common phrases
-                        if desc and len(desc) > 20 and 'learn more' not in desc.lower():
+                        if desc and len(desc) > 20 and "learn more" not in desc.lower():
                             return desc
 
                     parent = parent.parent
@@ -210,14 +220,14 @@ class VentureLabScraper:
     def _opportunity_to_dict(self, opp: OpportunityData) -> dict:
         """Convert OpportunityData to dict for filtering"""
         return {
-            'title': opp.title or '',
-            'company': opp.company or '',
-            'location': opp.location or '',
-            'link': opp.link or '',
-            'description': opp.description or '',
-            'salary': '',
-            'job_type': '',
-            'source': opp.source,
+            "title": opp.title or "",
+            "company": opp.company or "",
+            "location": opp.location or "",
+            "link": opp.link or "",
+            "description": opp.description or "",
+            "salary": "",
+            "job_type": "",
+            "source": opp.source,
         }
 
 
@@ -227,16 +237,16 @@ def main():
     included, excluded = scraper.scrape_and_filter()
 
     if included:
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"MATCHING JOBS ({len(included)})")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
 
         for job in included:
             print(f"\n→ {job['title']}")
             print(f"  Company: {job['company']}")
             print(f"  Keywords: {', '.join(job.get('keywords_matched', []))}")
             print(f"  Link: {job['link']}")
-            if job.get('description'):
+            if job.get("description"):
                 print(f"  Description: {job['description'][:100]}...")
 
 

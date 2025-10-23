@@ -2,13 +2,14 @@
 BuiltIn job board scraper
 Uses direct search URLs for specific roles
 """
-import requests
-from bs4 import BeautifulSoup
-from typing import List, Dict
+
 import time
 
-from models import OpportunityData
+import requests
+from bs4 import BeautifulSoup
+
 from job_filter import JobFilter
+from models import OpportunityData
 
 
 class BuiltInScraper:
@@ -18,20 +19,20 @@ class BuiltInScraper:
         self.city = city.lower()
         self.base_url = f"https://builtin{self.city}.com"
         self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        })
+        self.session.headers.update(
+            {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        )
         self.filter = JobFilter()
 
         # Direct search URLs for target roles
         self.search_urls = {
-            'product_manager': f"{self.base_url}/jobs/product/search/product-manager",
-            'engineering_manager': f"{self.base_url}/jobs/dev-engineering/search/engineering-manager",
-            'engineering_director': f"{self.base_url}/jobs/dev-engineering/search/engineering-director",
-            'vp_engineering': f"{self.base_url}/jobs/dev-engineering/search/vp-engineering",
+            "product_manager": f"{self.base_url}/jobs/product/search/product-manager",
+            "engineering_manager": f"{self.base_url}/jobs/dev-engineering/search/engineering-manager",
+            "engineering_director": f"{self.base_url}/jobs/dev-engineering/search/engineering-director",
+            "vp_engineering": f"{self.base_url}/jobs/dev-engineering/search/vp-engineering",
         }
 
-    def scrape_all_roles(self, max_pages: int = 5) -> List[OpportunityData]:
+    def scrape_all_roles(self, max_pages: int = 5) -> list[OpportunityData]:
         """
         Scrape all configured role types
 
@@ -61,7 +62,7 @@ class BuiltInScraper:
         print(f"\nTotal unique jobs: {len(unique_jobs)}")
         return list(unique_jobs.values())
 
-    def scrape_role(self, url: str, max_pages: int = 5) -> List[OpportunityData]:
+    def scrape_role(self, url: str, max_pages: int = 5) -> list[OpportunityData]:
         """
         Scrape a specific role search URL
 
@@ -101,14 +102,14 @@ class BuiltInScraper:
 
         return jobs
 
-    def _parse_page(self, html: str) -> List[OpportunityData]:
+    def _parse_page(self, html: str) -> list[OpportunityData]:
         """
         Parse jobs from HTML page
 
         Note: BuiltIn uses JavaScript to load jobs, so this may not work
         with simple requests. Returns instructions for manual export if needed.
         """
-        soup = BeautifulSoup(html, 'lxml')
+        soup = BeautifulSoup(html, "lxml")
         jobs = []
 
         # Try to find job cards
@@ -116,19 +117,19 @@ class BuiltInScraper:
         # For production, would need to use Playwright
 
         # Look for job links
-        job_links = soup.find_all('a', href=lambda x: x and '/job/' in x)
+        job_links = soup.find_all("a", href=lambda x: x and "/job/" in x)
 
         seen_links = set()
 
         for link in job_links:
-            href = link.get('href', '')
+            href = link.get("href", "")
 
             # Skip duplicates
             if href in seen_links:
                 continue
 
             # Make absolute URL
-            if not href.startswith('http'):
+            if not href.startswith("http"):
                 href = f"{self.base_url}{href}"
 
             seen_links.add(href)
@@ -152,7 +153,7 @@ class BuiltInScraper:
                 title=title,
                 location=location,
                 link=href,
-                needs_research=False
+                needs_research=False,
             )
 
             jobs.append(job)
@@ -166,7 +167,7 @@ class BuiltInScraper:
         for _ in range(5):  # Search up to 5 levels
             if parent:
                 # Look for company links
-                company_link = parent.find('a', href=lambda x: x and '/company/' in x)
+                company_link = parent.find("a", href=lambda x: x and "/company/" in x)
                 if company_link:
                     return company_link.get_text(strip=True)
                 parent = parent.parent
@@ -180,7 +181,8 @@ class BuiltInScraper:
             text = parent.get_text()
             # Look for "Toronto, ON" pattern
             import re
-            match = re.search(r'Toronto,\s*ON|Remote|Hybrid|In-Office', text)
+
+            match = re.search(r"Toronto,\s*ON|Remote|Hybrid|In-Office", text)
             if match:
                 return match.group(0)
 
@@ -193,9 +195,9 @@ class BuiltInScraper:
         Returns:
             Tuple of (included_jobs, excluded_jobs)
         """
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"Scraping BuiltIn {self.city.title()} Job Board")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
 
         all_jobs = self.scrape_all_roles(max_pages=max_pages)
 
@@ -222,14 +224,14 @@ class BuiltInScraper:
     def _opportunity_to_dict(self, opp: OpportunityData) -> dict:
         """Convert OpportunityData to dict for filtering"""
         return {
-            'title': opp.title or '',
-            'company': opp.company or '',
-            'location': opp.location or '',
-            'link': opp.link or '',
-            'description': '',
-            'salary': '',
-            'job_type': '',
-            'source': opp.source,
+            "title": opp.title or "",
+            "company": opp.company or "",
+            "location": opp.location or "",
+            "link": opp.link or "",
+            "description": "",
+            "salary": "",
+            "job_type": "",
+            "source": opp.source,
         }
 
 
@@ -237,9 +239,11 @@ def main():
     """CLI entry point"""
     import argparse
 
-    parser = argparse.ArgumentParser(description='Scrape BuiltIn job boards')
-    parser.add_argument('--city', default='toronto', help='City (toronto, montreal, vancouver, etc.)')
-    parser.add_argument('--pages', type=int, default=3, help='Max pages per role to scrape')
+    parser = argparse.ArgumentParser(description="Scrape BuiltIn job boards")
+    parser.add_argument(
+        "--city", default="toronto", help="City (toronto, montreal, vancouver, etc.)"
+    )
+    parser.add_argument("--pages", type=int, default=3, help="Max pages per role to scrape")
 
     args = parser.parse_args()
 
@@ -247,9 +251,9 @@ def main():
     included, excluded = scraper.scrape_and_filter(max_pages=args.pages)
 
     if included:
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"MATCHING JOBS ({len(included)})")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
 
         for job in included:
             print(f"\n→ {job['title']}")

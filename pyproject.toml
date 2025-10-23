@@ -1,0 +1,168 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "job-agent"
+version = "0.2.0"
+description = "Intelligent job discovery and scoring system for robotics/hardware executives"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+authors = [
+    {name = "Adam White", email = "adam@example.com"}
+]
+keywords = ["job-search", "automation", "ai", "robotics", "scoring"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business",
+]
+
+# Dependencies - mirror requirements.txt
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=6.0.0",
+    "pytest-html>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "pre-commit>=4.0.0",
+    "bandit[toml]>=1.8.0",
+    "safety>=3.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/adamkwhite/job-agent"
+Documentation = "https://github.com/adamkwhite/job-agent"
+Repository = "https://github.com/adamkwhite/job-agent"
+Issues = "https://github.com/adamkwhite/job-agent/issues"
+
+# === RUFF CONFIGURATION ===
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+# Enable pycodestyle (E), Pyflakes (F), isort (I), and other rules
+lint.select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+    "ARG", # flake8-unused-arguments
+]
+
+lint.ignore = [
+    "E501",  # line too long (handled by ruff format)
+    "B008",  # function calls in argument defaults
+    "B905",  # zip without explicit strict parameter
+]
+
+exclude = [
+    ".git",
+    "job-agent-venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "data",
+    "logs",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # Allow unused imports in __init__.py
+"src/parsers/*.py" = ["E722"]  # Allow bare except in email parsers (parsing external content)
+"src/scrapers/*.py" = ["E722"]  # Allow bare except in scrapers (parsing external content)
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+# === MYPY CONFIGURATION ===
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = false  # Too strict for this project
+warn_unused_configs = true
+disallow_untyped_defs = false  # Gradually add typing
+ignore_missing_imports = true
+show_error_codes = true
+exclude = [
+    "job-agent-venv/",
+    "build/",
+    "dist/",
+    "data/",
+    "logs/",
+]
+
+# Per-module options
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+# === PYTEST CONFIGURATION ===
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=src",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=html",
+    "--cov-report=xml",
+    "--html=test-report.html",
+    "--self-contained-html",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "scraper: marks tests that require network access",
+]
+
+# === COVERAGE CONFIGURATION ===
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/job-agent-venv/*",
+    "*/venv/*",
+    "src/view_database.py",  # Utility script
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+# Target 80% coverage for now
+fail_under = 0  # Set to 80 when tests are written
+
+# === BANDIT SECURITY CONFIGURATION ===
+[tool.bandit]
+exclude_dirs = [
+    "tests",
+    "job-agent-venv",
+    "venv",
+]
+skips = [
+    "B101",  # assert_used - we use asserts in tests
+    "B603",  # subprocess_without_shell_equals_true - needed for shell scripts
+]

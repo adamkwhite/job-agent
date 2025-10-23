@@ -1,12 +1,12 @@
 """
 Base parser class - all email parsers inherit from this
 """
+
+import re
 from abc import ABC, abstractmethod
 from email.message import Message
-from typing import List, Optional
-import re
 
-from models import OpportunityData, ParserResult
+from models import ParserResult
 
 
 class BaseEmailParser(ABC):
@@ -45,7 +45,7 @@ class BaseEmailParser(ABC):
 
     def extract_email_address(self, from_field: str) -> str:
         """Extract email address from From field"""
-        match = re.search(r'[\w\.-]+@[\w\.-]+', from_field)
+        match = re.search(r"[\w\.-]+@[\w\.-]+", from_field)
         return match.group(0) if match else from_field
 
     def extract_email_body(self, email_message: Message) -> tuple:
@@ -65,9 +65,9 @@ class BaseEmailParser(ABC):
                     payload = part.get_payload(decode=True)
                     if payload:
                         if content_type == "text/html":
-                            html_body = payload.decode('utf-8', errors='ignore')
+                            html_body = payload.decode("utf-8", errors="ignore")
                         elif content_type == "text/plain":
-                            text_body = payload.decode('utf-8', errors='ignore')
+                            text_body = payload.decode("utf-8", errors="ignore")
                 except:
                     continue
         else:
@@ -75,16 +75,25 @@ class BaseEmailParser(ABC):
             if payload:
                 content_type = email_message.get_content_type()
                 if content_type == "text/html":
-                    html_body = payload.decode('utf-8', errors='ignore')
+                    html_body = payload.decode("utf-8", errors="ignore")
                 elif content_type == "text/plain":
-                    text_body = payload.decode('utf-8', errors='ignore')
+                    text_body = payload.decode("utf-8", errors="ignore")
 
         return html_body, text_body
 
     def is_job_link(self, url: str) -> bool:
         """Check if URL looks like a job posting link"""
-        job_keywords = ['job', 'career', 'position', 'opening', 'apply', 'posting', 'vacancy', 'hiring']
-        exclude_keywords = ['unsubscribe', 'preferences', 'settings', 'privacy', 'terms']
+        job_keywords = [
+            "job",
+            "career",
+            "position",
+            "opening",
+            "apply",
+            "posting",
+            "vacancy",
+            "hiring",
+        ]
+        exclude_keywords = ["unsubscribe", "preferences", "settings", "privacy", "terms"]
 
         url_lower = url.lower()
 
@@ -98,5 +107,5 @@ class BaseEmailParser(ABC):
         if not text:
             return ""
         # Remove multiple spaces/newlines
-        text = re.sub(r'\s+', ' ', text)
+        text = re.sub(r"\s+", " ", text)
         return text.strip()

@@ -1,12 +1,12 @@
 """
 Database module for job storage and deduplication
 """
-import sqlite3
+
 import hashlib
 import json
+import sqlite3
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
 
 
 class JobDatabase:
@@ -64,13 +64,13 @@ class JobDatabase:
         cursor.execute("PRAGMA table_info(jobs)")
         columns = [col[1] for col in cursor.fetchall()]
 
-        if 'fit_score' not in columns:
+        if "fit_score" not in columns:
             cursor.execute("ALTER TABLE jobs ADD COLUMN fit_score INTEGER")
 
-        if 'fit_grade' not in columns:
+        if "fit_grade" not in columns:
             cursor.execute("ALTER TABLE jobs ADD COLUMN fit_grade TEXT")
 
-        if 'score_breakdown' not in columns:
+        if "score_breakdown" not in columns:
             cursor.execute("ALTER TABLE jobs ADD COLUMN score_breakdown TEXT")
 
         # Create index after column exists
@@ -98,7 +98,7 @@ class JobDatabase:
         conn.close()
         return count > 0
 
-    def add_job(self, job_data: Dict) -> Optional[int]:
+    def add_job(self, job_data: dict) -> int | None:
         """
         Add job to database if it doesn't already exist
 
@@ -108,11 +108,7 @@ class JobDatabase:
         Returns:
             Job ID if added, None if duplicate
         """
-        job_hash = self.generate_job_hash(
-            job_data['title'],
-            job_data['company'],
-            job_data['link']
-        )
+        job_hash = self.generate_job_hash(job_data["title"], job_data["company"], job_data["link"])
 
         if self.job_exists(job_hash):
             return None
@@ -122,31 +118,34 @@ class JobDatabase:
 
         now = datetime.now().isoformat()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO jobs (
                 job_hash, title, company, location, link, description,
                 salary, job_type, posted_date, source, source_email,
                 received_at, keywords_matched, raw_email_content,
                 created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            job_hash,
-            job_data.get('title', ''),
-            job_data.get('company', ''),
-            job_data.get('location', ''),
-            job_data.get('link', ''),
-            job_data.get('description', ''),
-            job_data.get('salary', ''),
-            job_data.get('job_type', ''),
-            job_data.get('posted_date', ''),
-            job_data.get('source', ''),
-            job_data.get('source_email', ''),
-            job_data.get('received_at', now),
-            json.dumps(job_data.get('keywords_matched', [])),
-            job_data.get('raw_email_content', ''),
-            now,
-            now
-        ))
+        """,
+            (
+                job_hash,
+                job_data.get("title", ""),
+                job_data.get("company", ""),
+                job_data.get("location", ""),
+                job_data.get("link", ""),
+                job_data.get("description", ""),
+                job_data.get("salary", ""),
+                job_data.get("job_type", ""),
+                job_data.get("posted_date", ""),
+                job_data.get("source", ""),
+                job_data.get("source_email", ""),
+                job_data.get("received_at", now),
+                json.dumps(job_data.get("keywords_matched", [])),
+                job_data.get("raw_email_content", ""),
+                now,
+                now,
+            ),
+        )
 
         job_id = cursor.lastrowid
         conn.commit()
@@ -161,11 +160,14 @@ class JobDatabase:
 
         now = datetime.now().isoformat()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             UPDATE jobs
             SET notified_at = ?, updated_at = ?
             WHERE id = ?
-        """, (now, now, job_id))
+        """,
+            (now, now, job_id),
+        )
 
         conn.commit()
         conn.close()
@@ -177,33 +179,39 @@ class JobDatabase:
 
         now = datetime.now().isoformat()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             UPDATE jobs
             SET fit_score = ?, fit_grade = ?, score_breakdown = ?, updated_at = ?
             WHERE id = ?
-        """, (score, grade, breakdown, now, job_id))
+        """,
+            (score, grade, breakdown, now, job_id),
+        )
 
         conn.commit()
         conn.close()
 
-    def get_recent_jobs(self, limit: int = 10) -> List[Dict]:
+    def get_recent_jobs(self, limit: int = 10) -> list[dict]:
         """Get most recent jobs"""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT * FROM jobs
             ORDER BY received_at DESC
             LIMIT ?
-        """, (limit,))
+        """,
+            (limit,),
+        )
 
         jobs = [dict(row) for row in cursor.fetchall()]
 
         conn.close()
         return jobs
 
-    def get_unnotified_jobs(self) -> List[Dict]:
+    def get_unnotified_jobs(self) -> list[dict]:
         """Get jobs that haven't been notified yet"""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
@@ -220,7 +228,7 @@ class JobDatabase:
         conn.close()
         return jobs
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Get database statistics"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -241,10 +249,10 @@ class JobDatabase:
         conn.close()
 
         return {
-            'total_jobs': total_jobs,
-            'notified_jobs': notified_jobs,
-            'unnotified_jobs': total_jobs - notified_jobs,
-            'jobs_by_source': jobs_by_source
+            "total_jobs": total_jobs,
+            "notified_jobs": notified_jobs,
+            "unnotified_jobs": total_jobs - notified_jobs,
+            "jobs_by_source": jobs_by_source,
         }
 
 

@@ -1,10 +1,11 @@
 """
 LinkedIn job alert email parser
 """
-from email.message import Message
-from bs4 import BeautifulSoup
+
 import re
-from typing import List
+from email.message import Message
+
+from bs4 import BeautifulSoup
 
 from models import OpportunityData, ParserResult
 from parsers.base_parser import BaseEmailParser
@@ -15,21 +16,23 @@ class LinkedInParser(BaseEmailParser):
 
     def __init__(self):
         super().__init__()
-        self.from_emails = ['jobs-noreply@linkedin.com', 'linkedin.com']
-        self.subject_keywords = ['job alert', 'jobs matching', 'new jobs', 'jobs similar']
+        self.from_emails = ["jobs-noreply@linkedin.com", "linkedin.com"]
+        self.subject_keywords = ["job alert", "jobs matching", "new jobs", "jobs similar"]
 
     def can_handle(self, email_message: Message) -> bool:
         """Check if this is a LinkedIn job alert email"""
-        from_email = self.extract_email_address(email_message.get('From', '')).lower()
-        subject = email_message.get('Subject', '').lower()
+        from_email = self.extract_email_address(email_message.get("From", "")).lower()
+        subject = email_message.get("Subject", "").lower()
 
         # Get email body to check for LinkedIn content (handles forwarded emails)
         html_body, text_body = self.extract_email_body(email_message)
-        body_text = (html_body + ' ' + text_body).lower()
+        body_text = (html_body + " " + text_body).lower()
 
         # Check if from LinkedIn or contains LinkedIn content
         is_from_linkedin = any(domain in from_email for domain in self.from_emails)
-        is_linkedin_content = 'jobs-noreply@linkedin.com' in body_text or 'linkedin.com/jobs' in body_text
+        is_linkedin_content = (
+            "jobs-noreply@linkedin.com" in body_text or "linkedin.com/jobs" in body_text
+        )
 
         # Check if subject matches job alert pattern
         is_job_alert = any(keyword in subject for keyword in self.subject_keywords)
@@ -39,7 +42,7 @@ class LinkedInParser(BaseEmailParser):
     def parse(self, email_message: Message) -> ParserResult:
         """Parse LinkedIn email and extract job opportunities"""
         try:
-            from_email = self.extract_email_address(email_message.get('From', ''))
+            from_email = self.extract_email_address(email_message.get("From", ""))
             html_body, text_body = self.extract_email_body(email_message)
 
             opportunities = []
@@ -49,30 +52,23 @@ class LinkedInParser(BaseEmailParser):
             elif text_body:
                 opportunities = self._parse_text(text_body, from_email)
 
-            return ParserResult(
-                parser_name=self.name,
-                success=True,
-                opportunities=opportunities
-            )
+            return ParserResult(parser_name=self.name, success=True, opportunities=opportunities)
 
         except Exception as e:
             return ParserResult(
-                parser_name=self.name,
-                success=False,
-                opportunities=[],
-                error=str(e)
+                parser_name=self.name, success=False, opportunities=[], error=str(e)
             )
 
-    def _parse_html(self, html: str, from_email: str) -> List[OpportunityData]:
+    def _parse_html(self, html: str, from_email: str) -> list[OpportunityData]:
         """Parse HTML content for job listings"""
-        soup = BeautifulSoup(html, 'lxml')
+        soup = BeautifulSoup(html, "lxml")
         opportunities = []
 
         # Find all links that look like job links
-        links = soup.find_all('a', href=True)
+        links = soup.find_all("a", href=True)
 
         for link in links:
-            href = link.get('href', '')
+            href = link.get("href", "")
 
             if not self.is_job_link(href):
                 continue
@@ -92,18 +88,18 @@ class LinkedInParser(BaseEmailParser):
                     title=title or "Job Opportunity",
                     location=location,
                     link=href,
-                    needs_research=False  # We already have the job link
+                    needs_research=False,  # We already have the job link
                 )
                 opportunities.append(opportunity)
 
         return opportunities
 
-    def _parse_text(self, text: str, from_email: str) -> List[OpportunityData]:
+    def _parse_text(self, text: str, from_email: str) -> list[OpportunityData]:
         """Parse plain text content (fallback)"""
         opportunities = []
 
         # Find URLs in text
-        urls = re.findall(r'https?://[^\s]+', text)
+        urls = re.findall(r"https?://[^\s]+", text)
 
         for url in urls:
             if self.is_job_link(url):
@@ -114,7 +110,7 @@ class LinkedInParser(BaseEmailParser):
                     company="Unknown",
                     title="Job Opportunity",
                     link=url,
-                    needs_research=False
+                    needs_research=False,
                 )
                 opportunities.append(opportunity)
 
@@ -138,8 +134,8 @@ class LinkedInParser(BaseEmailParser):
             return title
 
         # Try title attribute
-        if link_element.get('title'):
-            return link_element.get('title')
+        if link_element.get("title"):
+            return link_element.get("title")
 
         return title
 
@@ -161,11 +157,11 @@ class LinkedInParser(BaseEmailParser):
             text = parent.get_text()
 
             # Try patterns like "Company: X" or "at X"
-            company_match = re.search(r'(?:Company|Employer|at):\s*([^\n\|]+)', text, re.IGNORECASE)
+            company_match = re.search(r"(?:Company|Employer|at):\s*([^\n\|]+)", text, re.IGNORECASE)
             if company_match:
                 return self.clean_text(company_match.group(1))
 
-        return ''
+        return ""
 
     def _extract_location(self, link_element, soup: BeautifulSoup) -> str:
         """Extract location from link context"""
@@ -185,16 +181,16 @@ class LinkedInParser(BaseEmailParser):
             text = parent.get_text()
 
             # Try patterns like "Location: X" or "in X"
-            location_match = re.search(r'(?:Location|in):\s*([^\n\|]+)', text, re.IGNORECASE)
+            location_match = re.search(r"(?:Location|in):\s*([^\n\|]+)", text, re.IGNORECASE)
             if location_match:
                 return self.clean_text(location_match.group(1))
 
             # Look for city, state patterns
-            location_match = re.search(r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2})\b', text)
+            location_match = re.search(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2})\b", text)
             if location_match:
                 return location_match.group(1)
 
-        return ''
+        return ""
 
     def _get_job_info_text(self, link_element) -> str:
         """Get the full job info text from parent <tr> or nearby container"""
@@ -204,8 +200,8 @@ class LinkedInParser(BaseEmailParser):
         # Try parent <tr>
         parent = link_element.parent
         for _ in range(5):  # Search up to 5 levels
-            if parent and parent.name == 'tr':
-                text = parent.get_text(separator=' ', strip=True)
+            if parent and parent.name == "tr":
+                text = parent.get_text(separator=" ", strip=True)
                 # Filter out empty or very short text
                 if text and len(text) > 10:
                     return text
@@ -214,7 +210,7 @@ class LinkedInParser(BaseEmailParser):
             else:
                 break
 
-        return ''
+        return ""
 
     def _parse_job_info(self, job_info: str) -> tuple:
         """
@@ -229,9 +225,9 @@ class LinkedInParser(BaseEmailParser):
             tuple: (title, company, location)
         """
         # Split by middle dot (·) to separate location
-        parts = job_info.split('·')
+        parts = job_info.split("·")
 
-        location = ''
+        location = ""
         title_company_part = job_info
 
         if len(parts) >= 2:
@@ -243,8 +239,8 @@ class LinkedInParser(BaseEmailParser):
         # Company names are typically capitalized words that come after the job title
         # Common pattern: "{Title with hyphens/commas} {CompanyName}"
 
-        title = ''
-        company = ''
+        title = ""
+        company = ""
 
         # Look for common title endings followed by company name
         # Examples: "Manager, Device Software" "Engineer -" "Director of Product -"
@@ -258,17 +254,43 @@ class LinkedInParser(BaseEmailParser):
         for i in range(len(words) - 1, -1, -1):
             word = words[i]
             # Remove punctuation for checking
-            word_clean = re.sub(r'[^\w\s]', '', word)
+            word_clean = re.sub(r"[^\w\s]", "", word)
 
             # Check if word looks like a company name (capitalized, alphanumeric only, not a common title word)
-            if word_clean and word_clean[0].isupper() and word_clean.lower() not in [
-                'senior', 'junior', 'lead', 'principal', 'staff', 'manager', 'director',
-                'engineer', 'product', 'software', 'engineering', 'and', 'of', 'the', 'at', 'in',
-                'care', 'ai', 'ml', 'remote', 'hybrid', 'device', 'media', 'solutions'
-            ]:
+            if (
+                word_clean
+                and word_clean[0].isupper()
+                and word_clean.lower()
+                not in [
+                    "senior",
+                    "junior",
+                    "lead",
+                    "principal",
+                    "staff",
+                    "manager",
+                    "director",
+                    "engineer",
+                    "product",
+                    "software",
+                    "engineering",
+                    "and",
+                    "of",
+                    "the",
+                    "at",
+                    "in",
+                    "care",
+                    "ai",
+                    "ml",
+                    "remote",
+                    "hybrid",
+                    "device",
+                    "media",
+                    "solutions",
+                ]
+            ):
                 # Only consider it company name if it's alphanumeric (no slashes, dashes in middle)
                 # Words like "AI/ML" or "E-Learning" are likely title parts, not company
-                if '/' not in word and (i == len(words) - 1 or company_start_idx == -1):
+                if "/" not in word and (i == len(words) - 1 or company_start_idx == -1):
                     company_start_idx = i
             else:
                 # Stop when we hit lowercase or title words
@@ -276,8 +298,8 @@ class LinkedInParser(BaseEmailParser):
                     break
 
         if company_start_idx != -1 and company_start_idx < len(words):
-            company = ' '.join(words[company_start_idx:])
-            title = ' '.join(words[:company_start_idx]).strip()
+            company = " ".join(words[company_start_idx:])
+            title = " ".join(words[:company_start_idx]).strip()
 
         # If we couldn't parse, return the whole thing as title
         if not title:
