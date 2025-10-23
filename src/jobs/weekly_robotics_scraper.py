@@ -58,10 +58,7 @@ class WeeklyRoboticsJobChecker:
 
         # Step 1: Scrape jobs
         print("Step 1: Scraping robotics/deeptech job board...")
-        if leadership_only:
-            jobs = self.scraper.get_leadership_jobs_only()
-        else:
-            jobs = self.scraper.scrape()
+        jobs = self.scraper.get_leadership_jobs_only() if leadership_only else self.scraper.scrape()
 
         stats["jobs_scraped"] = len(jobs)
         print(f"  ✓ Scraped {len(jobs)} jobs\n")

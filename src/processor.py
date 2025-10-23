@@ -3,21 +3,18 @@ Main job processing pipeline: IMAP → Parse → Filter → Store → Notify
 """
 
 import email
-import imaplib
 import json
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-import os
-
-from dotenv import load_dotenv
-
 from database import JobDatabase
 from email_parser import JobEmailParser
+from imap_client import IMAPEmailClient
 from job_filter import JobFilter
 from notifier import JobNotifier
 
@@ -26,71 +23,15 @@ class JobProcessor:
     """Main orchestrator for job alert processing"""
 
     def __init__(self):
-        load_dotenv()
-
         self.parser = JobEmailParser()
         self.filter = JobFilter()
         self.database = JobDatabase()
         self.notifier = JobNotifier()
-
-        # IMAP credentials
-        self.imap_server = "imap.gmail.com"
-        self.imap_port = 993
-        self.username = os.getenv("GMAIL_USERNAME")
-        self.password = os.getenv("GMAIL_APP_PASSWORD")
-
-        if not self.username or not self.password:
-            raise ValueError(
-                "Gmail credentials not configured. Please set GMAIL_USERNAME and GMAIL_APP_PASSWORD in .env"
-            )
-
-    def connect_imap(self) -> imaplib.IMAP4_SSL:
-        """Connect to IMAP server"""
-        print(f"Connecting to {self.imap_server}...")
-        mail = imaplib.IMAP4_SSL(self.imap_server, self.imap_port)
-        mail.login(self.username, self.password)
-        return mail
+        self.imap_client = IMAPEmailClient()
 
     def fetch_unread_emails(self, limit: int = 50) -> list[email.message.Message]:
         """Fetch unread emails from inbox"""
-        mail = self.connect_imap()
-        mail.select("INBOX")
-
-        # Search for unread emails
-        status, messages = mail.search(None, "UNSEEN")
-
-        if status != "OK":
-            print("No unread emails found")
-            return []
-
-        email_ids = messages[0].split()
-        print(f"Found {len(email_ids)} unread emails")
-
-        # Limit number of emails to process
-        email_ids = email_ids[:limit]
-
-        emails = []
-        for email_id in email_ids:
-            try:
-                # Fetch email
-                status, msg_data = mail.fetch(email_id, "(RFC822)")
-
-                if status != "OK":
-                    continue
-
-                # Parse email
-                raw_email = msg_data[0][1]
-                email_message = email.message_from_bytes(raw_email)
-                emails.append(email_message)
-
-            except Exception as e:
-                print(f"Error fetching email {email_id}: {e}")
-                continue
-
-        mail.close()
-        mail.logout()
-
-        return emails
+        return self.imap_client.fetch_unread_emails(limit)
 
     def process_emails(self, emails: list[email.message.Message]) -> dict:
         """
@@ -99,7 +40,7 @@ class JobProcessor:
         Returns:
             Statistics dictionary
         """
-        stats = {
+        stats: dict[str, int | list[str]] = {
             "emails_processed": 0,
             "jobs_found": 0,
             "jobs_passed_filter": 0,
@@ -112,11 +53,13 @@ class JobProcessor:
             try:
                 # Parse email to extract jobs
                 jobs = self.parser.parse_email(email_message)
-                stats["jobs_found"] += len(jobs)
+                stats["jobs_found"] = cast(int, stats["jobs_found"]) + len(jobs)
 
                 # Filter jobs
                 included_jobs, excluded_jobs = self.filter.filter_jobs(jobs)
-                stats["jobs_passed_filter"] += len(included_jobs)
+                stats["jobs_passed_filter"] = cast(int, stats["jobs_passed_filter"]) + len(
+                    included_jobs
+                )
 
                 print(f"\n{'=' * 60}")
                 print(f"Email: {email_message.get('Subject', 'No Subject')}")
@@ -128,7 +71,7 @@ class JobProcessor:
                     job_id = self.database.add_job(job)
 
                     if job_id:
-                        stats["jobs_stored"] += 1
+                        stats["jobs_stored"] = cast(int, stats["jobs_stored"]) + 1
                         print(f"\n✓ New Job: {job['title']} at {job['company']}")
                         print(f"  Keywords: {', '.join(job.get('keywords_matched', []))}")
                         print(f"  Link: {job['link']}")
@@ -138,14 +81,18 @@ class JobProcessor:
                             notification_results = self.notifier.notify_job(job)
 
                             if notification_results.get("email") or notification_results.get("sms"):
-                                stats["notifications_sent"] += 1
+                                stats["notifications_sent"] = (
+                                    cast(int, stats["notifications_sent"]) + 1
+                                )
                                 self.database.mark_notified(job_id)
                                 print(
                                     f"  ✓ Notified: SMS={notification_results.get('sms')}, Email={notification_results.get('email')}"
                                 )
                         except Exception as e:
                             print(f"  ✗ Notification failed: {e}")
-                            stats["errors"].append(f"Notification failed for job {job_id}: {e}")
+                            errors_list = stats["errors"]
+                            assert isinstance(errors_list, list)
+                            errors_list.append(f"Notification failed for job {job_id}: {e}")
 
                     else:
                         print(f"\n- Duplicate: {job['title']} at {job['company']}")
@@ -157,11 +104,13 @@ class JobProcessor:
                         reason = job.get("filter_result", {}).get("reason", "Unknown")
                         print(f"  - {job.get('title', 'Unknown')}: {reason}")
 
-                stats["emails_processed"] += 1
+                stats["emails_processed"] = cast(int, stats["emails_processed"]) + 1
 
             except Exception as e:
                 print(f"Error processing email: {e}")
-                stats["errors"].append(str(e))
+                errors_list = stats["errors"]
+                assert isinstance(errors_list, list)
+                errors_list.append(str(e))
                 continue
 
         return stats

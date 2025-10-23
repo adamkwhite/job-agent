@@ -202,8 +202,8 @@ class F6SParser(BaseEmailParser):
             return False
 
         # Check stage
-        if allowed_stages and opportunity.funding_stage:
-            if opportunity.funding_stage.lower() not in [s.lower() for s in allowed_stages]:
-                return False
-
-        return True
+        return not (
+            allowed_stages
+            and opportunity.funding_stage
+            and opportunity.funding_stage.lower() not in [s.lower() for s in allowed_stages]
+        )

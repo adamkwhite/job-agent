@@ -63,7 +63,7 @@ class BaseEmailParser(ABC):
                 content_type = part.get_content_type()
                 try:
                     payload = part.get_payload(decode=True)
-                    if payload:
+                    if payload and isinstance(payload, bytes):
                         if content_type == "text/html":
                             html_body = payload.decode("utf-8", errors="ignore")
                         elif content_type == "text/plain":
@@ -72,7 +72,7 @@ class BaseEmailParser(ABC):
                     continue
         else:
             payload = email_message.get_payload(decode=True)
-            if payload:
+            if payload and isinstance(payload, bytes):
                 content_type = email_message.get_content_type()
                 if content_type == "text/html":
                     html_body = payload.decode("utf-8", errors="ignore")

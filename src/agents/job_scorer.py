@@ -194,7 +194,7 @@ class JobScorer:
 
         return 0
 
-    def _score_company_stage(self, company: str) -> int:
+    def _score_company_stage(self, _company: str) -> int:
         """Score based on company stage (0-15) - Limited info"""
         # Note: We don't have much company data, so this is basic
         # Could be enhanced with company research later

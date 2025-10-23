@@ -276,7 +276,7 @@ def generate_html():
         # Parse keywords
         try:
             keywords = json.loads(job["keywords_matched"])
-        except:
+        except (json.JSONDecodeError, TypeError):
             keywords = []
 
         # Format source badge
