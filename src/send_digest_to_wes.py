@@ -2,10 +2,11 @@
 Send job digest to Wesley van Ooyen
 Email the top-scoring jobs that match his profile
 """
-import sys
-from pathlib import Path
+
 import json
+import sys
 from datetime import datetime
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -17,8 +18,8 @@ def generate_email_html(jobs):
     """Generate HTML email with top jobs"""
 
     # Filter for B+ grade jobs (acceptable locations preferred)
-    high_scoring = [j for j in jobs if j.get('fit_score', 0) >= 80]
-    acceptable_scoring = [j for j in jobs if j.get('fit_score', 0) >= 70]
+    high_scoring = [j for j in jobs if j.get("fit_score", 0) >= 80]
+    acceptable_scoring = [j for j in jobs if j.get("fit_score", 0) >= 70]
 
     html = f"""
     <html>
@@ -133,43 +134,43 @@ def generate_email_html(jobs):
     if high_scoring:
         html += "<h2>⭐ Top Matches (80+ Score)</h2>"
         for job in high_scoring[:10]:
-            score = job.get('fit_score', 0)
-            grade = job.get('fit_grade', 'N/A')
-            breakdown = json.loads(job.get('score_breakdown', '{}'))
+            score = job.get("fit_score", 0)
+            grade = job.get("fit_grade", "N/A")
+            breakdown = json.loads(job.get("score_breakdown", "{}"))
 
             html += f"""
             <div class="job">
-                <div class="job-title">{job['title']}</div>
-                <div class="company">📍 {job['company']}</div>
+                <div class="job-title">{job["title"]}</div>
+                <div class="company">📍 {job["company"]}</div>
                 <div>
                     <span class="score grade-{grade}">{grade} {score}/115</span>
                 </div>
-                <div class="location">📌 {job.get('location') or 'Location not specified'}</div>
+                <div class="location">📌 {job.get("location") or "Location not specified"}</div>
                 <div class="breakdown">
-                    Seniority: {breakdown.get('seniority', 0)} |
-                    Domain: {breakdown.get('domain', 0)} |
-                    Role: {breakdown.get('role_type', 0)} |
-                    Location: {breakdown.get('location', 0)}
+                    Seniority: {breakdown.get("seniority", 0)} |
+                    Domain: {breakdown.get("domain", 0)} |
+                    Role: {breakdown.get("role_type", 0)} |
+                    Location: {breakdown.get("location", 0)}
                 </div>
-                <a href="{job['link']}" class="apply-btn">View Job →</a>
+                <a href="{job["link"]}" class="apply-btn">View Job →</a>
             </div>
             """
 
     if acceptable_scoring and len(acceptable_scoring) > len(high_scoring):
         html += "<h2>✅ Also Worth Considering (70-79 Score)</h2>"
-        for job in acceptable_scoring[len(high_scoring):len(high_scoring)+5]:
-            score = job.get('fit_score', 0)
-            grade = job.get('fit_grade', 'N/A')
+        for job in acceptable_scoring[len(high_scoring) : len(high_scoring) + 5]:
+            score = job.get("fit_score", 0)
+            grade = job.get("fit_grade", "N/A")
 
             html += f"""
             <div class="job">
-                <div class="job-title">{job['title']}</div>
-                <div class="company">📍 {job['company']}</div>
+                <div class="job-title">{job["title"]}</div>
+                <div class="company">📍 {job["company"]}</div>
                 <div>
                     <span class="score grade-{grade}">{grade} {score}/115</span>
                 </div>
-                <div class="location">📌 {job.get('location') or 'Location not specified'}</div>
-                <a href="{job['link']}" class="apply-btn">View Job →</a>
+                <div class="location">📌 {job.get("location") or "Location not specified"}</div>
+                <a href="{job["link"]}" class="apply-btn">View Job →</a>
             </div>
             """
 
@@ -187,7 +188,7 @@ def generate_email_html(jobs):
             <p><strong>📊 Full results:</strong> Open the attached HTML file to see all {len(jobs)} jobs with interactive location filters.</p>
 
             <p style="margin-top: 20px;">
-                Generated on {datetime.now().strftime('%Y-%m-%d at %H:%M')}<br>
+                Generated on {datetime.now().strftime("%Y-%m-%d at %H:%M")}<br>
                 🤖 Powered by Claude Code
             </p>
         </div>
@@ -206,12 +207,12 @@ def send_digest():
     # Get all jobs, sorted by score
     db = JobDatabase()
     jobs = db.get_recent_jobs(limit=100)
-    jobs = sorted(jobs, key=lambda x: x.get('fit_score') or 0, reverse=True)
+    jobs = sorted(jobs, key=lambda x: x.get("fit_score") or 0, reverse=True)
 
     print(f"✓ Found {len(jobs)} jobs in database")
 
-    high_scoring = [j for j in jobs if j.get('fit_score', 0) >= 80]
-    good_scoring = [j for j in jobs if j.get('fit_score', 0) >= 70]
+    high_scoring = [j for j in jobs if j.get("fit_score", 0) >= 80]
+    good_scoring = [j for j in jobs if j.get("fit_score", 0) >= 70]
 
     print(f"  - {len(high_scoring)} excellent matches (80+)")
     print(f"  - {len(good_scoring)} good matches (70+)")
@@ -229,20 +230,23 @@ def send_digest():
 
     try:
         # Use the notifier's email functionality
-        from dotenv import load_dotenv
         import os
         import smtplib
-        from email.mime.text import MIMEText
-        from email.mime.multipart import MIMEMultipart
-        from email.mime.base import MIMEBase
         from email import encoders
+        from email.mime.base import MIMEBase
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+
+        from dotenv import load_dotenv
 
         load_dotenv()
 
-        msg = MIMEMultipart('mixed')
-        msg['Subject'] = f"🎯 {len(high_scoring)} Top Job Matches for You - {datetime.now().strftime('%Y-%m-%d')}"
-        msg['From'] = os.getenv('GMAIL_USERNAME')
-        msg['To'] = wes_email
+        msg = MIMEMultipart("mixed")
+        msg["Subject"] = (
+            f"🎯 {len(high_scoring)} Top Job Matches for You - {datetime.now().strftime('%Y-%m-%d')}"
+        )
+        msg["From"] = os.getenv("GMAIL_USERNAME")
+        msg["To"] = wes_email
 
         # Plain text version
         text_body = f"""
@@ -258,25 +262,28 @@ Top matches are scored based on:
 
 Open the HTML email to see full details and apply links, or open the attached file for the interactive view.
 
-Generated on {datetime.now().strftime('%Y-%m-%d at %H:%M')}
+Generated on {datetime.now().strftime("%Y-%m-%d at %H:%M")}
 """
 
         # Create alternative part for text/html
-        msg_alternative = MIMEMultipart('alternative')
-        part1 = MIMEText(text_body, 'plain')
-        part2 = MIMEText(html_body, 'html')
+        msg_alternative = MIMEMultipart("alternative")
+        part1 = MIMEText(text_body, "plain")
+        part2 = MIMEText(html_body, "html")
         msg_alternative.attach(part1)
         msg_alternative.attach(part2)
         msg.attach(msg_alternative)
 
         # Attach the jobs.html file
-        html_file_path = Path(__file__).parent.parent / 'jobs.html'
+        html_file_path = Path(__file__).parent.parent / "jobs.html"
         if html_file_path.exists():
-            with open(html_file_path, 'rb') as f:
-                attachment = MIMEBase('text', 'html')
+            with open(html_file_path, "rb") as f:
+                attachment = MIMEBase("text", "html")
                 attachment.set_payload(f.read())
                 encoders.encode_base64(attachment)
-                attachment.add_header('Content-Disposition', f'attachment; filename="job_opportunities_{datetime.now().strftime("%Y-%m-%d")}.html"')
+                attachment.add_header(
+                    "Content-Disposition",
+                    f'attachment; filename="job_opportunities_{datetime.now().strftime("%Y-%m-%d")}.html"',
+                )
                 msg.attach(attachment)
             print(f"  ✓ Attached jobs.html ({html_file_path.stat().st_size / 1024:.1f} KB)")
         else:
@@ -288,7 +295,7 @@ Generated on {datetime.now().strftime('%Y-%m-%d at %H:%M')}
 
         server = smtplib.SMTP(smtp_server, smtp_port)
         server.starttls()
-        server.login(os.getenv('GMAIL_USERNAME'), os.getenv('GMAIL_APP_PASSWORD'))
+        server.login(os.getenv("GMAIL_USERNAME"), os.getenv("GMAIL_APP_PASSWORD"))
         server.send_message(msg)
         server.quit()
 
@@ -301,6 +308,7 @@ Generated on {datetime.now().strftime('%Y-%m-%d at %H:%M')}
     except Exception as e:
         print(f"✗ Error sending email: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 

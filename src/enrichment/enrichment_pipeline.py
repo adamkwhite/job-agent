@@ -2,14 +2,13 @@
 Enrichment pipeline orchestrator
 Coordinates career page discovery and job scraping
 """
-from typing import List
-import json
-from pathlib import Path
 
-from models import OpportunityData, EnrichmentResult
+import json
+
 from enrichment.career_page_finder import CareerPageFinder, ManualCareerPageCollector
 from enrichment.career_page_scraper import CareerPageScraper
 from job_filter import JobFilter
+from models import EnrichmentResult, OpportunityData
 
 
 class EnrichmentPipeline:
@@ -22,7 +21,7 @@ class EnrichmentPipeline:
         self.job_filter = JobFilter()
 
         # Load config
-        with open(config_path, 'r') as f:
+        with open(config_path) as f:
             self.config = json.load(f)
 
     def enrich_opportunity(self, opportunity: OpportunityData) -> EnrichmentResult:
@@ -36,28 +35,27 @@ class EnrichmentPipeline:
             EnrichmentResult with found jobs
         """
         if not opportunity.needs_research:
-            return EnrichmentResult(
-                success=False,
-                error="Opportunity doesn't need research"
-            )
+            return EnrichmentResult(success=False, error="Opportunity doesn't need research")
 
         # Check if opportunity meets funding criteria
         from parsers.f6s_parser import F6SParser
+
         parser = F6SParser()
 
         if not parser.should_process_company(opportunity, self.config):
             print(f"\nSkipping {opportunity.company}: Doesn't meet funding criteria")
-            print(f"  Stage: {opportunity.funding_stage}, Amount: ${opportunity.funding_amount_usd:,.0f}" if opportunity.funding_amount_usd else "  Stage: Unknown")
-            return EnrichmentResult(
-                success=False,
-                error="Doesn't meet funding criteria"
+            print(
+                f"  Stage: {opportunity.funding_stage}, Amount: ${opportunity.funding_amount_usd:,.0f}"
+                if opportunity.funding_amount_usd
+                else "  Stage: Unknown"
             )
+            return EnrichmentResult(success=False, error="Doesn't meet funding criteria")
 
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"Enriching: {opportunity.company}")
         print(f"  Funding: {opportunity.funding_stage} - {opportunity.funding_amount}")
         print(f"  Industries: {', '.join(opportunity.industry_tags or [])}")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
 
         # Step 1: Find career page URL
         career_url = self.finder.find_career_page(opportunity)
@@ -67,12 +65,14 @@ class EnrichmentPipeline:
             self.manual_collector.add_for_manual_review(opportunity)
 
             opportunity.research_attempted = True
-            opportunity.research_notes = "Could not find career page automatically - added to manual review"
+            opportunity.research_notes = (
+                "Could not find career page automatically - added to manual review"
+            )
 
             return EnrichmentResult(
                 success=False,
                 method_used="manual_required",
-                error="Career page not found - needs manual entry"
+                error="Career page not found - needs manual entry",
             )
 
         # Update opportunity with career page URL
@@ -88,7 +88,7 @@ class EnrichmentPipeline:
                 success=False,
                 career_page_url=career_url,
                 method_used="pattern" if "/careers" in career_url else "unknown",
-                error="No jobs found on career page"
+                error="No jobs found on career page",
             )
 
         # Step 3: Filter jobs for PM roles
@@ -101,7 +101,7 @@ class EnrichmentPipeline:
         pm_jobs = []
         for i, job_dict in enumerate(pm_jobs_dicts):
             job = jobs[i] if i < len(jobs) else jobs[0]
-            job.keywords_matched = job_dict.get('keywords_matched', [])
+            job.keywords_matched = job_dict.get("keywords_matched", [])
             job.filter_passed = True
             pm_jobs.append(job)
 
@@ -115,27 +115,26 @@ class EnrichmentPipeline:
             print(f"\n  → {job.title}")
             print(f"    Keywords: {', '.join(job.keywords_matched or [])}")
 
-        opportunity.research_notes = f"Found {len(pm_jobs)} PM jobs out of {len(jobs)} total on {career_url}"
+        opportunity.research_notes = (
+            f"Found {len(pm_jobs)} PM jobs out of {len(jobs)} total on {career_url}"
+        )
 
         return EnrichmentResult(
-            success=True,
-            career_page_url=career_url,
-            jobs_found=pm_jobs,
-            method_used="pattern"
+            success=True, career_page_url=career_url, jobs_found=pm_jobs, method_used="pattern"
         )
 
     def _opportunity_to_dict(self, opp: OpportunityData) -> dict:
         """Convert OpportunityData to dict for filtering"""
         return {
-            'title': opp.title or 'Job Opportunity',
-            'company': opp.company,
-            'location': opp.location or opp.company_location or '',
-            'description': opp.description or '',
-            'salary': opp.salary or '',
-            'job_type': opp.job_type or '',
+            "title": opp.title or "Job Opportunity",
+            "company": opp.company,
+            "location": opp.location or opp.company_location or "",
+            "description": opp.description or "",
+            "salary": opp.salary or "",
+            "job_type": opp.job_type or "",
         }
 
-    def enrich_opportunities(self, opportunities: List[OpportunityData]) -> List[OpportunityData]:
+    def enrich_opportunities(self, opportunities: list[OpportunityData]) -> list[OpportunityData]:
         """
         Enrich multiple opportunities
 

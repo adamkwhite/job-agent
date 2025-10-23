@@ -1,9 +1,10 @@
 """
 Generate HTML page with jobs table
 """
+
+import json
 import sys
 from pathlib import Path
-import json
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -16,9 +17,10 @@ def generate_html():
     jobs = db.get_recent_jobs(limit=100)
 
     # Sort by fit_score descending (None scores go to bottom)
-    jobs = sorted(jobs, key=lambda x: x.get('fit_score') or 0, reverse=True)
+    jobs = sorted(jobs, key=lambda x: x.get("fit_score") or 0, reverse=True)
 
-    html = """<!DOCTYPE html>
+    html = (
+        """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -227,11 +229,23 @@ def generate_html():
     <div class="container">
         <h1>🎯 Job Opportunities - PM & Engineering Leadership</h1>
         <div class="stats">
-            <span><strong>Showing:</strong> <span id="job-count">""" + str(len(jobs)) + """</span> of """ + str(len(jobs)) + """ jobs</span>
-            <span><strong>LinkedIn:</strong> """ + str(sum(1 for j in jobs if j['source'] == 'linkedin')) + """</span>
-            <span><strong>Supra:</strong> """ + str(sum(1 for j in jobs if j['source'] == 'supra_newsletter')) + """</span>
-            <span><strong>Robotics:</strong> """ + str(sum(1 for j in jobs if j['source'] == 'robotics_deeptech_sheet')) + """</span>
-            <span><strong>Date:</strong> """ + (jobs[0]['received_at'][:10] if jobs else 'N/A') + """</span>
+            <span><strong>Showing:</strong> <span id="job-count">"""
+        + str(len(jobs))
+        + """</span> of """
+        + str(len(jobs))
+        + """ jobs</span>
+            <span><strong>LinkedIn:</strong> """
+        + str(sum(1 for j in jobs if j["source"] == "linkedin"))
+        + """</span>
+            <span><strong>Supra:</strong> """
+        + str(sum(1 for j in jobs if j["source"] == "supra_newsletter"))
+        + """</span>
+            <span><strong>Robotics:</strong> """
+        + str(sum(1 for j in jobs if j["source"] == "robotics_deeptech_sheet"))
+        + """</span>
+            <span><strong>Date:</strong> """
+        + (jobs[0]["received_at"][:10] if jobs else "N/A")
+        + """</span>
         </div>
 
         <div class="filters">
@@ -256,29 +270,30 @@ def generate_html():
             </thead>
             <tbody>
 """
+    )
 
     for job in jobs:
         # Parse keywords
         try:
-            keywords = json.loads(job['keywords_matched'])
+            keywords = json.loads(job["keywords_matched"])
         except:
             keywords = []
 
         # Format source badge
-        source_class = 'source-' + job['source'].replace('_newsletter', '').replace('_', '-')
-        source_label = job['source'].replace('_', ' ').title().replace('Newsletter', '')
+        source_class = "source-" + job["source"].replace("_newsletter", "").replace("_", "-")
+        source_label = job["source"].replace("_", " ").title().replace("Newsletter", "")
 
         # Format location
-        location = job['location'] or 'Not specified'
+        location = job["location"] or "Not specified"
         if len(location) > 30:
-            location = location[:27] + '...'
+            location = location[:27] + "..."
 
         # Format keywords
-        keywords_html = ''.join([f'<span class="keyword-tag">{k}</span>' for k in keywords[:4]])
+        keywords_html = "".join([f'<span class="keyword-tag">{k}</span>' for k in keywords[:4]])
 
         # Format fit score
-        fit_score = job.get('fit_score')
-        fit_grade = job.get('fit_grade') or 'N/A'
+        fit_score = job.get("fit_score")
+        fit_grade = job.get("fit_grade") or "N/A"
         if fit_score:
             score_display = f"{fit_grade}<br><small>{fit_score}/115</small>"
             grade_class = f"grade-{fit_grade}"
@@ -290,9 +305,9 @@ def generate_html():
                 <tr>
                     <td class="score-cell {grade_class}">{score_display}</td>
                     <td class="title-cell">
-                        <a href="{job['link']}" target="_blank">{job['title']}</a>
+                        <a href="{job["link"]}" target="_blank">{job["title"]}</a>
                     </td>
-                    <td class="company-cell">{job['company']}</td>
+                    <td class="company-cell">{job["company"]}</td>
                     <td class="location-cell">{location}</td>
                     <td class="keywords">{keywords_html}</td>
                     <td>
@@ -310,8 +325,8 @@ def generate_html():
 """
 
     # Write to file
-    output_file = Path('jobs.html')
-    with open(output_file, 'w', encoding='utf-8') as f:
+    output_file = Path("jobs.html")
+    with open(output_file, "w", encoding="utf-8") as f:
         f.write(html)
 
     print(f"✓ HTML page generated: {output_file.absolute()}")

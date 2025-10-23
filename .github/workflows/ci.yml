@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # Allow manual triggers
+
+jobs:
+  lint:
+    name: Lint with Ruff
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install ruff
+        run: pip install ruff>=0.8.0
+
+      - name: Run ruff check
+        run: ruff check .
+
+      - name: Check ruff formatting
+        run: ruff format --check .
+
+  typecheck:
+    name: Type Check with mypy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install mypy>=1.13.0
+          pip install types-requests types-beautifulsoup4
+          # Install project dependencies for type checking
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+
+      - name: Run mypy
+        run: mypy src/ --config-file=pyproject.toml
+
+  test:
+    name: Test with pytest
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.12']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest>=8.0.0 pytest-cov>=6.0.0 pytest-html>=4.1.0 pytest-mock>=3.12.0
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+
+      - name: Run tests with coverage
+        run: |
+          # Check if tests exist
+          if find tests/ -name "test_*.py" -type f | grep -q .; then
+            pytest tests/ \
+              --cov=src \
+              --cov-report=term-missing:skip-covered \
+              --cov-report=xml \
+              --cov-report=html \
+              --html=test-report.html \
+              --self-contained-html \
+              -v
+          else
+            echo "⚠️  No test files found - tests need to be written"
+            echo "Skipping test execution"
+          fi
+
+      - name: Upload coverage to artifacts
+        if: hashFiles('htmlcov/**') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: htmlcov/
+          retention-days: 30
+
+      - name: Upload test report to artifacts
+        if: hashFiles('test-report.html') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: test-report.html
+          retention-days: 30
+
+      - name: Coverage summary
+        if: hashFiles('.coverage') != ''
+        run: |
+          echo "## Test Coverage Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          coverage report >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload coverage to Codecov
+        if: hashFiles('coverage.xml') != ''
+        uses: codecov/codecov-action@v5
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
