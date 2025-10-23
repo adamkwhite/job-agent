@@ -58,7 +58,7 @@ class SupraParser(BaseEmailParser):
             )
 
         soup = BeautifulSoup(html_body, "lxml")
-        opportunities = []
+        opportunities: list[OpportunityData] = []
 
         # Supra emails have jobs in <li> tags with structure:
         # <li><p><strong>Company</strong> is hiring a Title - <a>actual-url-in-text</a></p></li>
@@ -207,7 +207,7 @@ class SupraParser(BaseEmailParser):
             # Direct URL
             return href
 
-    def _extract_company(self, url: str, link_element, text: str) -> str:
+    def _extract_company(self, url: str, link_element, _text: str) -> str:
         """
         Extract company name from URL or context
 

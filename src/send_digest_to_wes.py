@@ -221,7 +221,7 @@ def send_digest():
     html_body = generate_email_html(jobs)
 
     # Send via notifier
-    notifier = JobNotifier()
+    JobNotifier()
 
     # Send to Wesley's email
     wes_email = "wesvanooyen@gmail.com"

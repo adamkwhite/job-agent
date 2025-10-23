@@ -49,7 +49,7 @@ def view_database():
             keywords = json.loads(job["keywords_matched"])
             if keywords:
                 print(f"   Keywords: {', '.join(keywords)}")
-        except:
+        except (json.JSONDecodeError, TypeError):
             pass
 
         print(f"   Link: {job['link']}")

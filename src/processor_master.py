@@ -48,7 +48,12 @@ class MasterJobProcessor:
         print(f"Robotics scraping: {scrape_robotics}")
         print("=" * 80 + "\n")
 
-        all_stats = {"email": {}, "robotics": {}, "total_jobs_stored": 0, "total_notifications": 0}
+        all_stats: dict[str, dict[str, int] | int] = {
+            "email": {},
+            "robotics": {},
+            "total_jobs_stored": 0,
+            "total_notifications": 0,
+        }
 
         # Step 1: Process emails (LinkedIn, Supra, F6S, Artemis)
         if fetch_emails:
@@ -56,11 +61,19 @@ class MasterJobProcessor:
             print("PART 1: EMAIL-BASED SOURCES")
             print("=" * 80 + "\n")
 
-            email_stats = self.email_processor.run(fetch_emails=fetch_emails, limit=email_limit)
+            email_stats: dict[str, int] = self.email_processor.run(
+                fetch_emails=fetch_emails, limit=email_limit
+            )
 
             all_stats["email"] = email_stats
-            all_stats["total_jobs_stored"] += email_stats.get("jobs_stored", 0)
-            all_stats["total_notifications"] += email_stats.get("notifications_sent", 0)
+            total_stored = all_stats["total_jobs_stored"]
+            assert isinstance(total_stored, int)
+            all_stats["total_jobs_stored"] = total_stored + email_stats.get("jobs_stored", 0)
+            total_notified = all_stats["total_notifications"]
+            assert isinstance(total_notified, int)
+            all_stats["total_notifications"] = total_notified + email_stats.get(
+                "notifications_sent", 0
+            )
 
         # Step 2: Scrape robotics sheet
         if scrape_robotics:
@@ -68,13 +81,19 @@ class MasterJobProcessor:
             print("PART 2: ROBOTICS/DEEPTECH WEB SCRAPING")
             print("=" * 80 + "\n")
 
-            robotics_stats = self.robotics_checker.run(
+            robotics_stats: dict[str, int] = self.robotics_checker.run(
                 min_score=robotics_min_score, leadership_only=True
             )
 
             all_stats["robotics"] = robotics_stats
-            all_stats["total_jobs_stored"] += robotics_stats.get("jobs_stored", 0)
-            all_stats["total_notifications"] += robotics_stats.get("notifications_sent", 0)
+            total_stored = all_stats["total_jobs_stored"]
+            assert isinstance(total_stored, int)
+            all_stats["total_jobs_stored"] = total_stored + robotics_stats.get("jobs_stored", 0)
+            total_notified = all_stats["total_notifications"]
+            assert isinstance(total_notified, int)
+            all_stats["total_notifications"] = total_notified + robotics_stats.get(
+                "notifications_sent", 0
+            )
 
         # Final summary
         print("\n" + "=" * 80)
@@ -82,18 +101,22 @@ class MasterJobProcessor:
         print("=" * 80)
 
         if fetch_emails:
+            email_stats_dict = all_stats["email"]
+            assert isinstance(email_stats_dict, dict)
             print("\n📧 Email Sources:")
-            print(f"  Emails processed: {all_stats['email'].get('emails_processed', 0)}")
-            print(f"  Jobs stored: {all_stats['email'].get('jobs_stored', 0)}")
-            print(f"  Jobs scored: {all_stats['email'].get('jobs_scored', 0)}")
-            print(f"  Notifications: {all_stats['email'].get('notifications_sent', 0)}")
+            print(f"  Emails processed: {email_stats_dict.get('emails_processed', 0)}")
+            print(f"  Jobs stored: {email_stats_dict.get('jobs_stored', 0)}")
+            print(f"  Jobs scored: {email_stats_dict.get('jobs_scored', 0)}")
+            print(f"  Notifications: {email_stats_dict.get('notifications_sent', 0)}")
 
         if scrape_robotics:
+            robotics_stats_dict = all_stats["robotics"]
+            assert isinstance(robotics_stats_dict, dict)
             print("\n🤖 Robotics Sheet:")
-            print(f"  Jobs scraped: {all_stats['robotics'].get('jobs_scraped', 0)}")
-            print(f"  High-scoring (B+): {all_stats['robotics'].get('jobs_above_threshold', 0)}")
-            print(f"  Jobs stored: {all_stats['robotics'].get('jobs_stored', 0)}")
-            print(f"  Notifications: {all_stats['robotics'].get('notifications_sent', 0)}")
+            print(f"  Jobs scraped: {robotics_stats_dict.get('jobs_scraped', 0)}")
+            print(f"  High-scoring (B+): {robotics_stats_dict.get('jobs_above_threshold', 0)}")
+            print(f"  Jobs stored: {robotics_stats_dict.get('jobs_stored', 0)}")
+            print(f"  Notifications: {robotics_stats_dict.get('notifications_sent', 0)}")
 
         print("\n📊 TOTALS:")
         print(f"  Jobs stored: {all_stats['total_jobs_stored']}")

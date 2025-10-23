@@ -136,7 +136,7 @@ class CareerPageScraper:
         # Include if href or text contains job keywords
         return any(keyword in href_lower or keyword in text_lower for keyword in job_keywords)
 
-    def _extract_job_title(self, link_element, soup: BeautifulSoup) -> str:
+    def _extract_job_title(self, link_element, _soup: BeautifulSoup) -> str:
         """Extract job title from link element"""
         # Try link text first
         text = link_element.get_text(strip=True)
@@ -164,7 +164,7 @@ class CareerPageScraper:
 
         return text
 
-    def _extract_job_location(self, link_element, soup: BeautifulSoup) -> str:
+    def _extract_job_location(self, link_element, _soup: BeautifulSoup) -> str:
         """Extract job location if available"""
         parent = link_element.parent
 

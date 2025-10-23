@@ -62,12 +62,13 @@ Thumbs.db
 # Generated files
 jobs.html
 
-# Temporary files
+# Temporary files (but not test files in tests/ directory)
 temp_*
 debug_*
 demo_*
 scratch_*
-test_*
+/test_*
+src/test_*
 
 # Documentation PDFs (keep local but not in repo)
 docs/**/*.pdf
