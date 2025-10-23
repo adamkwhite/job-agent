@@ -2,13 +2,14 @@
 Artemis Update parser
 Parses company growth and executive hiring announcements
 """
-from email.message import Message
-from typing import List, Optional
-from bs4 import BeautifulSoup
-import re
 
-from parsers.base_parser import BaseEmailParser
+import re
+from email.message import Message
+
+from bs4 import BeautifulSoup
+
 from models import OpportunityData, ParserResult
+from parsers.base_parser import BaseEmailParser
 
 
 class ArtemisParser(BaseEmailParser):
@@ -16,8 +17,8 @@ class ArtemisParser(BaseEmailParser):
 
     def __init__(self):
         super().__init__()
-        self.from_patterns = ['artemis', 'artemis.xyz', 'newsletter']
-        self.subject_keywords = ['artemis update', 'artemis', 'company growth', 'executive hire']
+        self.from_patterns = ["artemis", "artemis.xyz", "newsletter"]
+        self.subject_keywords = ["artemis update", "artemis", "company growth", "executive hire"]
 
     def can_handle(self, email_message: Message) -> bool:
         """
@@ -28,18 +29,20 @@ class ArtemisParser(BaseEmailParser):
         - Subject contains artemis/update keywords
         - Body contains Artemis branding
         """
-        from_addr = self.extract_email_address(email_message.get('From', ''))
-        subject = email_message.get('Subject', '').lower()
+        from_addr = self.extract_email_address(email_message.get("From", ""))
+        subject = email_message.get("Subject", "").lower()
 
         is_from_artemis = any(pattern in from_addr.lower() for pattern in self.from_patterns)
         is_artemis_subject = any(keyword in subject for keyword in self.subject_keywords)
 
         # Also check body for Artemis branding (handles forwarded emails)
         html_body, text_body = self.extract_email_body(email_message)
-        body_text = (html_body + ' ' + text_body).lower()
-        is_artemis_content = 'artemis' in body_text and ('update' in body_text or 'growth' in body_text)
+        body_text = (html_body + " " + text_body).lower()
+        is_artemis_content = "artemis" in body_text and (
+            "update" in body_text or "growth" in body_text
+        )
 
-        return (is_from_artemis or is_artemis_subject or is_artemis_content)
+        return is_from_artemis or is_artemis_subject or is_artemis_content
 
     def parse(self, email_message: Message) -> ParserResult:
         """
@@ -56,15 +59,11 @@ class ArtemisParser(BaseEmailParser):
         html_body, text_body = self.extract_email_body(email_message)
 
         if not html_body and not text_body:
-            return ParserResult(
-                parser_name=self.name,
-                success=False,
-                error="No email body found"
-            )
+            return ParserResult(parser_name=self.name, success=False, error="No email body found")
 
         # Use HTML if available, otherwise text
         content = html_body if html_body else text_body
-        soup = BeautifulSoup(content, 'lxml') if html_body else None
+        soup = BeautifulSoup(content, "lxml") if html_body else None
 
         opportunities = []
         seen_companies = set()
@@ -72,10 +71,10 @@ class ArtemisParser(BaseEmailParser):
         # Strategy 1: Parse executive hire announcements
         # Pattern: "Person joins Company as Title" or "Company hires Person as Title"
         hire_patterns = [
-            r'joins\s+([A-Z][A-Za-z\s&]+?)\s+as\s+(VP|Vice President|Director|Chief|Head|SVP|EVP|President)',
-            r'([A-Z][A-Za-z\s&]+?)\s+hires\s+[A-Za-z\s]+\s+as\s+(VP|Vice President|Director|Chief|Head)',
-            r'([A-Z][A-Za-z\s&]+?)\s+appoints\s+[A-Za-z\s]+\s+as\s+(VP|Vice President|Director|Chief|Head)',
-            r'([A-Z][A-Za-z\s&]+?)\s+adds\s+[A-Za-z\s]+\s+as\s+(VP|Vice President|Director|Chief|Head)',
+            r"joins\s+([A-Z][A-Za-z\s&]+?)\s+as\s+(VP|Vice President|Director|Chief|Head|SVP|EVP|President)",
+            r"([A-Z][A-Za-z\s&]+?)\s+hires\s+[A-Za-z\s]+\s+as\s+(VP|Vice President|Director|Chief|Head)",
+            r"([A-Z][A-Za-z\s&]+?)\s+appoints\s+[A-Za-z\s]+\s+as\s+(VP|Vice President|Director|Chief|Head)",
+            r"([A-Z][A-Za-z\s&]+?)\s+adds\s+[A-Za-z\s]+\s+as\s+(VP|Vice President|Director|Chief|Head)",
         ]
 
         text_content = soup.get_text() if soup else text_body
@@ -103,15 +102,15 @@ class ArtemisParser(BaseEmailParser):
 
                 opportunity = OpportunityData(
                     source="artemis_update",
-                    source_email=self.extract_email_address(email_message.get('From', '')),
+                    source_email=self.extract_email_address(email_message.get("From", "")),
                     type="funding_lead",
                     company=company,
                     title=None,  # Will be filled during enrichment
                     link=website,
-                    description=f"Executive hire announcement - actively growing team",
+                    description="Executive hire announcement - actively growing team",
                     funding_stage="Growth",  # Assume growth stage if hiring execs
                     funding_amount=None,
-                    needs_research=True  # Needs career page discovery
+                    needs_research=True,  # Needs career page discovery
                 )
 
                 opportunities.append(opportunity)
@@ -128,29 +127,28 @@ class ArtemisParser(BaseEmailParser):
             return ParserResult(
                 parser_name=self.name,
                 success=False,
-                error="No company growth announcements found in Artemis update"
+                error="No company growth announcements found in Artemis update",
             )
 
         return ParserResult(
             parser_name=self.name,
             success=True,
             opportunities=opportunities,
-            metadata={
-                'companies_found': len(opportunities),
-                'source': 'artemis_update'
-            }
+            metadata={"companies_found": len(opportunities), "source": "artemis_update"},
         )
 
     def _clean_company_name(self, company: str) -> str:
         """Clean up extracted company name"""
         # Remove common suffixes
-        company = re.sub(r'\s+(Inc\.?|LLC|Ltd\.?|Corporation|Corp\.?)$', '', company, flags=re.IGNORECASE)
+        company = re.sub(
+            r"\s+(Inc\.?|LLC|Ltd\.?|Corporation|Corp\.?)$", "", company, flags=re.IGNORECASE
+        )
 
         # Remove trailing punctuation
-        company = company.rstrip('.,;:')
+        company = company.rstrip(".,;:")
 
         # Remove possessive
-        company = company.replace("'s", '')
+        company = company.replace("'s", "")
 
         # Title case
         company = company.strip()
@@ -160,13 +158,45 @@ class ArtemisParser(BaseEmailParser):
     def _is_false_positive(self, company: str) -> bool:
         """Filter out common false positives"""
         false_positives = [
-            'the', 'a', 'an', 'this', 'that', 'these', 'those',
-            'new', 'former', 'current', 'latest', 'recent',
-            'company', 'companies', 'organization', 'firm',
-            'team', 'group', 'department', 'division',
-            'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
-            'january', 'february', 'march', 'april', 'may', 'june',
-            'july', 'august', 'september', 'october', 'november', 'december',
+            "the",
+            "a",
+            "an",
+            "this",
+            "that",
+            "these",
+            "those",
+            "new",
+            "former",
+            "current",
+            "latest",
+            "recent",
+            "company",
+            "companies",
+            "organization",
+            "firm",
+            "team",
+            "group",
+            "department",
+            "division",
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
+            "january",
+            "february",
+            "march",
+            "april",
+            "may",
+            "june",
+            "july",
+            "august",
+            "september",
+            "october",
+            "november",
+            "december",
         ]
 
         company_lower = company.lower()
@@ -176,7 +206,7 @@ class ArtemisParser(BaseEmailParser):
             return True
 
         # Must have at least one letter
-        if not re.search(r'[a-zA-Z]', company):
+        if not re.search(r"[a-zA-Z]", company):
             return True
 
         # Too short (single letter companies rare)
@@ -189,7 +219,7 @@ class ArtemisParser(BaseEmailParser):
 
         return False
 
-    def _find_company_website(self, soup: BeautifulSoup, company: str) -> Optional[str]:
+    def _find_company_website(self, soup: BeautifulSoup, company: str) -> str | None:
         """
         Try to find company website from nearby links
 
@@ -202,8 +232,8 @@ class ArtemisParser(BaseEmailParser):
             # Check if text node is inside a link
             parent = text_node.parent
             for _ in range(3):  # Search up 3 levels
-                if parent and parent.name == 'a':
-                    href = parent.get('href', '')
+                if parent and parent.name == "a":
+                    href = parent.get("href", "")
                     # Filter out social media, email, etc.
                     if self._is_company_website(href):
                         return href
@@ -212,9 +242,9 @@ class ArtemisParser(BaseEmailParser):
 
             # Check for nearby links
             if text_node.parent:
-                nearby_links = text_node.parent.find_all('a', href=True, limit=3)
+                nearby_links = text_node.parent.find_all("a", href=True, limit=3)
                 for link in nearby_links:
-                    href = link.get('href', '')
+                    href = link.get("href", "")
                     if self._is_company_website(href):
                         return href
 
@@ -229,22 +259,33 @@ class ArtemisParser(BaseEmailParser):
 
         # Exclude common non-company sites
         exclude_patterns = [
-            'linkedin.com', 'twitter.com', 'facebook.com', 'instagram.com',
-            'youtube.com', 'github.com', 'medium.com',
-            'mailto:', 'javascript:', '#',
-            'artemis', 'unsubscribe', 'preferences',
+            "linkedin.com",
+            "twitter.com",
+            "facebook.com",
+            "instagram.com",
+            "youtube.com",
+            "github.com",
+            "medium.com",
+            "mailto:",
+            "javascript:",
+            "#",
+            "artemis",
+            "unsubscribe",
+            "preferences",
         ]
 
         if any(pattern in url_lower for pattern in exclude_patterns):
             return False
 
         # Must start with http
-        if not url.startswith('http'):
+        if not url.startswith("http"):
             return False
 
         return True
 
-    def _parse_company_sections(self, soup: BeautifulSoup, email_message: Message) -> List[OpportunityData]:
+    def _parse_company_sections(
+        self, soup: BeautifulSoup, email_message: Message
+    ) -> list[OpportunityData]:
         """
         Parse structured company sections/lists
 
@@ -256,9 +297,9 @@ class ArtemisParser(BaseEmailParser):
         opportunities = []
 
         # Look for section headings that indicate company lists
-        section_keywords = ['featured', 'growth', 'hiring', 'companies', 'spotlight', 'leaders']
+        section_keywords = ["featured", "growth", "hiring", "companies", "spotlight", "leaders"]
 
-        for heading in soup.find_all(['h1', 'h2', 'h3', 'h4', 'strong', 'b']):
+        for heading in soup.find_all(["h1", "h2", "h3", "h4", "strong", "b"]):
             heading_text = heading.get_text(strip=True).lower()
 
             if any(keyword in heading_text for keyword in section_keywords):
@@ -270,25 +311,27 @@ class ArtemisParser(BaseEmailParser):
                         break
 
                     # Stop at next heading
-                    if next_elem.name in ['h1', 'h2', 'h3', 'h4']:
+                    if next_elem.name in ["h1", "h2", "h3", "h4"]:
                         break
 
                     # Look for links
-                    if next_elem.name == 'a':
-                        href = next_elem.get('href', '')
+                    if next_elem.name == "a":
+                        href = next_elem.get("href", "")
                         company_name = next_elem.get_text(strip=True)
 
                         if self._is_company_website(href) and len(company_name) > 2:
                             opportunity = OpportunityData(
                                 source="artemis_update",
-                                source_email=self.extract_email_address(email_message.get('From', '')),
+                                source_email=self.extract_email_address(
+                                    email_message.get("From", "")
+                                ),
                                 type="funding_lead",
                                 company=company_name,
                                 title=None,
                                 link=href,
-                                description=f"Featured in Artemis growth update",
+                                description="Featured in Artemis growth update",
                                 funding_stage="Growth",
-                                needs_research=True
+                                needs_research=True,
                             )
                             opportunities.append(opportunity)
 
@@ -301,15 +344,14 @@ def main():
     """CLI entry point for testing"""
     import argparse
     import email
-    from pathlib import Path
 
-    parser = argparse.ArgumentParser(description='Test Artemis parser with email file')
-    parser.add_argument('email_file', help='Path to .eml file')
+    parser = argparse.ArgumentParser(description="Test Artemis parser with email file")
+    parser.add_argument("email_file", help="Path to .eml file")
 
     args = parser.parse_args()
 
     # Load email
-    with open(args.email_file, 'r') as f:
+    with open(args.email_file) as f:
         msg = email.message_from_file(f)
 
     # Parse

@@ -2,12 +2,13 @@
 Robotics & Deeptech Google Sheets Scraper
 Scrapes job listings from public Google Sheets job board
 """
-import sys
-from pathlib import Path
+
 import csv
 import io
+import sys
+from pathlib import Path
+
 import requests
-from typing import List, Dict
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -26,13 +27,21 @@ class RoboticsDeeptechScraper:
 
         # Leadership keywords for filtering
         self.leadership_keywords = [
-            'director', 'vp', 'vice president', 'head of', 'chief',
-            'executive', 'principal', 'staff', 'senior manager', 'lead'
+            "director",
+            "vp",
+            "vice president",
+            "head of",
+            "chief",
+            "executive",
+            "principal",
+            "staff",
+            "senior manager",
+            "lead",
         ]
 
-    def scrape(self) -> List[OpportunityData]:
+    def scrape(self) -> list[OpportunityData]:
         """Scrape jobs from Google Sheets"""
-        print(f"Fetching robotics/deeptech jobs from Google Sheets...")
+        print("Fetching robotics/deeptech jobs from Google Sheets...")
 
         try:
             response = requests.get(self.base_url, timeout=30, allow_redirects=True)
@@ -46,15 +55,15 @@ class RoboticsDeeptechScraper:
 
             for row in reader:
                 # Extract fields
-                title = row.get('Job_Title', '').strip()
-                company = row.get('Company', '').strip()
-                description = row.get('Description', '').strip()
-                department = row.get('Department', '').strip()
-                experience_level = row.get('Experience_Level', '').strip()
-                city = row.get('City', '').strip()
-                country = row.get('Country', '').strip()
-                job_url = row.get('Job_Url', '').strip()
-                status = row.get('Status', '').strip()
+                title = row.get("Job_Title", "").strip()
+                company = row.get("Company", "").strip()
+                description = row.get("Description", "").strip()
+                department = row.get("Department", "").strip()
+                experience_level = row.get("Experience_Level", "").strip()
+                city = row.get("City", "").strip()
+                country = row.get("Country", "").strip()
+                job_url = row.get("Job_Url", "").strip()
+                status = row.get("Status", "").strip()
 
                 # Skip if missing critical fields
                 if not title or not company or not job_url:
@@ -77,7 +86,7 @@ class RoboticsDeeptechScraper:
                     location_parts.append(city)
                 if country:
                     location_parts.append(country)
-                location = ', '.join(location_parts) if location_parts else ''
+                location = ", ".join(location_parts) if location_parts else ""
 
                 # Build enhanced description with metadata
                 desc_parts = []
@@ -90,7 +99,7 @@ class RoboticsDeeptechScraper:
                 if status:
                     desc_parts.append(f"Status: {status}")
 
-                enhanced_description = ' | '.join(desc_parts)
+                enhanced_description = " | ".join(desc_parts)
 
                 # Create opportunity
                 opportunity = OpportunityData(
@@ -102,9 +111,9 @@ class RoboticsDeeptechScraper:
                     location=location,
                     link=job_url,
                     description=enhanced_description,
-                    job_type=department or '',
+                    job_type=department or "",
                     needs_research=False,
-                    research_notes=f"Status: {status}, Level: {experience_level}"  # Store extra metadata here
+                    research_notes=f"Status: {status}, Level: {experience_level}",  # Store extra metadata here
                 )
 
                 opportunities.append(opportunity)
@@ -116,25 +125,30 @@ class RoboticsDeeptechScraper:
             print(f"✗ Error scraping Google Sheets: {e}")
             return []
 
-    def get_leadership_jobs_only(self) -> List[OpportunityData]:
+    def get_leadership_jobs_only(self) -> list[OpportunityData]:
         """Scrape and filter for leadership roles only"""
         all_jobs = self.scrape()
 
         leadership_jobs = [
-            job for job in all_jobs
+            job
+            for job in all_jobs
             if any(kw in job.title.lower() for kw in self.leadership_keywords)
         ]
 
         print(f"✓ Filtered to {len(leadership_jobs)} leadership roles")
         return leadership_jobs
 
-    def get_fresh_jobs_only(self) -> List[OpportunityData]:
+    def get_fresh_jobs_only(self) -> list[OpportunityData]:
         """Scrape and filter for NEW/Recent jobs only"""
         all_jobs = self.scrape()
 
         fresh_jobs = [
-            job for job in all_jobs
-            if job.research_notes and any(status in job.research_notes.lower() for status in ['status: new', 'status: recent'])
+            job
+            for job in all_jobs
+            if job.research_notes
+            and any(
+                status in job.research_notes.lower() for status in ["status: new", "status: recent"]
+            )
         ]
 
         print(f"✓ Filtered to {len(fresh_jobs)} fresh jobs (NEW/Recent)")
@@ -145,10 +159,12 @@ def main():
     """CLI entry point for testing"""
     import argparse
 
-    parser = argparse.ArgumentParser(description='Scrape robotics/deeptech Google Sheets job board')
-    parser.add_argument('--leadership-only', action='store_true', help='Only return leadership roles')
-    parser.add_argument('--fresh-only', action='store_true', help='Only return NEW/Recent jobs')
-    parser.add_argument('--limit', type=int, default=20, help='Max jobs to display')
+    parser = argparse.ArgumentParser(description="Scrape robotics/deeptech Google Sheets job board")
+    parser.add_argument(
+        "--leadership-only", action="store_true", help="Only return leadership roles"
+    )
+    parser.add_argument("--fresh-only", action="store_true", help="Only return NEW/Recent jobs")
+    parser.add_argument("--limit", type=int, default=20, help="Max jobs to display")
 
     args = parser.parse_args()
 
@@ -163,11 +179,11 @@ def main():
         jobs = scraper.scrape()
 
     # Display results
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"ROBOTICS/DEEPTECH JOBS - Showing first {min(len(jobs), args.limit)} of {len(jobs)}")
-    print(f"{'='*80}\n")
+    print(f"{'=' * 80}\n")
 
-    for i, job in enumerate(jobs[:args.limit], 1):
+    for i, job in enumerate(jobs[: args.limit], 1):
         print(f"{i}. {job.title}")
         print(f"   Company: {job.company}")
         print(f"   Department: {job.job_type or 'N/A'}")
@@ -180,14 +196,15 @@ def main():
 
     # Summary by status (extract from research_notes)
     from collections import Counter
+
     statuses = []
     for job in jobs:
-        if job.research_notes and 'Status:' in job.research_notes:
+        if job.research_notes and "Status:" in job.research_notes:
             # Extract status from "Status: NEW, Level: Mid"
-            status_part = job.research_notes.split(',')[0].replace('Status:', '').strip()
+            status_part = job.research_notes.split(",")[0].replace("Status:", "").strip()
             statuses.append(status_part)
         else:
-            statuses.append('Unknown')
+            statuses.append("Unknown")
 
     status_counts = Counter(statuses)
     print("\nStatus Distribution:")

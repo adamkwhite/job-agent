@@ -68,3 +68,6 @@ debug_*
 demo_*
 scratch_*
 test_*
+
+# Documentation PDFs (keep local but not in repo)
+docs/**/*.pdf

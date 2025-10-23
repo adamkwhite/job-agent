@@ -1,25 +1,24 @@
 """
 Email parser module for extracting job information from job alert emails
 """
-import re
-import email
+
 import json
-from email.message import Message
+import re
 from datetime import datetime
-from typing import Dict, List, Optional
+from email.message import Message
+
 from bs4 import BeautifulSoup
-from pathlib import Path
 
 
 class JobEmailParser:
     """Parse job alert emails and extract structured job data"""
 
     def __init__(self, config_path: str = "config/email-settings.json"):
-        with open(config_path, 'r') as f:
+        with open(config_path) as f:
             self.config = json.load(f)
-        self.sources = {s['from_email']: s for s in self.config['job_alert_sources']}
+        self.sources = {s["from_email"]: s for s in self.config["job_alert_sources"]}
 
-    def parse_email(self, email_message: Message) -> List[Dict]:
+    def parse_email(self, email_message: Message) -> list[dict]:
         """
         Parse email and extract job listings
 
@@ -30,9 +29,9 @@ class JobEmailParser:
             List of job dictionaries
         """
         # Get email metadata
-        from_email = self._extract_email_address(email_message.get('From', ''))
-        subject = email_message.get('Subject', '')
-        date = email_message.get('Date', '')
+        from_email = self._extract_email_address(email_message.get("From", ""))
+        subject = email_message.get("Subject", "")
+        date = email_message.get("Date", "")
 
         # Identify source
         source = self._identify_source(from_email, subject)
@@ -45,19 +44,19 @@ class JobEmailParser:
 
         # Add metadata to each job
         for job in jobs:
-            job['source_email'] = from_email
-            job['received_at'] = datetime.now().isoformat()
-            job['source'] = source['name'] if source else 'Unknown'
-            job['raw_email_content'] = body_text[:1000]  # Store first 1000 chars
+            job["source_email"] = from_email
+            job["received_at"] = datetime.now().isoformat()
+            job["source"] = source["name"] if source else "Unknown"
+            job["raw_email_content"] = body_text[:1000]  # Store first 1000 chars
 
         return jobs
 
     def _extract_email_address(self, from_field: str) -> str:
         """Extract email address from From field"""
-        match = re.search(r'[\w\.-]+@[\w\.-]+', from_field)
+        match = re.search(r"[\w\.-]+@[\w\.-]+", from_field)
         return match.group(0) if match else from_field
 
-    def _identify_source(self, from_email: str, subject: str) -> Optional[Dict]:
+    def _identify_source(self, from_email: str, subject: str) -> dict | None:
         """Identify job alert source"""
         # Check known sources
         if from_email in self.sources:
@@ -66,7 +65,7 @@ class JobEmailParser:
         # Check subject line for hints
         subject_lower = subject.lower()
         for email_addr, source in self.sources.items():
-            for keyword in source.get('subject_contains', []):
+            for keyword in source.get("subject_contains", []):
                 if keyword.lower() in subject_lower:
                     return source
 
@@ -84,9 +83,9 @@ class JobEmailParser:
                     payload = part.get_payload(decode=True)
                     if payload:
                         if content_type == "text/html":
-                            html_body = payload.decode('utf-8', errors='ignore')
+                            html_body = payload.decode("utf-8", errors="ignore")
                         elif content_type == "text/plain":
-                            text_body = payload.decode('utf-8', errors='ignore')
+                            text_body = payload.decode("utf-8", errors="ignore")
                 except:
                     continue
         else:
@@ -94,19 +93,19 @@ class JobEmailParser:
             if payload:
                 content_type = email_message.get_content_type()
                 if content_type == "text/html":
-                    html_body = payload.decode('utf-8', errors='ignore')
+                    html_body = payload.decode("utf-8", errors="ignore")
                 elif content_type == "text/plain":
-                    text_body = payload.decode('utf-8', errors='ignore')
+                    text_body = payload.decode("utf-8", errors="ignore")
 
         return html_body, text_body
 
-    def _extract_jobs(self, html: str, text: str, source: Optional[Dict]) -> List[Dict]:
+    def _extract_jobs(self, html: str, text: str, source: dict | None) -> list[dict]:
         """Extract job listings from email content"""
         jobs = []
 
         if html:
             # Parse HTML content
-            soup = BeautifulSoup(html, 'lxml')
+            soup = BeautifulSoup(html, "lxml")
             jobs = self._parse_html_jobs(soup, source)
 
         if not jobs and text:
@@ -115,15 +114,15 @@ class JobEmailParser:
 
         return jobs
 
-    def _parse_html_jobs(self, soup: BeautifulSoup, source: Optional[Dict]) -> List[Dict]:
+    def _parse_html_jobs(self, soup: BeautifulSoup, source: dict | None) -> list[dict]:
         """Parse jobs from HTML content"""
         jobs = []
 
         # Find all links that look like job links
-        links = soup.find_all('a', href=True)
+        links = soup.find_all("a", href=True)
 
         for link in links:
-            href = link.get('href', '')
+            href = link.get("href", "")
 
             # Filter for job-related links
             if not self._is_job_link(href):
@@ -131,35 +130,35 @@ class JobEmailParser:
 
             # Extract job details
             job = {
-                'link': href,
-                'title': '',
-                'company': '',
-                'location': '',
-                'description': '',
-                'salary': '',
-                'job_type': '',
-                'posted_date': ''
+                "link": href,
+                "title": "",
+                "company": "",
+                "location": "",
+                "description": "",
+                "salary": "",
+                "job_type": "",
+                "posted_date": "",
             }
 
             # Try to find title in link text or nearby elements
-            job['title'] = self._extract_title(link, soup)
+            job["title"] = self._extract_title(link, soup)
 
             # Try to find company name
-            job['company'] = self._extract_company(link, soup)
+            job["company"] = self._extract_company(link, soup)
 
             # Try to find location
-            job['location'] = self._extract_location(link, soup)
+            job["location"] = self._extract_location(link, soup)
 
             # Only add if we found at least title or company
-            if job['title'] or job['company']:
+            if job["title"] or job["company"]:
                 jobs.append(job)
 
         return jobs
 
     def _is_job_link(self, url: str) -> bool:
         """Check if URL looks like a job posting link"""
-        job_keywords = ['job', 'career', 'position', 'opening', 'apply', 'posting', 'vacancy']
-        exclude_keywords = ['unsubscribe', 'preferences', 'settings', 'privacy', 'terms']
+        job_keywords = ["job", "career", "position", "opening", "apply", "posting", "vacancy"]
+        exclude_keywords = ["unsubscribe", "preferences", "settings", "privacy", "terms"]
 
         url_lower = url.lower()
 
@@ -182,7 +181,7 @@ class JobEmailParser:
         parent = link_element.parent
         if parent:
             # Check for headings
-            for tag in ['h1', 'h2', 'h3', 'h4', 'strong', 'b']:
+            for tag in ["h1", "h2", "h3", "h4", "strong", "b"]:
                 heading = parent.find(tag)
                 if heading:
                     text = heading.get_text(strip=True)
@@ -190,8 +189,8 @@ class JobEmailParser:
                         return text
 
         # Try title attribute
-        if link_element.get('title'):
-            return link_element.get('title')
+        if link_element.get("title"):
+            return link_element.get("title")
 
         return title
 
@@ -204,16 +203,16 @@ class JobEmailParser:
             text = parent.get_text()
 
             # Try patterns like "Company: X" or "at X"
-            company_match = re.search(r'(?:Company|Employer|at):\s*([^\n\|]+)', text, re.IGNORECASE)
+            company_match = re.search(r"(?:Company|Employer|at):\s*([^\n\|]+)", text, re.IGNORECASE)
             if company_match:
                 return company_match.group(1).strip()
 
             # Try finding text before location patterns
-            parts = re.split(r'\s+-\s+|\s+in\s+|\s+\|\s+', text)
+            parts = re.split(r"\s+-\s+|\s+in\s+|\s+\|\s+", text)
             if len(parts) > 1:
                 return parts[1].strip()
 
-        return ''
+        return ""
 
     def _extract_location(self, link_element, soup: BeautifulSoup) -> str:
         """Extract location from link context"""
@@ -223,38 +222,40 @@ class JobEmailParser:
             text = parent.get_text()
 
             # Try patterns like "Location: X" or "in X"
-            location_match = re.search(r'(?:Location|in):\s*([^\n\|]+)', text, re.IGNORECASE)
+            location_match = re.search(r"(?:Location|in):\s*([^\n\|]+)", text, re.IGNORECASE)
             if location_match:
                 return location_match.group(1).strip()
 
             # Look for city, state patterns
-            location_match = re.search(r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2})\b', text)
+            location_match = re.search(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2})\b", text)
             if location_match:
                 return location_match.group(1)
 
-        return ''
+        return ""
 
-    def _parse_text_jobs(self, text: str) -> List[Dict]:
+    def _parse_text_jobs(self, text: str) -> list[dict]:
         """Parse jobs from plain text content (fallback)"""
         jobs = []
 
         # Find URLs in text
-        urls = re.findall(r'https?://[^\s]+', text)
+        urls = re.findall(r"https?://[^\s]+", text)
 
         for url in urls:
             if self._is_job_link(url):
                 # Try to extract context around URL
                 # This is a simple fallback - HTML parsing is preferred
-                jobs.append({
-                    'link': url,
-                    'title': 'Job Opportunity',  # Generic title
-                    'company': '',
-                    'location': '',
-                    'description': '',
-                    'salary': '',
-                    'job_type': '',
-                    'posted_date': ''
-                })
+                jobs.append(
+                    {
+                        "link": url,
+                        "title": "Job Opportunity",  # Generic title
+                        "company": "",
+                        "location": "",
+                        "description": "",
+                        "salary": "",
+                        "job_type": "",
+                        "posted_date": "",
+                    }
+                )
 
         return jobs
 

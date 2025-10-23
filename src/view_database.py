@@ -1,9 +1,10 @@
 """
 View jobs stored in the database
 """
+
+import json
 import sys
 from pathlib import Path
-import json
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -17,14 +18,14 @@ def view_database():
     # Get stats
     stats = db.get_stats()
 
-    print("="*70)
+    print("=" * 70)
     print("DATABASE CONTENTS")
-    print("="*70)
+    print("=" * 70)
     print(f"\nTotal jobs: {stats['total_jobs']}")
     print(f"Notified: {stats['notified_jobs']}")
     print(f"Unnotified: {stats['unnotified_jobs']}")
-    print(f"\nJobs by source:")
-    for source, count in stats.get('jobs_by_source', {}).items():
+    print("\nJobs by source:")
+    for source, count in stats.get("jobs_by_source", {}).items():
         print(f"  {source}: {count}")
 
     # Get all jobs
@@ -34,9 +35,9 @@ def view_database():
         print("\nNo jobs in database")
         return
 
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"ALL JOBS ({len(jobs)})")
-    print(f"{'='*70}\n")
+    print(f"{'=' * 70}\n")
 
     for i, job in enumerate(jobs, 1):
         print(f"{i}. {job['title']}")
@@ -45,14 +46,16 @@ def view_database():
 
         # Parse keywords
         try:
-            keywords = json.loads(job['keywords_matched'])
+            keywords = json.loads(job["keywords_matched"])
             if keywords:
                 print(f"   Keywords: {', '.join(keywords)}")
         except:
             pass
 
         print(f"   Link: {job['link']}")
-        print(f"   Source: {job['source']} | Received: {job['received_at'][:10]} | Notified: {'Yes' if job['notified_at'] else 'No'}")
+        print(
+            f"   Source: {job['source']} | Received: {job['received_at'][:10]} | Notified: {'Yes' if job['notified_at'] else 'No'}"
+        )
         print()
 
 

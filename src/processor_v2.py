@@ -2,31 +2,32 @@
 Job processing pipeline V2 - with pluggable parsers and enrichment
 IMAP → Parse (registry) → Enrich → Filter → Store → Notify
 """
-import imaplib
+
 import email
+import imaplib
 import json
 import sys
 from datetime import datetime
-from typing import List, Dict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
 # New architecture imports
-from parsers.parser_registry import ParserRegistry
-from parsers.linkedin_parser import LinkedInParser
-from parsers.f6s_parser import F6SParser
-from parsers.supra_parser import SupraParser
-from parsers.artemis_parser import ArtemisParser
-from enrichment.enrichment_pipeline import EnrichmentPipeline
-from job_filter import JobFilter
-from database import JobDatabase
-from notifier import JobNotifier
-from agents.job_scorer import JobScorer
-from models import OpportunityData
+import os
 
 from dotenv import load_dotenv
-import os
+
+from agents.job_scorer import JobScorer
+from database import JobDatabase
+from enrichment.enrichment_pipeline import EnrichmentPipeline
+from job_filter import JobFilter
+from models import OpportunityData
+from notifier import JobNotifier
+from parsers.artemis_parser import ArtemisParser
+from parsers.f6s_parser import F6SParser
+from parsers.linkedin_parser import LinkedInParser
+from parsers.parser_registry import ParserRegistry
+from parsers.supra_parser import SupraParser
 
 
 class JobProcessorV2:
@@ -49,11 +50,13 @@ class JobProcessorV2:
         # IMAP credentials
         self.imap_server = "imap.gmail.com"
         self.imap_port = 993
-        self.username = os.getenv('GMAIL_USERNAME')
-        self.password = os.getenv('GMAIL_APP_PASSWORD')
+        self.username = os.getenv("GMAIL_USERNAME")
+        self.password = os.getenv("GMAIL_APP_PASSWORD")
 
         if not self.username or not self.password:
-            raise ValueError("Gmail credentials not configured. Please set GMAIL_USERNAME and GMAIL_APP_PASSWORD in .env")
+            raise ValueError(
+                "Gmail credentials not configured. Please set GMAIL_USERNAME and GMAIL_APP_PASSWORD in .env"
+            )
 
     def _register_parsers(self):
         """Register all available parsers"""
@@ -71,14 +74,14 @@ class JobProcessorV2:
         mail.login(self.username, self.password)
         return mail
 
-    def fetch_unread_emails(self, limit: int = 50) -> List[email.message.Message]:
+    def fetch_unread_emails(self, limit: int = 50) -> list[email.message.Message]:
         """Fetch unread emails from inbox"""
         mail = self.connect_imap()
-        mail.select('INBOX')
+        mail.select("INBOX")
 
-        status, messages = mail.search(None, 'UNSEEN')
+        status, messages = mail.search(None, "UNSEEN")
 
-        if status != 'OK':
+        if status != "OK":
             print("No unread emails found")
             return []
 
@@ -90,9 +93,9 @@ class JobProcessorV2:
         emails = []
         for email_id in email_ids:
             try:
-                status, msg_data = mail.fetch(email_id, '(RFC822)')
+                status, msg_data = mail.fetch(email_id, "(RFC822)")
 
-                if status != 'OK':
+                if status != "OK":
                     continue
 
                 raw_email = msg_data[0][1]
@@ -108,52 +111,54 @@ class JobProcessorV2:
 
         return emails
 
-    def process_emails(self, emails: List[email.message.Message]) -> Dict:
+    def process_emails(self, emails: list[email.message.Message]) -> dict:
         """Process emails through the full pipeline"""
         stats = {
-            'emails_processed': 0,
-            'opportunities_found': 0,
-            'opportunities_enriched': 0,
-            'jobs_passed_filter': 0,
-            'jobs_stored': 0,
-            'jobs_scored': 0,
-            'notifications_sent': 0,
-            'errors': []
+            "emails_processed": 0,
+            "opportunities_found": 0,
+            "opportunities_enriched": 0,
+            "jobs_passed_filter": 0,
+            "jobs_stored": 0,
+            "jobs_scored": 0,
+            "notifications_sent": 0,
+            "errors": [],
         }
 
         for email_message in emails:
             try:
-                subject = email_message.get('Subject', 'No Subject')
-                print(f"\n{'='*70}")
+                subject = email_message.get("Subject", "No Subject")
+                print(f"\n{'=' * 70}")
                 print(f"Email: {subject}")
-                print(f"{'='*70}")
+                print(f"{'=' * 70}")
 
                 # Step 1: Parse email using appropriate parser
                 parse_result = self.parser_registry.parse_email(email_message)
 
                 if not parse_result.success:
                     print(f"  ✗ Parsing failed: {parse_result.error}")
-                    stats['errors'].append(f"Parse error: {parse_result.error}")
+                    stats["errors"].append(f"Parse error: {parse_result.error}")
                     continue
 
                 opportunities = parse_result.opportunities
-                stats['opportunities_found'] += len(opportunities)
+                stats["opportunities_found"] += len(opportunities)
 
                 print(f"  Parser: {parse_result.parser_name}")
                 print(f"  Opportunities found: {len(opportunities)}")
 
                 # Step 2: Enrich opportunities that need research (funding leads)
                 enriched_opportunities = self.enrichment.enrich_opportunities(opportunities)
-                stats['opportunities_enriched'] += len([o for o in enriched_opportunities if o.research_attempted])
+                stats["opportunities_enriched"] += len(
+                    [o for o in enriched_opportunities if o.research_attempted]
+                )
 
                 # Step 3: Filter opportunities
                 included_opps, excluded_opps = self.filter.filter_jobs(
                     [self._opportunity_to_dict(o) for o in enriched_opportunities]
                 )
 
-                stats['jobs_passed_filter'] += len(included_opps)
+                stats["jobs_passed_filter"] += len(included_opps)
 
-                print(f"\nFiltering Results:")
+                print("\nFiltering Results:")
                 print(f"  ✓ Passed: {len(included_opps)}")
                 print(f"  ✗ Excluded: {len(excluded_opps)}")
 
@@ -162,8 +167,8 @@ class JobProcessorV2:
                     job_id = self.database.add_job(job_dict)
 
                     if job_id:
-                        stats['jobs_stored'] += 1
-                        print(f"\n✓ New Job Stored:")
+                        stats["jobs_stored"] += 1
+                        print("\n✓ New Job Stored:")
                         print(f"  Title: {job_dict['title']}")
                         print(f"  Company: {job_dict['company']}")
                         print(f"  Keywords: {', '.join(job_dict.get('keywords_matched', []))}")
@@ -174,43 +179,51 @@ class JobProcessorV2:
                             score, grade, breakdown = self.scorer.score_job(job_dict)
 
                             # Update database with score
-                            self.database.update_job_score(job_id, score, grade, json.dumps(breakdown))
+                            self.database.update_job_score(
+                                job_id, score, grade, json.dumps(breakdown)
+                            )
 
-                            stats['jobs_scored'] += 1
+                            stats["jobs_scored"] += 1
                             print(f"  ✓ Scored: {grade} ({score}/100)")
-                            print(f"    Breakdown: Seniority={breakdown['seniority']}, Domain={breakdown['domain']}, Role={breakdown['role_type']}")
+                            print(
+                                f"    Breakdown: Seniority={breakdown['seniority']}, Domain={breakdown['domain']}, Role={breakdown['role_type']}"
+                            )
 
                         except Exception as e:
                             print(f"  ✗ Scoring failed: {e}")
-                            stats['errors'].append(f"Scoring failed for job {job_id}: {e}")
+                            stats["errors"].append(f"Scoring failed for job {job_id}: {e}")
 
                         # Send notification ONLY for A/B grade jobs (70+)
                         if score >= 70:  # A or B grade
                             try:
                                 # Add score to notification title for priority
                                 notification_job = job_dict.copy()
-                                notification_job['title'] = f"[{grade} {score}] {job_dict['title']}"
+                                notification_job["title"] = f"[{grade} {score}] {job_dict['title']}"
 
                                 notification_results = self.notifier.notify_job(notification_job)
 
-                                if notification_results.get('email') or notification_results.get('sms'):
-                                    stats['notifications_sent'] += 1
+                                if notification_results.get("email") or notification_results.get(
+                                    "sms"
+                                ):
+                                    stats["notifications_sent"] += 1
                                     self.database.mark_notified(job_id)
-                                    print(f"  ✓ Notified: SMS={notification_results.get('sms')}, Email={notification_results.get('email')}")
+                                    print(
+                                        f"  ✓ Notified: SMS={notification_results.get('sms')}, Email={notification_results.get('email')}"
+                                    )
                             except Exception as e:
                                 print(f"  ✗ Notification failed: {e}")
-                                stats['errors'].append(f"Notification failed for job {job_id}: {e}")
+                                stats["errors"].append(f"Notification failed for job {job_id}: {e}")
                         else:
                             print(f"  ⊘ Notification skipped: Low score ({grade} {score}/100)")
 
                     else:
                         print(f"\n- Duplicate: {job_dict['title']} at {job_dict['company']}")
 
-                stats['emails_processed'] += 1
+                stats["emails_processed"] += 1
 
             except Exception as e:
                 print(f"Error processing email: {e}")
-                stats['errors'].append(str(e))
+                stats["errors"].append(str(e))
                 continue
 
         return stats
@@ -218,45 +231,45 @@ class JobProcessorV2:
     def _opportunity_to_dict(self, opp: OpportunityData) -> dict:
         """Convert OpportunityData to dict for compatibility with existing code"""
         return {
-            'title': opp.title or 'Job Opportunity',
-            'company': opp.company,
-            'location': opp.location or opp.company_location or '',
-            'link': opp.link or opp.career_page_url or '',
-            'description': opp.description or '',
-            'salary': opp.salary or '',
-            'job_type': opp.job_type or '',
-            'posted_date': opp.posted_date or '',
-            'source': opp.source,
-            'source_email': opp.source_email or '',
-            'received_at': opp.received_at,
-            'keywords_matched': opp.keywords_matched or [],
-            'raw_email_content': opp.raw_content or ''
+            "title": opp.title or "Job Opportunity",
+            "company": opp.company,
+            "location": opp.location or opp.company_location or "",
+            "link": opp.link or opp.career_page_url or "",
+            "description": opp.description or "",
+            "salary": opp.salary or "",
+            "job_type": opp.job_type or "",
+            "posted_date": opp.posted_date or "",
+            "source": opp.source,
+            "source_email": opp.source_email or "",
+            "received_at": opp.received_at,
+            "keywords_matched": opp.keywords_matched or [],
+            "raw_email_content": opp.raw_content or "",
         }
 
-    def run(self, fetch_emails: bool = True, limit: int = 50) -> Dict:
+    def run(self, fetch_emails: bool = True, limit: int = 50) -> dict:
         """Main entry point - run the full pipeline"""
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print("Job Alert Processor V2 Starting")
         print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"{'='*70}\n")
+        print(f"{'=' * 70}\n")
 
         if fetch_emails:
             emails = self.fetch_unread_emails(limit=limit)
         else:
             print("No emails to process (test mode)")
-            return {'emails_processed': 0}
+            return {"emails_processed": 0}
 
         if not emails:
             print("No emails to process")
-            return {'emails_processed': 0}
+            return {"emails_processed": 0}
 
         # Process emails
         stats = self.process_emails(emails)
 
         # Print summary
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print("Processing Complete")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
         print(f"Emails processed: {stats['emails_processed']}")
         print(f"Opportunities found: {stats['opportunities_found']}")
         print(f"Opportunities enriched: {stats['opportunities_enriched']}")
@@ -265,14 +278,14 @@ class JobProcessorV2:
         print(f"Jobs scored: {stats['jobs_scored']}")
         print(f"Notifications sent: {stats['notifications_sent']}")
 
-        if stats['errors']:
+        if stats["errors"]:
             print(f"\nErrors: {len(stats['errors'])}")
-            for error in stats['errors'][:5]:
+            for error in stats["errors"][:5]:
                 print(f"  - {error}")
 
         # Database stats
         db_stats = self.database.get_stats()
-        print(f"\nDatabase Stats:")
+        print("\nDatabase Stats:")
         print(f"  Total jobs: {db_stats['total_jobs']}")
         print(f"  Notified: {db_stats['notified_jobs']}")
         print(f"  Pending: {db_stats['unnotified_jobs']}")
@@ -284,9 +297,9 @@ def main():
     """CLI entry point"""
     import argparse
 
-    parser = argparse.ArgumentParser(description='Process job alert emails (V2)')
-    parser.add_argument('--test', action='store_true', help='Test mode (no IMAP fetch)')
-    parser.add_argument('--limit', type=int, default=50, help='Max emails to process')
+    parser = argparse.ArgumentParser(description="Process job alert emails (V2)")
+    parser.add_argument("--test", action="store_true", help="Test mode (no IMAP fetch)")
+    parser.add_argument("--limit", type=int, default=50, help="Max emails to process")
 
     args = parser.parse_args()
 
@@ -300,6 +313,7 @@ def main():
     except Exception as e:
         print(f"Fatal error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

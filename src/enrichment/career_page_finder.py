@@ -2,11 +2,11 @@
 Career page URL discovery system
 Tries multiple strategies: pattern matching → Google search → manual input
 """
-import requests
-from typing import Optional, List
-from urllib.parse import urljoin, urlparse
+
 import re
-from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse
+
+import requests
 
 from models import OpportunityData
 
@@ -16,26 +16,26 @@ class CareerPageFinder:
 
     def __init__(self):
         self.common_patterns = [
-            '/careers',
-            '/jobs',
-            '/job',
-            '/career',
-            '/work-with-us',
-            '/join-us',
-            '/join',
-            '/opportunities',
-            '/hiring',
-            '/team',
-            '/about/careers',
-            '/company/careers'
+            "/careers",
+            "/jobs",
+            "/job",
+            "/career",
+            "/work-with-us",
+            "/join-us",
+            "/join",
+            "/opportunities",
+            "/hiring",
+            "/team",
+            "/about/careers",
+            "/company/careers",
         ]
 
         self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        })
+        self.session.headers.update(
+            {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        )
 
-    def find_career_page(self, opportunity: OpportunityData) -> Optional[str]:
+    def find_career_page(self, opportunity: OpportunityData) -> str | None:
         """
         Find career page URL for a company
 
@@ -51,7 +51,7 @@ class CareerPageFinder:
 
         # Step 1: Try pattern matching
         print(f"\nFinding career page for: {company}")
-        print(f"  Strategy 1: Pattern matching...")
+        print("  Strategy 1: Pattern matching...")
 
         base_url = self._guess_company_website(company)
         if base_url:
@@ -61,18 +61,18 @@ class CareerPageFinder:
                 return career_url
 
         # Step 2: Try Google search (placeholder - would need API key)
-        print(f"  Strategy 2: Google search...")
+        print("  Strategy 2: Google search...")
         google_result = self._google_search(company)
         if google_result:
             print(f"  ✓ Found via Google: {google_result}")
             return google_result
 
         # Step 3: Manual entry needed
-        print(f"  ✗ Could not find career page automatically")
-        print(f"  → Manual entry required")
+        print("  ✗ Could not find career page automatically")
+        print("  → Manual entry required")
         return None
 
-    def _guess_company_website(self, company_name: str) -> Optional[str]:
+    def _guess_company_website(self, company_name: str) -> str | None:
         """
         Guess company website from name
 
@@ -81,7 +81,9 @@ class CareerPageFinder:
         - "Adaptyx Biosciences" -> "https://adaptyx.com"
         """
         # If company name contains .com, .io, etc., use it directly
-        if '.' in company_name and any(tld in company_name.lower() for tld in ['.com', '.io', '.ai', '.co', '.net']):
+        if "." in company_name and any(
+            tld in company_name.lower() for tld in [".com", ".io", ".ai", ".co", ".net"]
+        ):
             # Extract domain
             domain = company_name.split()[0].lower()
             return f"https://{domain}"
@@ -89,17 +91,22 @@ class CareerPageFinder:
         # Otherwise, try to construct from company name
         # Remove common suffixes
         clean_name = company_name.lower()
-        clean_name = re.sub(r'\s+(inc|llc|ltd|limited|corp|corporation|gmbh)\.?$', '', clean_name, flags=re.IGNORECASE)
+        clean_name = re.sub(
+            r"\s+(inc|llc|ltd|limited|corp|corporation|gmbh)\.?$",
+            "",
+            clean_name,
+            flags=re.IGNORECASE,
+        )
 
         # Remove spaces and special characters
-        clean_name = re.sub(r'[^a-z0-9]', '', clean_name)
+        clean_name = re.sub(r"[^a-z0-9]", "", clean_name)
 
         if clean_name:
             return f"https://{clean_name}.com"
 
         return None
 
-    def _try_patterns(self, base_url: str) -> Optional[str]:
+    def _try_patterns(self, base_url: str) -> str | None:
         """Try common career page URL patterns"""
         for pattern in self.common_patterns:
             url = urljoin(base_url, pattern)
@@ -119,7 +126,15 @@ class CareerPageFinder:
 
     def _is_careers_page(self, html: str) -> bool:
         """Check if HTML looks like a careers page"""
-        careers_keywords = ['career', 'job', 'hiring', 'position', 'opportunity', 'openings', 'join our team']
+        careers_keywords = [
+            "career",
+            "job",
+            "hiring",
+            "position",
+            "opportunity",
+            "openings",
+            "join our team",
+        ]
 
         html_lower = html.lower()
 
@@ -129,7 +144,7 @@ class CareerPageFinder:
         # Should have at least 3 keywords
         return keyword_count >= 3
 
-    def _google_search(self, company_name: str) -> Optional[str]:
+    def _google_search(self, company_name: str) -> str | None:
         """
         Search Google for company careers page
 
@@ -162,15 +177,15 @@ class ManualCareerPageCollector:
 
     def add_for_manual_review(self, opportunity: OpportunityData):
         """Add company to manual review list"""
-        with open(self.output_path, 'a') as f:
-            f.write(f"\n{'='*70}\n")
+        with open(self.output_path, "a") as f:
+            f.write(f"\n{'=' * 70}\n")
             f.write(f"Company: {opportunity.company}\n")
             f.write(f"Location: {opportunity.company_location}\n")
             f.write(f"Funding: {opportunity.funding_stage} - {opportunity.funding_amount}\n")
             f.write(f"Industries: {', '.join(opportunity.industry_tags or [])}\n")
             f.write(f"Investors: {', '.join(opportunity.investors or [])}\n")
             f.write(f"\nGuessed website: {self._guess_website(opportunity.company)}\n")
-            f.write(f"Career page URL (fill this in): ____________________________\n")
+            f.write("Career page URL (fill this in): ____________________________\n")
 
         print(f"  → Added to manual review: {self.output_path}")
 
