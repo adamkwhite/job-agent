@@ -9,7 +9,16 @@
     "product owner",
     "pm",
     "senior pm",
-    "principal pm"
+    "principal pm",
+    "engineering manager",
+    "senior engineering manager",
+    "engineering director",
+    "director of engineering",
+    "vp of engineering",
+    "vp engineering",
+    "vice president of engineering",
+    "head of engineering",
+    "engineering lead"
   ],
   "exclude_keywords": [
     "EMR",
