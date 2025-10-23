@@ -68,6 +68,16 @@ class JobProcessorV2:
 
         print(f"Registered parsers: {', '.join(self.parser_registry.get_enabled_parsers())}")
 
+    def _increment_stat(self, stats: dict[str, int | list[str]], key: str, amount: int = 1) -> None:
+        """Helper to increment a stat counter with type safety"""
+        stats[key] = cast(int, stats[key]) + amount
+
+    def _append_error(self, stats: dict[str, int | list[str]], error: str) -> None:
+        """Helper to append error to stats with type safety"""
+        errors_list = stats["errors"]
+        assert isinstance(errors_list, list)
+        errors_list.append(error)
+
     def connect_imap(self) -> imaplib.IMAP4_SSL:
         """Connect to IMAP server"""
         print(f"Connecting to {self.imap_server}...")
@@ -163,43 +173,38 @@ class JobProcessorV2:
             for job_dict in included_opps:
                 self._store_and_process_job(job_dict, stats)
 
-            stats["emails_processed"] = cast(int, stats["emails_processed"]) + 1
+            self._increment_stat(stats, "emails_processed")
 
         except Exception as e:
             print(f"Error processing email: {e}")
-            errors_list = stats["errors"]
-            assert isinstance(errors_list, list)
-            errors_list.append(str(e))
+            self._append_error(stats, str(e))
 
     def _handle_parse_error(self, error: str | None, stats: dict[str, int | list[str]]) -> None:
         """Handle parsing errors"""
         print(f"  ✗ Parsing failed: {error}")
-        errors_list = stats["errors"]
-        assert isinstance(errors_list, list)
-        errors_list.append(f"Parse error: {error}")
+        self._append_error(stats, f"Parse error: {error}")
 
     def _enrich_and_filter_opportunities(
         self, parse_result, stats: dict[str, int | list[str]]
     ) -> list[dict]:
         """Enrich opportunities and filter them"""
         opportunities = parse_result.opportunities
-        stats["opportunities_found"] = cast(int, stats["opportunities_found"]) + len(opportunities)
+        self._increment_stat(stats, "opportunities_found", len(opportunities))
 
         print(f"  Parser: {parse_result.parser_name}")
         print(f"  Opportunities found: {len(opportunities)}")
 
         # Enrich opportunities
         enriched_opportunities = self.enrichment.enrich_opportunities(opportunities)
-        stats["opportunities_enriched"] = cast(int, stats["opportunities_enriched"]) + len(
-            [o for o in enriched_opportunities if o.research_attempted]
-        )
+        enriched_count = len([o for o in enriched_opportunities if o.research_attempted])
+        self._increment_stat(stats, "opportunities_enriched", enriched_count)
 
         # Filter opportunities
         included_opps, excluded_opps = self.filter.filter_jobs(
             [self._opportunity_to_dict(o) for o in enriched_opportunities]
         )
 
-        stats["jobs_passed_filter"] = cast(int, stats["jobs_passed_filter"]) + len(included_opps)
+        self._increment_stat(stats, "jobs_passed_filter", len(included_opps))
 
         print("\nFiltering Results:")
         print(f"  ✓ Passed: {len(included_opps)}")
@@ -215,7 +220,7 @@ class JobProcessorV2:
             print(f"\n- Duplicate: {job_dict['title']} at {job_dict['company']}")
             return
 
-        stats["jobs_stored"] = cast(int, stats["jobs_stored"]) + 1
+        self._increment_stat(stats, "jobs_stored")
         print("\n✓ New Job Stored:")
         print(f"  Title: {job_dict['title']}")
         print(f"  Company: {job_dict['company']}")
@@ -235,7 +240,7 @@ class JobProcessorV2:
             score, grade, breakdown = self.scorer.score_job(job_dict)
             self.database.update_job_score(job_id, score, grade, json.dumps(breakdown))
 
-            stats["jobs_scored"] = cast(int, stats["jobs_scored"]) + 1
+            self._increment_stat(stats, "jobs_scored")
             print(f"  ✓ Scored: {grade} ({score}/100)")
             print(
                 f"    Breakdown: Seniority={breakdown['seniority']}, Domain={breakdown['domain']}, Role={breakdown['role_type']}"
@@ -244,9 +249,7 @@ class JobProcessorV2:
 
         except Exception as e:
             print(f"  ✗ Scoring failed: {e}")
-            errors_list = stats["errors"]
-            assert isinstance(errors_list, list)
-            errors_list.append(f"Scoring failed for job {job_id}: {e}")
+            self._append_error(stats, f"Scoring failed for job {job_id}: {e}")
             return None, None
 
     def _notify_if_qualified(
@@ -269,16 +272,14 @@ class JobProcessorV2:
             notification_results = self.notifier.notify_job(notification_job)
 
             if notification_results.get("email") or notification_results.get("sms"):
-                stats["notifications_sent"] = cast(int, stats["notifications_sent"]) + 1
+                self._increment_stat(stats, "notifications_sent")
                 self.database.mark_notified(job_id)
                 print(
                     f"  ✓ Notified: SMS={notification_results.get('sms')}, Email={notification_results.get('email')}"
                 )
         except Exception as e:
             print(f"  ✗ Notification failed: {e}")
-            errors_list = stats["errors"]
-            assert isinstance(errors_list, list)
-            errors_list.append(f"Notification failed for job {job_id}: {e}")
+            self._append_error(stats, f"Notification failed for job {job_id}: {e}")
 
     def _opportunity_to_dict(self, opp: OpportunityData) -> dict:
         """Convert OpportunityData to dict for compatibility with existing code"""
