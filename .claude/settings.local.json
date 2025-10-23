@@ -70,7 +70,10 @@
       "Bash(make lint:*)",
       "Bash(job-agent-venv/bin/ruff check:*)",
       "Bash(make typecheck:*)",
-      "Bash(make all:*)"
+      "Bash(make all:*)",
+      "mcp__sonarcloud__search_sonar_issues_in_projects",
+      "mcp__sonarcloud__get_project_quality_gate_status",
+      "mcp__sonarcloud__show_rule"
     ],
     "deny": []
   }
