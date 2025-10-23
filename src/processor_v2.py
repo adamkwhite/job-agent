@@ -136,122 +136,149 @@ class JobProcessorV2:
         }
 
         for email_message in emails:
-            try:
-                subject = email_message.get("Subject", "No Subject")
-                print(f"\n{'=' * 70}")
-                print(f"Email: {subject}")
-                print(f"{'=' * 70}")
-
-                # Step 1: Parse email using appropriate parser
-                parse_result = self.parser_registry.parse_email(email_message)
-
-                if not parse_result.success:
-                    print(f"  ✗ Parsing failed: {parse_result.error}")
-                    errors_list = stats["errors"]
-                    assert isinstance(errors_list, list)
-                    errors_list.append(f"Parse error: {parse_result.error}")
-                    continue
-
-                opportunities = parse_result.opportunities
-                stats["opportunities_found"] = cast(int, stats["opportunities_found"]) + len(
-                    opportunities
-                )
-
-                print(f"  Parser: {parse_result.parser_name}")
-                print(f"  Opportunities found: {len(opportunities)}")
-
-                # Step 2: Enrich opportunities that need research (funding leads)
-                enriched_opportunities = self.enrichment.enrich_opportunities(opportunities)
-                stats["opportunities_enriched"] = cast(int, stats["opportunities_enriched"]) + len(
-                    [o for o in enriched_opportunities if o.research_attempted]
-                )
-
-                # Step 3: Filter opportunities
-                included_opps, excluded_opps = self.filter.filter_jobs(
-                    [self._opportunity_to_dict(o) for o in enriched_opportunities]
-                )
-
-                stats["jobs_passed_filter"] = cast(int, stats["jobs_passed_filter"]) + len(
-                    included_opps
-                )
-
-                print("\nFiltering Results:")
-                print(f"  ✓ Passed: {len(included_opps)}")
-                print(f"  ✗ Excluded: {len(excluded_opps)}")
-
-                # Step 4: Store, score, and notify
-                for job_dict in included_opps:
-                    job_id = self.database.add_job(job_dict)
-
-                    if job_id:
-                        stats["jobs_stored"] = cast(int, stats["jobs_stored"]) + 1
-                        print("\n✓ New Job Stored:")
-                        print(f"  Title: {job_dict['title']}")
-                        print(f"  Company: {job_dict['company']}")
-                        print(f"  Keywords: {', '.join(job_dict.get('keywords_matched', []))}")
-                        print(f"  Link: {job_dict['link']}")
-
-                        # Step 4.5: Score the job
-                        try:
-                            score, grade, breakdown = self.scorer.score_job(job_dict)
-
-                            # Update database with score
-                            self.database.update_job_score(
-                                job_id, score, grade, json.dumps(breakdown)
-                            )
-
-                            stats["jobs_scored"] = cast(int, stats["jobs_scored"]) + 1
-                            print(f"  ✓ Scored: {grade} ({score}/100)")
-                            print(
-                                f"    Breakdown: Seniority={breakdown['seniority']}, Domain={breakdown['domain']}, Role={breakdown['role_type']}"
-                            )
-
-                        except Exception as e:
-                            print(f"  ✗ Scoring failed: {e}")
-                            errors_list = stats["errors"]
-                            assert isinstance(errors_list, list)
-                            errors_list.append(f"Scoring failed for job {job_id}: {e}")
-
-                        # Send notification ONLY for A/B grade jobs (70+)
-                        if score >= 70:  # A or B grade
-                            try:
-                                # Add score to notification title for priority
-                                notification_job = job_dict.copy()
-                                notification_job["title"] = f"[{grade} {score}] {job_dict['title']}"
-
-                                notification_results = self.notifier.notify_job(notification_job)
-
-                                if notification_results.get("email") or notification_results.get(
-                                    "sms"
-                                ):
-                                    stats["notifications_sent"] = (
-                                        cast(int, stats["notifications_sent"]) + 1
-                                    )
-                                    self.database.mark_notified(job_id)
-                                    print(
-                                        f"  ✓ Notified: SMS={notification_results.get('sms')}, Email={notification_results.get('email')}"
-                                    )
-                            except Exception as e:
-                                print(f"  ✗ Notification failed: {e}")
-                                errors_list = stats["errors"]
-                                assert isinstance(errors_list, list)
-                                errors_list.append(f"Notification failed for job {job_id}: {e}")
-                        else:
-                            print(f"  ⊘ Notification skipped: Low score ({grade} {score}/100)")
-
-                    else:
-                        print(f"\n- Duplicate: {job_dict['title']} at {job_dict['company']}")
-
-                stats["emails_processed"] = cast(int, stats["emails_processed"]) + 1
-
-            except Exception as e:
-                print(f"Error processing email: {e}")
-                errors_list = stats["errors"]
-                assert isinstance(errors_list, list)
-                errors_list.append(str(e))
-                continue
+            self._process_single_email(email_message, stats)
 
         return stats
+
+    def _process_single_email(
+        self, email_message: email.message.Message, stats: dict[str, int | list[str]]
+    ) -> None:
+        """Process a single email through parse -> enrich -> filter -> store pipeline"""
+        try:
+            subject = email_message.get("Subject", "No Subject")
+            print(f"\n{'=' * 70}")
+            print(f"Email: {subject}")
+            print(f"{'=' * 70}")
+
+            # Step 1: Parse email
+            parse_result = self.parser_registry.parse_email(email_message)
+            if not parse_result.success:
+                self._handle_parse_error(parse_result.error, stats)
+                return
+
+            # Step 2: Enrich and filter
+            included_opps = self._enrich_and_filter_opportunities(parse_result, stats)
+
+            # Step 3: Process each job
+            for job_dict in included_opps:
+                self._store_and_process_job(job_dict, stats)
+
+            stats["emails_processed"] = cast(int, stats["emails_processed"]) + 1
+
+        except Exception as e:
+            print(f"Error processing email: {e}")
+            errors_list = stats["errors"]
+            assert isinstance(errors_list, list)
+            errors_list.append(str(e))
+
+    def _handle_parse_error(self, error: str | None, stats: dict[str, int | list[str]]) -> None:
+        """Handle parsing errors"""
+        print(f"  ✗ Parsing failed: {error}")
+        errors_list = stats["errors"]
+        assert isinstance(errors_list, list)
+        errors_list.append(f"Parse error: {error}")
+
+    def _enrich_and_filter_opportunities(
+        self, parse_result, stats: dict[str, int | list[str]]
+    ) -> list[dict]:
+        """Enrich opportunities and filter them"""
+        opportunities = parse_result.opportunities
+        stats["opportunities_found"] = cast(int, stats["opportunities_found"]) + len(opportunities)
+
+        print(f"  Parser: {parse_result.parser_name}")
+        print(f"  Opportunities found: {len(opportunities)}")
+
+        # Enrich opportunities
+        enriched_opportunities = self.enrichment.enrich_opportunities(opportunities)
+        stats["opportunities_enriched"] = cast(int, stats["opportunities_enriched"]) + len(
+            [o for o in enriched_opportunities if o.research_attempted]
+        )
+
+        # Filter opportunities
+        included_opps, excluded_opps = self.filter.filter_jobs(
+            [self._opportunity_to_dict(o) for o in enriched_opportunities]
+        )
+
+        stats["jobs_passed_filter"] = cast(int, stats["jobs_passed_filter"]) + len(included_opps)
+
+        print("\nFiltering Results:")
+        print(f"  ✓ Passed: {len(included_opps)}")
+        print(f"  ✗ Excluded: {len(excluded_opps)}")
+
+        return included_opps
+
+    def _store_and_process_job(self, job_dict: dict, stats: dict[str, int | list[str]]) -> None:
+        """Store a job and process it (score + notify)"""
+        job_id = self.database.add_job(job_dict)
+
+        if not job_id:
+            print(f"\n- Duplicate: {job_dict['title']} at {job_dict['company']}")
+            return
+
+        stats["jobs_stored"] = cast(int, stats["jobs_stored"]) + 1
+        print("\n✓ New Job Stored:")
+        print(f"  Title: {job_dict['title']}")
+        print(f"  Company: {job_dict['company']}")
+        print(f"  Keywords: {', '.join(job_dict.get('keywords_matched', []))}")
+        print(f"  Link: {job_dict['link']}")
+
+        # Score and notify
+        score, grade = self._score_and_update_job(job_id, job_dict, stats)
+        if score is not None and grade is not None:
+            self._notify_if_qualified(job_id, job_dict, score, grade, stats)
+
+    def _score_and_update_job(
+        self, job_id: int, job_dict: dict, stats: dict[str, int | list[str]]
+    ) -> tuple[int | None, str | None]:
+        """Score a job and update database"""
+        try:
+            score, grade, breakdown = self.scorer.score_job(job_dict)
+            self.database.update_job_score(job_id, score, grade, json.dumps(breakdown))
+
+            stats["jobs_scored"] = cast(int, stats["jobs_scored"]) + 1
+            print(f"  ✓ Scored: {grade} ({score}/100)")
+            print(
+                f"    Breakdown: Seniority={breakdown['seniority']}, Domain={breakdown['domain']}, Role={breakdown['role_type']}"
+            )
+            return score, grade
+
+        except Exception as e:
+            print(f"  ✗ Scoring failed: {e}")
+            errors_list = stats["errors"]
+            assert isinstance(errors_list, list)
+            errors_list.append(f"Scoring failed for job {job_id}: {e}")
+            return None, None
+
+    def _notify_if_qualified(
+        self,
+        job_id: int,
+        job_dict: dict,
+        score: int,
+        grade: str,
+        stats: dict[str, int | list[str]],
+    ) -> None:
+        """Send notification if job meets score threshold (70+)"""
+        if score < 70:
+            print(f"  ⊘ Notification skipped: Low score ({grade} {score}/100)")
+            return
+
+        try:
+            notification_job = job_dict.copy()
+            notification_job["title"] = f"[{grade} {score}] {job_dict['title']}"
+
+            notification_results = self.notifier.notify_job(notification_job)
+
+            if notification_results.get("email") or notification_results.get("sms"):
+                stats["notifications_sent"] = cast(int, stats["notifications_sent"]) + 1
+                self.database.mark_notified(job_id)
+                print(
+                    f"  ✓ Notified: SMS={notification_results.get('sms')}, Email={notification_results.get('email')}"
+                )
+        except Exception as e:
+            print(f"  ✗ Notification failed: {e}")
+            errors_list = stats["errors"]
+            assert isinstance(errors_list, list)
+            errors_list.append(f"Notification failed for job {job_id}: {e}")
 
     def _opportunity_to_dict(self, opp: OpportunityData) -> dict:
         """Convert OpportunityData to dict for compatibility with existing code"""
