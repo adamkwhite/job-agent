@@ -1,0 +1,51 @@
+{
+  "parsers": [
+    {
+      "name": "linkedin",
+      "enabled": true,
+      "type": "job_alert",
+      "description": "LinkedIn job alert emails"
+    },
+    {
+      "name": "f6s",
+      "enabled": true,
+      "type": "funding_news",
+      "description": "F6S funding announcements"
+    },
+    {
+      "name": "supra",
+      "enabled": true,
+      "type": "job_alert",
+      "description": "Supra Product Leadership Jobs newsletter"
+    },
+    {
+      "name": "artemis",
+      "enabled": true,
+      "type": "funding_news",
+      "description": "Artemis company growth and executive hiring news"
+    },
+    {
+      "name": "indeed",
+      "enabled": false,
+      "type": "job_alert",
+      "description": "Indeed job alerts (not yet implemented)"
+    },
+    {
+      "name": "glassdoor",
+      "enabled": false,
+      "type": "job_alert",
+      "description": "Glassdoor job alerts (not yet implemented)"
+    }
+  ],
+  "funding_filters": {
+    "enabled": true,
+    "min_amount_usd": 10000000,
+    "stages": [
+      "Seed",
+      "Series A",
+      "Series B",
+      "Series C"
+    ],
+    "description": "Only process companies with $10m+ in Seed through Series C"
+  }
+}
