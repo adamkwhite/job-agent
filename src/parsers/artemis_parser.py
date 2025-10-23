@@ -214,10 +214,7 @@ class ArtemisParser(BaseEmailParser):
             return True
 
         # All caps (likely acronym from middle of sentence)
-        if company.isupper() and len(company) < 4:
-            return True
-
-        return False
+        return bool(company.isupper() and len(company) < 4)
 
     def _find_company_website(self, soup: BeautifulSoup, company: str) -> str | None:
         """
@@ -278,10 +275,7 @@ class ArtemisParser(BaseEmailParser):
             return False
 
         # Must start with http
-        if not url.startswith("http"):
-            return False
-
-        return True
+        return url.startswith("http")
 
     def _parse_company_sections(
         self, soup: BeautifulSoup, email_message: Message

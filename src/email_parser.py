@@ -31,7 +31,7 @@ class JobEmailParser:
         # Get email metadata
         from_email = self._extract_email_address(email_message.get("From", ""))
         subject = email_message.get("Subject", "")
-        date = email_message.get("Date", "")
+        email_message.get("Date", "")
 
         # Identify source
         source = self._identify_source(from_email, subject)
@@ -64,7 +64,7 @@ class JobEmailParser:
 
         # Check subject line for hints
         subject_lower = subject.lower()
-        for email_addr, source in self.sources.items():
+        for _email_addr, source in self.sources.items():
             for keyword in source.get("subject_contains", []):
                 if keyword.lower() in subject_lower:
                     return source
@@ -81,16 +81,16 @@ class JobEmailParser:
                 content_type = part.get_content_type()
                 try:
                     payload = part.get_payload(decode=True)
-                    if payload:
+                    if payload and isinstance(payload, bytes):
                         if content_type == "text/html":
                             html_body = payload.decode("utf-8", errors="ignore")
                         elif content_type == "text/plain":
                             text_body = payload.decode("utf-8", errors="ignore")
-                except:
+                except Exception:  # Parsing external email content
                     continue
         else:
             payload = email_message.get_payload(decode=True)
-            if payload:
+            if payload and isinstance(payload, bytes):
                 content_type = email_message.get_content_type()
                 if content_type == "text/html":
                     html_body = payload.decode("utf-8", errors="ignore")
@@ -114,7 +114,7 @@ class JobEmailParser:
 
         return jobs
 
-    def _parse_html_jobs(self, soup: BeautifulSoup, source: dict | None) -> list[dict]:
+    def _parse_html_jobs(self, soup: BeautifulSoup, _source: dict | None) -> list[dict]:
         """Parse jobs from HTML content"""
         jobs = []
 
@@ -169,7 +169,7 @@ class JobEmailParser:
         # Include job links
         return any(keyword in url_lower for keyword in job_keywords)
 
-    def _extract_title(self, link_element, soup: BeautifulSoup) -> str:
+    def _extract_title(self, link_element, _soup: BeautifulSoup) -> str:
         """Extract job title from link or surrounding context"""
         # Try link text first
         title = link_element.get_text(strip=True)
@@ -194,7 +194,7 @@ class JobEmailParser:
 
         return title
 
-    def _extract_company(self, link_element, soup: BeautifulSoup) -> str:
+    def _extract_company(self, link_element, _soup: BeautifulSoup) -> str:
         """Extract company name from link context"""
         parent = link_element.parent
 
@@ -214,7 +214,7 @@ class JobEmailParser:
 
         return ""
 
-    def _extract_location(self, link_element, soup: BeautifulSoup) -> str:
+    def _extract_location(self, link_element, _soup: BeautifulSoup) -> str:
         """Extract location from link context"""
         parent = link_element.parent
 

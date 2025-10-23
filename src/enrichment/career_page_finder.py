@@ -114,10 +114,9 @@ class CareerPageFinder:
             try:
                 response = self.session.get(url, timeout=5, allow_redirects=True)
 
-                if response.status_code == 200:
-                    # Check if page looks like a careers page
-                    if self._is_careers_page(response.text):
-                        return url
+                # Check if page looks like a careers page
+                if response.status_code == 200 and self._is_careers_page(response.text):
+                    return url
 
             except Exception:
                 continue
@@ -144,7 +143,7 @@ class CareerPageFinder:
         # Should have at least 3 keywords
         return keyword_count >= 3
 
-    def _google_search(self, company_name: str) -> str | None:
+    def _google_search(self, _company_name: str) -> str | None:
         """
         Search Google for company careers page
 

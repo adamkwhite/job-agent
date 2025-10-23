@@ -33,6 +33,8 @@ html_body = generate_email_html(jobs)
 
 # Send to Adam
 adam_email = os.getenv("GMAIL_USERNAME")
+if not adam_email:
+    raise ValueError("GMAIL_USERNAME environment variable not set")
 
 msg = MIMEMultipart("mixed")
 msg["Subject"] = (
@@ -75,9 +77,13 @@ else:
     print(f"  ⚠️  jobs.html not found at {html_file_path}")
 
 # Send
+gmail_password = os.getenv("GMAIL_APP_PASSWORD")
+if not gmail_password:
+    raise ValueError("GMAIL_APP_PASSWORD environment variable not set")
+
 server = smtplib.SMTP("smtp.gmail.com", 587)
 server.starttls()
-server.login(os.getenv("GMAIL_USERNAME"), os.getenv("GMAIL_APP_PASSWORD"))
+server.login(adam_email, gmail_password)
 server.send_message(msg)
 server.quit()
 

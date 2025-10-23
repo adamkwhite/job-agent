@@ -8,6 +8,7 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -75,11 +76,21 @@ class JobProcessor:
                 # Fetch email
                 status, msg_data = mail.fetch(email_id, "(RFC822)")
 
-                if status != "OK":
+                if (
+                    status != "OK"
+                    or not msg_data
+                    or not isinstance(msg_data, list)
+                    or len(msg_data) == 0
+                ):
                     continue
 
                 # Parse email
-                raw_email = msg_data[0][1]
+                first_msg = msg_data[0]
+                if not isinstance(first_msg, tuple) or len(first_msg) < 2:
+                    continue
+                raw_email = first_msg[1]
+                if not isinstance(raw_email, bytes):
+                    continue
                 email_message = email.message_from_bytes(raw_email)
                 emails.append(email_message)
 
@@ -99,7 +110,7 @@ class JobProcessor:
         Returns:
             Statistics dictionary
         """
-        stats = {
+        stats: dict[str, int | list[str]] = {
             "emails_processed": 0,
             "jobs_found": 0,
             "jobs_passed_filter": 0,
@@ -112,11 +123,13 @@ class JobProcessor:
             try:
                 # Parse email to extract jobs
                 jobs = self.parser.parse_email(email_message)
-                stats["jobs_found"] += len(jobs)
+                stats["jobs_found"] = cast(int, stats["jobs_found"]) + len(jobs)
 
                 # Filter jobs
                 included_jobs, excluded_jobs = self.filter.filter_jobs(jobs)
-                stats["jobs_passed_filter"] += len(included_jobs)
+                stats["jobs_passed_filter"] = cast(int, stats["jobs_passed_filter"]) + len(
+                    included_jobs
+                )
 
                 print(f"\n{'=' * 60}")
                 print(f"Email: {email_message.get('Subject', 'No Subject')}")
@@ -128,7 +141,7 @@ class JobProcessor:
                     job_id = self.database.add_job(job)
 
                     if job_id:
-                        stats["jobs_stored"] += 1
+                        stats["jobs_stored"] = cast(int, stats["jobs_stored"]) + 1
                         print(f"\n✓ New Job: {job['title']} at {job['company']}")
                         print(f"  Keywords: {', '.join(job.get('keywords_matched', []))}")
                         print(f"  Link: {job['link']}")
@@ -138,14 +151,18 @@ class JobProcessor:
                             notification_results = self.notifier.notify_job(job)
 
                             if notification_results.get("email") or notification_results.get("sms"):
-                                stats["notifications_sent"] += 1
+                                stats["notifications_sent"] = (
+                                    cast(int, stats["notifications_sent"]) + 1
+                                )
                                 self.database.mark_notified(job_id)
                                 print(
                                     f"  ✓ Notified: SMS={notification_results.get('sms')}, Email={notification_results.get('email')}"
                                 )
                         except Exception as e:
                             print(f"  ✗ Notification failed: {e}")
-                            stats["errors"].append(f"Notification failed for job {job_id}: {e}")
+                            errors_list = stats["errors"]
+                            assert isinstance(errors_list, list)
+                            errors_list.append(f"Notification failed for job {job_id}: {e}")
 
                     else:
                         print(f"\n- Duplicate: {job['title']} at {job['company']}")
@@ -157,11 +174,13 @@ class JobProcessor:
                         reason = job.get("filter_result", {}).get("reason", "Unknown")
                         print(f"  - {job.get('title', 'Unknown')}: {reason}")
 
-                stats["emails_processed"] += 1
+                stats["emails_processed"] = cast(int, stats["emails_processed"]) + 1
 
             except Exception as e:
                 print(f"Error processing email: {e}")
-                stats["errors"].append(str(e))
+                errors_list = stats["errors"]
+                assert isinstance(errors_list, list)
+                errors_list.append(str(e))
                 continue
 
         return stats

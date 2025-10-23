@@ -116,7 +116,7 @@ class LinkedInParser(BaseEmailParser):
 
         return opportunities
 
-    def _extract_title(self, link_element, soup: BeautifulSoup) -> str:
+    def _extract_title(self, link_element, _soup: BeautifulSoup) -> str:
         """Extract job title from link or surrounding context"""
         # Try to get the full job info text from parent <tr>
         job_info = self._get_job_info_text(link_element)
@@ -139,7 +139,7 @@ class LinkedInParser(BaseEmailParser):
 
         return title
 
-    def _extract_company(self, link_element, soup: BeautifulSoup) -> str:
+    def _extract_company(self, link_element, _soup: BeautifulSoup) -> str:
         """Extract company name from link context"""
         # Try to get the full job info text from parent <tr>
         job_info = self._get_job_info_text(link_element)
@@ -163,7 +163,7 @@ class LinkedInParser(BaseEmailParser):
 
         return ""
 
-    def _extract_location(self, link_element, soup: BeautifulSoup) -> str:
+    def _extract_location(self, link_element, _soup: BeautifulSoup) -> str:
         """Extract location from link context"""
         # Try to get the full job info text from parent <tr>
         job_info = self._get_job_info_text(link_element)

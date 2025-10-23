@@ -66,7 +66,11 @@
       "Bash(./lineup-venv/bin/python3 -c \"\nfrom tests.unit.test_baseball_generator import baseball_config\nimport pytest\nconfig = baseball_config(None)\nfor p in config.positions:\n    print(f''{p.id}: {p.name}'')\n\")",
       "Bash(python:*)",
       "mcp__playwright__browser_close",
-      "Bash(job-agent-venv/bin/python:*)"
+      "Bash(job-agent-venv/bin/python:*)",
+      "Bash(make lint:*)",
+      "Bash(job-agent-venv/bin/ruff check:*)",
+      "Bash(make typecheck:*)",
+      "Bash(make all:*)"
     ],
     "deny": []
   }
