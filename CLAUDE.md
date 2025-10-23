@@ -53,7 +53,7 @@ Multi-factor scoring system (0-115 points) evaluating jobs against Wesley's prof
 5. Job deduplication and storage
 6. Notification triggers for A/B grade jobs only (80+)
 
-**Supported Sources**: LinkedIn, Supra Product Leadership Jobs, F6S, Artemis
+**Supported Sources**: LinkedIn, Supra Product Leadership Jobs, F6S, Artemis, Built In
 
 ### 3. Robotics Web Scraper (`src/jobs/weekly_robotics_scraper.py`)
 - Scrapes 1,092 jobs from robotics/deeptech Google Sheets
@@ -191,11 +191,41 @@ CREATE TABLE jobs (
 - **Location**: Remote (US/anywhere), Hybrid Ontario (Toronto/Waterloo/Burlington)
 - **Role Preference**: Engineering leadership > Product leadership
 
+### Email Parser Implementation Details
+
+#### Built In Parser (`src/parsers/builtin_parser.py`)
+Parses Built In job alert emails with unique challenges:
+
+**AWS Tracking URLs**: Built In wraps job URLs in AWS tracking links with URL-encoded paths:
+```python
+# Example: https://cb4sdw3d.r.us-west-2.awstrack.me/L0/https:%2F%2Fbuiltin.com%2Fjob%2F...
+# Pattern must match both plain and encoded paths
+soup.find_all("a", href=re.compile(r"builtin\.com(%2F|/)job(%2F|/)"))
+```
+
+**Style-Based HTML Parsing**: Built In uses inline styles instead of semantic classes:
+```python
+# Company: font-size:16px, margin-bottom:8px
+# Title: font-size:20px, font-weight:700
+# Location/Salary: Identified by LocationIcon/SalaryIcon images
+```
+
+**URL Cleaning**: Decode URL-encoded characters and strip query params:
+```python
+url.replace("%2F", "/").replace("%3F", "?").split("?")[0]
+```
+
+**Detection Logic**:
+- `"builtin" in from_addr` or `"support@builtin.com" in from_addr`
+- `"job" and "match" and "product" in subject`
+
+**Type Hint Fix**: Added `from __future__ import annotations` to `src/imap_client.py` to enable forward references for `email.message.Message` type hints in Python 3.9+.
+
 ### Configuration Files
 - `config/email-settings.json` - IMAP credentials and email settings
 - `config/filter-keywords.json` - Include/exclude keyword lists
 - `config/notification-settings.json` - Twilio SMS + email settings
-- `config/parsers.json` - Email parser configurations
+- `config/parsers.json` - Email parser configurations (includes builtin parser)
 - `.env` - Environment variables (Gmail app password, Twilio credentials)
 
 ### Key Patterns
