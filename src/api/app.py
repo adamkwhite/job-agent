@@ -4,9 +4,10 @@ Flask API for company monitoring
 This API allows Chrome extension to add/manage companies to monitor
 """
 
-from company_service import CompanyService
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+
+from .company_service import CompanyService
 
 app = Flask(__name__)
 
