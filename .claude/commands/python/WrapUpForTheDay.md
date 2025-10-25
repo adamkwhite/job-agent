@@ -89,6 +89,38 @@ poetry lock  # or pdm lock
 
 ## 5. Documentation Updates
 
+### Update CHANGELOG.md (PRIMARY)
+**This is the primary documentation for session changes.** Follow [Keep a Changelog](https://keepachangelog.com/) format:
+
+Add to the `[Unreleased]` section:
+
+**Added** - New features:
+- New classes, functions, or modules created
+- New API endpoints or commands
+- New test files or test infrastructure
+
+**Changed** - Modifications to existing functionality:
+- Updated function signatures or behavior
+- Refactored code or improved performance
+- Configuration or dependency changes
+
+**Fixed** - Bug fixes:
+- Issues resolved (link to issue numbers)
+- Test failures corrected
+- CI/CD pipeline fixes
+
+**Deprecated** - Soon-to-be removed features:
+- Features marked for removal
+- Migration guides for replacements
+
+**Removed** - Deleted features:
+- Removed functionality
+- Deleted files or modules
+
+**Security** - Security improvements:
+- Vulnerability fixes
+- Security-related configuration changes
+
 ### Update todo.md
 Add any outstanding:
 - Tasks to complete
@@ -97,43 +129,16 @@ Add any outstanding:
 - Performance issues identified
 - Dependency updates needed
 
-### Update CLAUDE.md
-Document what changed during this session:
+### Update CLAUDE.md (ONLY for static project info)
+**CLAUDE.md is for static project information, NOT session logs.**
 
-**Modules Modified:**
-- List which Python modules were edited and why
+Only update CLAUDE.md if you:
+- Add new major components or architecture
+- Change development commands or workflows
+- Add new configuration patterns
+- Document permanent implementation details
 
-**API Changes:**
-- Function signatures changed
-- New classes or methods added
-- Breaking changes introduced
-
-**Testing Updates:**
-- New test files or test cases
-- Coverage improvements
-- Test infrastructure changes
-
-**Implementation Details:**
-- Architecture decisions made
-- Solutions to problems encountered
-- Workarounds or compromises
-- Performance optimizations
-
-**Next Steps:**
-- What needs to be done next
-- Blockers or questions remaining
-
-**Known Issues:**
-- New bugs discovered
-- Technical debt identified
-- Compatibility concerns
-
-### Update CHANGELOG.md (if exists)
-Document changes for version tracking:
-- Features added
-- Bugs fixed
-- Breaking changes
-- Deprecated functionality
+Do NOT add session-specific changes to CLAUDE.md - those go in CHANGELOG.md!
 
 ## 6. Store Learnings in Claude Memory
 
@@ -287,9 +292,9 @@ Record when this session ends and calculate duration:
 - [ ] Coverage meets project requirements
 - [ ] No linting or type errors
 - [ ] requirements.txt or pyproject.toml updated
-- [ ] All todo items documented
-- [ ] CLAUDE.md updated with session learnings
-- [ ] CHANGELOG.md updated (if applicable)
+- [ ] All todo items documented in todo.md
+- [ ] **CHANGELOG.md updated with session changes**
+- [ ] CLAUDE.md updated ONLY if architecture/workflow changed
 - [ ] Key learnings stored in Claude Memory
 - [ ] Git branch created and pushed
 - [ ] PR created with complete description
