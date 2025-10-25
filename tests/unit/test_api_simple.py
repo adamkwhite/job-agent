@@ -2,17 +2,64 @@
 Simple API tests without mocking - just test a few key endpoints
 """
 
+import sqlite3
+import sys
+import tempfile
+from pathlib import Path
+
 import pytest
 
 from api.app import app
+from api.company_service import CompanyService
 
 
 @pytest.fixture
 def client():
-    """Create Flask test client"""
+    """Create Flask test client with temporary database"""
+    # Create temp database
+    fd, db_path = tempfile.mkstemp(suffix=".db")
+    temp_db = Path(db_path)
+
+    # Create companies table
+    conn = sqlite3.connect(temp_db)
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS companies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            careers_url TEXT NOT NULL,
+            scraper_type TEXT DEFAULT 'generic',
+            active INTEGER DEFAULT 1,
+            last_checked TEXT,
+            notes TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(name, careers_url)
+        )
+    """
+    )
+    conn.commit()
+    conn.close()
+
+    # Create new service with temp database
+    test_service = CompanyService(db_path=str(temp_db))
+
+    # Patch app's company_service with test service using sys.modules
+    app_module = sys.modules["api.app"]
+    original_service = app_module.company_service
+    app_module.company_service = test_service
+
+    # Configure app for testing
     app.config["TESTING"] = True
+
+    # Yield test client
     with app.test_client() as client:
         yield client
+
+    # Cleanup
+    app_module.company_service = original_service
+    temp_db.unlink(missing_ok=True)
 
 
 def test_home_endpoint(client):
