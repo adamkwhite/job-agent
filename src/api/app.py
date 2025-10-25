@@ -10,9 +10,9 @@ from flask_cors import CORS
 
 app = Flask(__name__)
 
-# Enable CORS so Chrome extension can make requests
-# In production, you'd restrict this to specific origins
-CORS(app)
+# Enable CORS for Chrome extension only
+# Restricts requests to chrome-extension:// protocol for security
+CORS(app, resources={r"/*": {"origins": ["chrome-extension://*", "http://localhost:*"]}})
 
 # Initialize service
 company_service = CompanyService()
