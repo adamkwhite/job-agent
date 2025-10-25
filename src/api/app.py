@@ -4,6 +4,8 @@ Flask API for company monitoring
 This API allows Chrome extension to add/manage companies to monitor
 """
 
+import os
+
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
@@ -11,9 +13,11 @@ from .company_service import CompanyService
 
 app = Flask(__name__)
 
-# Enable CORS for Chrome extension only
-# Restricts requests to chrome-extension:// protocol for security
-CORS(app, resources={r"/*": {"origins": ["chrome-extension://*", "http://localhost:*"]}})
+# Enable CORS - configurable via environment variable
+# Default: Chrome extension and localhost only for security
+CORS_ORIGINS = os.getenv("FLASK_CORS_ORIGINS", "chrome-extension://*,http://localhost:*")
+cors_origins_list = [origin.strip() for origin in CORS_ORIGINS.split(",")]
+CORS(app, resources={r"/*": {"origins": cors_origins_list}})
 
 # Initialize service
 company_service = CompanyService()
@@ -109,5 +113,7 @@ def toggle_company(company_id):
 if __name__ == "__main__":
     # Run development server
     # Only accessible from localhost for security
-    # TODO: Disable debug mode for production (see GitHub issue)
-    app.run(host="127.0.0.1", port=5000, debug=True)  # nosec B201
+    # Debug mode controlled by FLASK_DEBUG environment variable (default: False)
+    # Set FLASK_DEBUG=1 or FLASK_DEBUG=true for local development
+    debug_mode = os.getenv("FLASK_DEBUG", "false").lower() in ("1", "true", "yes")
+    app.run(host="127.0.0.1", port=5000, debug=debug_mode)
