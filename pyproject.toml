@@ -140,6 +140,11 @@ omit = [
     "*/job-agent-venv/*",
     "*/venv/*",
     "src/view_database.py",  # Utility script
+    "src/test_*.py",  # Test files in src/ (should be moved to tests/)
+    "src/debug_*.py",  # Debug/development scripts
+    "src/generate_jobs_html.py",  # Output generation script
+    "src/send_digest_*.py",  # Email sending scripts
+    "src/processor_master.py",  # Orchestration script
 ]
 
 [tool.coverage.report]
