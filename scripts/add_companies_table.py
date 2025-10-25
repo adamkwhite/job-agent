@@ -3,7 +3,6 @@ Migration script to add companies table for career page monitoring
 """
 
 import sqlite3
-from pathlib import Path
 
 
 def migrate_database(db_path: str = "data/jobs.db"):
