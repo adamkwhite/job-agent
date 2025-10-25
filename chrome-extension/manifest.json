@@ -1,0 +1,15 @@
+{
+     "manifest_version": 3,
+    "name": "Job Agent - Company Monitor",
+    "version": "1.0",
+    "description": "Add companies to your job monitoring system",
+    "permissions": [
+      "activeTab"
+    ],
+    "host_permissions": [
+      "http://localhost:5000/*"
+    ],
+    "action": {
+      "default_popup": "popup.html"
+    }
+}
