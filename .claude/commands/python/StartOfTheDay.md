@@ -46,19 +46,20 @@ gh issue list --limit 10  # Recent issues
 
 **Read these files to get project context:**
 
-### Core Documentation
+### Core Documentation (Read First)
 - `README.md` - Project structure, installation, testing requirements
-- `CLAUDE.md` - Project-specific AI instructions (if exists)
+- `CHANGELOG.md` - **Recent session changes and version history** (PRIMARY for what changed)
+- `CLAUDE.md` - Static project architecture and patterns (NOT session logs)
 - `todo.md` - Current priorities and task list
 
 ### Python-Specific Docs
 - `requirements.txt` or `pyproject.toml` - Dependencies
 - `tests/` - Test structure and coverage reports
 - `docs/TESTING_GUIDE.md` - Testing strategy (if exists)
-- `CHANGELOG.md` - Recent changes and version history
 
-### Recent Changes
-- `docs/completed-todos.md` - Recently completed work
+### Recent Work
+- Review `[Unreleased]` section in CHANGELOG.md for latest changes
+- `docs/completed-todos.md` - Completed work archive (if exists)
 - Review any files in `docs/features/` for active feature work
 
 **Important:** Do not create any files if they don't exist - just note what's missing.
