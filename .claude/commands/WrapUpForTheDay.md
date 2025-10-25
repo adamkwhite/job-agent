@@ -4,87 +4,223 @@ description: End-of-day wrap-up tasks including cleanup, documentation updates, 
 
 # End-of-Day Wrap-Up
 
-This command helps you wrap up your session systematically.
+## 1. Session End Time
 
-## Project Type Detection
+Use `mcp__time__get_current_time` with timezone `America/Toronto`:
 
-**Detect project type and use the appropriate template:**
+**Session ending at:** [Display time from time server]
 
-### For Python Projects
-If this project uses Python (has `requirements.txt`, `pyproject.toml`, or `.py` files):
-- **Use:** `.claude/commands/python/WrapUpForTheDay.md`
-- **Includes:** pytest, coverage reports, requirements.txt updates, venv checks
+---
 
-### For Website Projects
-If this project is a website (has `.html`, `.css`, or static site files):
-- **Use:** `.claude/commands/web/WrapUpForTheDay.md`
-- **Includes:** SEO checklist, sitemap updates, Netlify deployment verification
+## 2. File Organization & Cleanup
 
-### For Other Project Types
-If neither applies, follow the base template:
-- **Use:** `.claude/commands/common/WrapUpForTheDay-base.md`
-- **Includes:** Git workflow, cleanup, documentation, Claude Memory storage
+### Root Directory Cleanup
+- Check for temporary files in root (temp_*, debug_*, demo_*, scratch_*, test_*)
+- Verify README.md structure matches actual directories
+- Move test output files to appropriate directories
+- Check if any docs should move to `docs/archive/`
+- Remove Python cache files if committed by mistake (`__pycache__/`, `*.pyc`)
 
-## Quick Wrap-Up (Generic)
-
-If you need a quick wrap-up without project-specific checks:
-
-### 1. File Organization & Cleanup
-- Remove temporary files (temp_*, debug_*, demo_*, scratch_*)
-- Verify README.md structure matches directories
-- Move artifacts to appropriate locations
-- Check for files to archive in `docs/archive/`
-
+### Git Housekeeping
 ```bash
 git status  # Review all changes
 ```
+- Stage all intentional deletions and moves
+- Verify untracked files should exist or be gitignored
+- Check `.gitignore` catches test artifacts, coverage reports, venv/
 
-### 2. Documentation Updates
+## 3. Test Suite & Coverage (CRITICAL)
 
-**Update todo.md:**
-- Outstanding tasks
-- Bugs discovered
-- Improvements needed
+### Run Full Test Suite
+```bash
+# Run all tests
+pytest
 
-**Update CLAUDE.md:**
-- What changed and why
-- Architecture decisions
-- Solutions to problems
-- Next steps
-- Known issues
+# Run with coverage report
+pytest --cov --cov-report=term-missing --cov-report=html
 
-### 3. Store Learnings in Claude Memory
+# Check coverage percentage
+coverage report
+```
 
-Use `mcp__claude-memory__add_conversation` to store:
+**Checklist:**
+- [ ] All tests passing
+- [ ] Coverage meets project requirements (typically 80%+)
+- [ ] New code has corresponding tests
+- [ ] No skipped tests without good reason
+- [ ] Integration tests run successfully
+
+### Code Quality Checks
+```bash
+# Linting
+ruff check .  # or flake8, pylint
+
+# Type checking (if using)
+mypy .
+
+# Code formatting
+black .  # or ruff format
+
+# Security check (if configured)
+bandit -r src/
+```
+
+## 4. Dependency Management
+
+### Update Requirements
+```bash
+# Freeze current dependencies
+pip freeze > requirements.txt
+
+# Or update pyproject.toml if using Poetry/PDM
+poetry lock  # or pdm lock
+```
+
+**Check for:**
+- [ ] New dependencies added during session
+- [ ] Version pins appropriate (exact vs compatible)
+- [ ] Dev dependencies separated from production
+- [ ] Security vulnerabilities (`pip-audit` or `safety check`)
+
+### Virtual Environment Health
+- Verify venv is tracked in `.gitignore`
+- Document Python version requirements in README.md
+- Note any OS-specific dependencies
+
+## 5. Documentation Updates
+
+### Update CHANGELOG.md (PRIMARY)
+**This is the primary documentation for session changes.** Follow [Keep a Changelog](https://keepachangelog.com/) format:
+
+Add to the `[Unreleased]` section:
+
+**Added** - New features:
+- New classes, functions, or modules created
+- New API endpoints or commands
+- New test files or test infrastructure
+
+**Changed** - Modifications to existing functionality:
+- Updated function signatures or behavior
+- Refactored code or improved performance
+- Configuration or dependency changes
+
+**Fixed** - Bug fixes:
+- Issues resolved (link to issue numbers)
+- Test failures corrected
+- CI/CD pipeline fixes
+
+**Deprecated** - Soon-to-be removed features:
+- Features marked for removal
+- Migration guides for replacements
+
+**Removed** - Deleted features:
+- Removed functionality
+- Deleted files or modules
+
+**Security** - Security improvements:
+- Vulnerability fixes
+- Security-related configuration changes
+
+### Update todo.md
+Add any outstanding:
+- Tasks to complete
+- Bugs discovered (with error messages/stack traces)
+- Test improvements needed
+- Performance issues identified
+- Dependency updates needed
+
+### Update CLAUDE.md (ONLY for static project info)
+**CLAUDE.md is for static project information, NOT session logs.**
+
+Only update CLAUDE.md if you:
+- Add new major components or architecture
+- Change development commands or workflows
+- Add new configuration patterns
+- Document permanent implementation details
+
+Do NOT add session-specific changes to CLAUDE.md - those go in CHANGELOG.md!
+
+## 6. Store Learnings in Claude Memory
+
+Use the Claude Memory MCP to store important learnings from this session.
+
+### What to Store:
+Store insights that would be valuable in future sessions:
 
 **Problem-Solution Pairs:**
 ```
-Title: [Brief problem]
+Title: [Brief problem description]
 Content:
-Problem: [What went wrong]
-Solution: [How we solved it]
-Context: [Project], [technology], [component]
+Problem: [What went wrong or what challenge we faced]
+Solution: [How we solved it, with code examples]
+Context: [Project name], Python [version], [specific module/feature]
 Date: [Today's date]
 ```
 
-**Design Patterns:**
+**Testing Patterns:**
 ```
-Title: Pattern - [Pattern name]
-Content: Implementation, rationale, trade-offs
+Title: Test Pattern - [Pattern name]
+Content:
+- How we structured tests for [feature]
+- Fixtures and mocks used
+- Coverage strategy
+- Edge cases discovered
 ```
 
-### 4. Git Workflow
+**Dependency & Environment Lessons:**
+```
+Title: Dependency Management - [Topic]
+Content:
+- Package compatibility issues encountered
+- Version conflicts and resolutions
+- Virtual environment setup tips
+- Installation gotchas
+```
 
+**Architecture & Design Patterns:**
+```
+Title: Design Pattern - [Pattern name]
+Content:
+- How we implemented [feature]
+- Why this approach was chosen
+- Trade-offs considered
+- Code organization strategy
+```
+
+**Performance Optimizations:**
+```
+Title: Performance - [Optimization]
+Content:
+- Bottleneck identified
+- Solution implemented
+- Benchmarking results
+- When to apply this pattern
+```
+
+### Store the Memory:
+After drafting the summary, use the Claude Memory MCP to store it:
+```
+mcp__claude-memory__add_conversation with:
+- title: Brief descriptive title
+- content: Structured summary as above
+- date: Today's date
+```
+
+## 7. Create Feature Branch & PR
+
+### Branch Workflow
 ```bash
-# Create feature branch
+# If not already on feature branch
 git checkout -b feature/[description]
 
-# Stage and commit
+# Stage changes
 git add [files]
+
+# Commit with context
 git commit -m "$(cat <<'EOF'
 [Summary of changes]
 
-[Detailed explanation]
+[Detailed explanation of what changed and why]
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
@@ -92,67 +228,77 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 EOF
 )"
 
-# Push and create PR
+# Push branch
 git push -u origin feature/[description]
+
+# Create PR
 gh pr create
 ```
 
-### 5. Monitor CI/CD
+### PR Description Should Include:
+- Summary of changes
+- Links to related issues or PRs
+- Test results and coverage changes
+- Breaking changes (if any)
+- Migration guide (if needed)
+- Dependencies added/updated
 
+## 8. CI/CD Verification
+
+### Monitor Pipeline
 ```bash
+# Check PR status
 gh pr checks
-gh run watch  # If available
+
+# Watch workflow run
+gh run watch
 ```
 
-### 6. Final Verification
+**Verify:**
+- [ ] All CI checks passing
+- [ ] Tests run on multiple Python versions (if configured)
+- [ ] Coverage reports generated
+- [ ] Linting and type checking pass
+- [ ] Build succeeds
 
-- [ ] All todos documented
-- [ ] CLAUDE.md updated
+### Package Build (if applicable)
+```bash
+# Build package
+python -m build
+
+# Verify package contents
+tar -tzf dist/*.tar.gz
+```
+
+## 9. Session Summary
+
+Record when this session ends and calculate duration:
+
+**Session ended at:** [Time from section 1]
+
+**Session duration:** [Calculate time from StartOfTheDay to end time]
+
+**Session accomplishments:**
+- [Key tasks completed]
+- [PRs created/merged]
+- [Issues resolved]
+- [Tests added/fixed]
+- [Coverage improvements]
+- [Learnings captured]
+
+## 9. Final Verification
+
+- [ ] All tests passing locally
+- [ ] Coverage meets project requirements
+- [ ] No linting or type errors
+- [ ] requirements.txt or pyproject.toml updated
+- [ ] All todo items documented in todo.md
+- [ ] **CHANGELOG.md updated with session changes**
+- [ ] CLAUDE.md updated ONLY if architecture/workflow changed
 - [ ] Key learnings stored in Claude Memory
-- [ ] Branch created and pushed
+- [ ] Git branch created and pushed
 - [ ] PR created with complete description
-- [ ] CI/CD checks passing or in progress
-- [ ] No temporary files in root
+- [ ] CI/CD checks passing
+- [ ] No temporary files left in root
 - [ ] No untracked files that should be committed
-- [ ] No sensitive data committed
-
----
-
-## Customization
-
-To customize this for your project:
-
-1. **Copy the appropriate template:**
-   ```bash
-   # For Python projects:
-   cp .claude/commands/python/WrapUpForTheDay.md .claude/commands/WrapUpForTheDay.md
-
-   # For web projects:
-   cp .claude/commands/web/WrapUpForTheDay.md .claude/commands/WrapUpForTheDay.md
-   ```
-
-2. **Edit project-specific sections:**
-   - Add project-specific cleanup tasks
-   - Customize verification checklists
-   - Update deployment verification steps
-   - Add project-specific CI/CD checks
-
-3. **Keep the base structure:**
-   - File organization (section 1)
-   - Documentation updates (section 2)
-   - Claude Memory storage (section 3)
-   - Git workflow (section 4)
-   - Final verification (section 6)
-
-## Directory Structure Reference
-
-```
-$PROJECT_NAME/
-├── src/                    # Application source code
-├── tests/                  # Unit and integration tests
-├── docs/                   # Documentation and design materials
-│   └── archive/            # Old documents
-├── scripts/                # Build and deployment scripts
-├── README.md               # Project overview
-└── CLAUDE.md               # Project context for Claude AI
-```
+- [ ] Virtual environment not committed
