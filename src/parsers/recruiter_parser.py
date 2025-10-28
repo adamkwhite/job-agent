@@ -138,9 +138,9 @@ def parse_single_recruiter_job(soup: BeautifulSoup) -> dict[str, str] | None:
         if match:
             # Get the last captured group (varies by pattern)
             title = match.groups()[-1].strip() if match.groups() else match.group(0).strip()
-            # Clean up title
-            title = re.sub(r"\s+at\s+.*", "", title)  # Remove "at Company" part
-            title = re.sub(r"\s+role.*", "", title, flags=re.IGNORECASE)
+            # Clean up title - use non-greedy matching to prevent ReDoS
+            title = re.sub(r" at .*", "", title)  # Remove "at Company" part
+            title = re.sub(r" role.*", "", title, flags=re.IGNORECASE)
             break
 
     # Find company name - often after "at" or in email context
