@@ -61,6 +61,10 @@ def parse_linkedin_jobs(soup: BeautifulSoup) -> list[dict[str, str]]:
             # Find job title - usually in the link text or nearby
             title = link.get_text(strip=True)
 
+            # Skip generic link text
+            if title in ["View on LinkedIn", "Apply", "Learn more", "View job"]:
+                title = ""
+
             # If link text is not the title, search nearby
             if not title or len(title) < 3:
                 # Look for title in parent structure
@@ -115,7 +119,7 @@ def parse_single_recruiter_job(soup: BeautifulSoup) -> dict[str, str] | None:
     # Common patterns in recruiter emails
     title_patterns = [
         r"(?:position|role|opportunity|opening|job)[\s:]+(?:for\s+)?(?:a\s+)?(?:an\s+)?([^\.\n]+?)(?:\s+role|\s+position|\s+at\s+)",
-        r"(?:hiring|seeking|looking for)[\s:]+(?:a\s+)?(?:an\s+)?([^\.]+)",
+        r"(?:hiring|seeking|looking for)[\s:]+(?:a\s+)?(?:an\s+)?([^\.\n]+?)(?:\s+at\s+)",
         r'apply\s+(?:now\s+)?to\s+["\']?([^"\']+)["\']?',
         r'fit\s+for\s+.*?["\']([^"\']+)["\']',
     ]
@@ -140,14 +144,25 @@ def parse_single_recruiter_job(soup: BeautifulSoup) -> dict[str, str] | None:
             break
 
     # Find company name - often after "at" or in email context
-    company_match = re.search(r"at\s+([A-Z][^,\.\n]+)", text)
+    # Match company name including multi-word names and endings like "Inc."
+    company_match = re.search(r"at\s+([A-Z][^,\n\.]+?)(?:\.|\s*$|\s*\n)", text)
     if company_match:
         company = company_match.group(1).strip()
+        # Check if the next character is a period (for Inc. etc)
+        match_end = company_match.end(1)
+        if (
+            match_end < len(text)
+            and text[match_end] == "."
+            and re.search(r"\b(?:Inc|LLC|Ltd|Corp|Co)$", company)
+        ):
+            company = company + "."
 
     # Find location - look for common location patterns
     location_patterns = [
-        r"(Remote|Hybrid|On-site)",
+        r"Location:\s*([^\n]+)",  # Explicit "Location:" label
+        r"([A-Z][^,\n]+,\s*[A-Z]{2}\s*\([^)]+\))",  # City, ST (Type)
         r"([A-Z][^,]+,\s*[A-Z]{2})",  # City, ST
+        r"(Remote|Hybrid|On-site)(?!\))",  # Work type when not in parentheses
         r"([A-Z][^,]+,\s*[^,]+,\s*(?:United States|Canada|USA))",
     ]
 

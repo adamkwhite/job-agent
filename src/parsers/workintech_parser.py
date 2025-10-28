@@ -68,18 +68,19 @@ def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
                 if img and "Logo" in img.get("alt", ""):
                     company = img["alt"].replace(" Logo", "").strip()
 
-                # Or in preceding text
-                if company == "Unknown Company":
-                    # Look for text patterns
-                    text = parent_container.get_text()
-                    # Extract company from patterns like "Company Name · Location"
-                    company_match = re.search(r"([^·\n]+)\s*·\s*([^·\n]+)", text)
-                    if company_match:
-                        potential_company = company_match.group(1).strip()
-                        potential_location = company_match.group(2).strip()
-                        # Make sure it's not the job title
-                        if potential_company != title:
+                # Look for company and location in text patterns
+                text = parent_container.get_text()
+                # Extract company from patterns like "Company Name · Location"
+                company_match = re.search(r"([^·\n]+)\s*·\s*([^·\n]+)", text)
+                if company_match:
+                    potential_company = company_match.group(1).strip()
+                    potential_location = company_match.group(2).strip()
+                    # Make sure it's not the job title
+                    if potential_company != title:
+                        if company == "Unknown Company":
                             company = potential_company
+                        # Always use the extracted location if found
+                        if potential_location and "·" in text:
                             location = potential_location
 
             # Additional location extraction - only use as fallback
