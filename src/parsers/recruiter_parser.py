@@ -145,7 +145,7 @@ def parse_single_recruiter_job(soup: BeautifulSoup) -> dict[str, str] | None:
 
     # Find company name - often after "at" or in email context
     # Match company name including multi-word names and endings like "Inc."
-    company_match = re.search(r"at\s+([A-Z][^,\n\.]+?)(?:\.|\s*$|\s*\n)", text)
+    company_match = re.search(r"at\s+([A-Z][^,\n\.]+)(?:\.|\s*$|\s*\n)", text)
     if company_match:
         company = company_match.group(1).strip()
         # Check if the next character is a period (for Inc. etc)
