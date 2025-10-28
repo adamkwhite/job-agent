@@ -78,7 +78,8 @@
       "Bash(gh issue reopen:*)",
       "Bash(job-agent-venv/bin/pip show:*)",
       "mcp__time__get_current_time",
-      "mcp__claude-memory__add_conversation"
+      "mcp__claude-memory__add_conversation",
+      "Bash(./job-agent-venv/bin/python:*)"
     ],
     "deny": []
   }
