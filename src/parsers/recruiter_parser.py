@@ -115,7 +115,7 @@ def parse_single_recruiter_job(soup: BeautifulSoup) -> dict[str, str] | None:
     # Common patterns in recruiter emails
     title_patterns = [
         r"(?:position|role|opportunity|opening|job)[\s:]+(?:for\s+)?(?:a\s+)?(?:an\s+)?([^\.\n]+?)(?:\s+role|\s+position|\s+at\s+)",
-        r"(hiring|seeking|looking for)[\s:]+([^\.]+)",
+        r"(?:hiring|seeking|looking for)[\s:]+(?:a\s+)?(?:an\s+)?([^\.]+)",
         r'apply\s+(?:now\s+)?to\s+["\']?([^"\']+)["\']?',
         r'fit\s+for\s+.*?["\']([^"\']+)["\']',
     ]

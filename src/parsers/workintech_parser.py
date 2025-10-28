@@ -20,7 +20,7 @@ def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
     jobs = []
 
     # Find job links - they link to getro.com with job details
-    job_links = soup.find_all("a", href=re.compile(r"getro\.com/.*click\?"))
+    job_links = soup.find_all("a", href=re.compile(r"getro\.com/"))
 
     # Track processed jobs to avoid duplicates
     processed_jobs = set()
@@ -34,7 +34,13 @@ def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
             # Skip if not a job title (navigation links, etc.)
             if not title or len(title) < 5:
                 continue
-            if title in ["See more jobs", "this link", "Work In Tech"]:
+            if title in ["See more jobs", "this link", "Work In Tech", "Update your preferences"]:
+                continue
+            # Skip common navigation patterns
+            if any(
+                skip in title.lower()
+                for skip in ["preferences", "unsubscribe", "settings", "view more"]
+            ):
                 continue
 
             # Avoid duplicates
@@ -76,14 +82,14 @@ def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
                             company = potential_company
                             location = potential_location
 
-            # Additional location extraction
+            # Additional location extraction - only use as fallback
             if location == "Unknown Location":
                 # Look for location in subscription preferences mentioned in email
                 location_text = soup.find(
-                    text=re.compile(r"Ontario|Toronto|Canada|Remote", re.IGNORECASE)
+                    string=re.compile(r"Ontario|Toronto|Canada|Remote", re.IGNORECASE)
                 )
                 if location_text:
-                    location = "Ontario, Canada"  # Default for this job board
+                    location = "Ontario, Canada"  # Default fallback for this job board
 
             jobs.append({"title": title, "company": company, "location": location, "link": url})
 
