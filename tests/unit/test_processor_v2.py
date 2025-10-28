@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from processor_v2 import JobProcessorV2
+from src.processor_v2 import JobProcessorV2
 
 
 class TestProcessorV2HelperMethods:

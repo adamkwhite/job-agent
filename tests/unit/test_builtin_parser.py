@@ -4,7 +4,7 @@ Unit tests for Built In email parser
 
 import email
 
-from parsers.builtin_parser import BuiltInParser
+from src.parsers.builtin_parser import BuiltInParser
 
 
 class TestBuiltInParserCanHandle:
