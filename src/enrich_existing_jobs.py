@@ -86,9 +86,9 @@ def main():
         # Rate limiting
         time.sleep(1)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("Enrichment Complete")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Jobs enriched: {enriched_count}/{len(jobs_to_enrich)}")
 
     # Show some enriched jobs

@@ -336,9 +336,9 @@ def main():
     try:
         opportunities = scraper.scrape_url(args.url, use_ai=use_ai)
 
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"Extracted {len(opportunities)} companies")
-        print(f"{'='*70}\n")
+        print(f"{'=' * 70}\n")
 
         for opp in opportunities:
             print(f"Company: {opp.company}")
