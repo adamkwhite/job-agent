@@ -71,7 +71,8 @@ def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
                 # Look for company and location in text patterns
                 text = parent_container.get_text()
                 # Extract company from patterns like "Company Name · Location"
-                company_match = re.search(r"([^·\n]+)\s*·\s*([^·\n]+)", text)
+                # Simplified to avoid ReDoS - middot separator without optional spaces
+                company_match = re.search(r"([^·\n]+)·([^·\n]+)", text)
                 if company_match:
                     potential_company = company_match.group(1).strip()
                     potential_location = company_match.group(2).strip()
