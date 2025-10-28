@@ -98,4 +98,5 @@ def can_parse(from_addr: str, subject: str) -> bool:
     if "job bank" in from_addr.lower():
         return True
     # Subject patterns like "3 new jobs - Mechanical engineers in various locations"
-    return bool(re.search(r"\d+\s+new\s+job[s]?\s+-", subject.lower()))
+    # Use atomic groups to prevent backtracking
+    return bool(re.search(r"\d+ new jobs? -", subject.lower()))
