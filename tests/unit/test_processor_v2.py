@@ -17,12 +17,12 @@ class TestProcessorV2HelperMethods:
     def processor(self):
         """Create a JobProcessorV2 instance with mocked dependencies"""
         with (
-            patch("processor_v2.IMAPEmailClient"),
-            patch("processor_v2.JobDatabase"),
-            patch("processor_v2.JobFilter"),
-            patch("processor_v2.JobNotifier"),
-            patch("processor_v2.JobScorer"),
-            patch("processor_v2.EnrichmentPipeline"),
+            patch("src.processor_v2.IMAPEmailClient"),
+            patch("src.processor_v2.JobDatabase"),
+            patch("src.processor_v2.JobFilter"),
+            patch("src.processor_v2.JobNotifier"),
+            patch("src.processor_v2.JobScorer"),
+            patch("src.processor_v2.EnrichmentPipeline"),
         ):
             processor = JobProcessorV2()
             return processor
