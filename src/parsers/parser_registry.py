@@ -6,8 +6,9 @@ import json
 from email.message import Message
 from pathlib import Path
 
-from models import ParserResult
-from parsers.base_parser import BaseEmailParser
+from src.models import ParserResult
+
+from .base_parser import BaseEmailParser
 
 
 class ParserRegistry:

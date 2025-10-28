@@ -114,7 +114,7 @@ def parse_single_recruiter_job(soup: BeautifulSoup) -> dict[str, str] | None:
     """
     # Common patterns in recruiter emails
     title_patterns = [
-        r"(position|role|opportunity|opening|job)[\s:]+([^\.]+)",
+        r"(?:position|role|opportunity|opening|job)[\s:]+(?:for\s+)?(?:a\s+)?(?:an\s+)?([^\.\n]+?)(?:\s+role|\s+position|\s+at\s+)",
         r"(hiring|seeking|looking for)[\s:]+([^\.]+)",
         r'apply\s+(?:now\s+)?to\s+["\']?([^"\']+)["\']?',
         r'fit\s+for\s+.*?["\']([^"\']+)["\']',
@@ -132,8 +132,8 @@ def parse_single_recruiter_job(soup: BeautifulSoup) -> dict[str, str] | None:
     for pattern in title_patterns:
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
-            # Get the captured group (usually the second one)
-            title = match.group(2).strip() if len(match.groups()) > 1 else match.group(1).strip()
+            # Get the last captured group (varies by pattern)
+            title = match.groups()[-1].strip() if match.groups() else match.group(0).strip()
             # Clean up title
             title = re.sub(r"\s+at\s+.*", "", title)  # Remove "at Company" part
             title = re.sub(r"\s+role.*", "", title, flags=re.IGNORECASE)

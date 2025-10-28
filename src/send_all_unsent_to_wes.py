@@ -199,7 +199,7 @@ def generate_email_html(jobs_by_grade):
         if len(jobs_by_grade["F"]) > 20:
             html += f"""
             <p style="padding: 10px; background: #f0f0f0; border-radius: 5px; margin: 15px 0;">
-                ... and {len(jobs_by_grade['F']) - 20} more low-scoring jobs
+                ... and {len(jobs_by_grade["F"]) - 20} more low-scoring jobs
             </p>
             """
 
@@ -308,9 +308,9 @@ Hi Wes,
 
 Here are ALL {total_jobs} remaining unsent jobs from the system:
 
-Grade C (60-69 pts): {len(jobs_by_grade['C'])} jobs - Moderate matches
-Grade D (50-59 pts): {len(jobs_by_grade['D'])} jobs - Lower matches
-Grade F (<50 pts):   {len(jobs_by_grade['F'])} jobs - Minimal matches
+Grade C (60-69 pts): {len(jobs_by_grade["C"])} jobs - Moderate matches
+Grade D (50-59 pts): {len(jobs_by_grade["D"])} jobs - Lower matches
+Grade F (<50 pts):   {len(jobs_by_grade["F"])} jobs - Minimal matches
 
 These include all lower-scoring opportunities that weren't in previous digests.
 While they score lower on the automated criteria, some may still be worth reviewing.
