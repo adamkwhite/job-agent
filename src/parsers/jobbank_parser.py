@@ -28,7 +28,7 @@ def parse_jobbank_email(html_content: str) -> list[dict[str, str]]:
                 continue
 
             # Extract URL
-            url = job_link.get("href", "")
+            url = str(job_link.get("href", ""))
             if url and not url.startswith("http"):
                 url = f"https://www.jobbank.gc.ca{url}"
 
