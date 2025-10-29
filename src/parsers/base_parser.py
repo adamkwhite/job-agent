@@ -6,7 +6,7 @@ import re
 from abc import ABC, abstractmethod
 from email.message import Message
 
-from models import ParserResult
+from src.models import ParserResult
 
 
 class BaseEmailParser(ABC):

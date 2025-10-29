@@ -22,9 +22,12 @@ from notifier import JobNotifier
 from parsers.artemis_parser import ArtemisParser
 from parsers.builtin_parser import BuiltInParser
 from parsers.f6s_parser import F6SParser
+from parsers.jobbank_wrapper import JobBankParser
 from parsers.linkedin_parser import LinkedInParser
 from parsers.parser_registry import ParserRegistry
+from parsers.recruiter_wrapper import RecruiterParser
 from parsers.supra_parser import SupraParser
+from parsers.workintech_wrapper import WorkInTechParser
 
 
 class JobProcessorV2:
@@ -50,6 +53,9 @@ class JobProcessorV2:
         self.parser_registry.register(SupraParser())
         self.parser_registry.register(ArtemisParser())
         self.parser_registry.register(BuiltInParser())
+        self.parser_registry.register(JobBankParser())
+        self.parser_registry.register(RecruiterParser())
+        self.parser_registry.register(WorkInTechParser())
 
         print(f"Registered parsers: {', '.join(self.parser_registry.get_enabled_parsers())}")
 
