@@ -37,11 +37,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Marks jobs as sent after email digest generation
   - Prevents duplicate jobs in future digests
 
+### Security
+- **Eliminated 5 ReDoS Vulnerabilities** (PR #14 - Oct 28, 2025)
+  - All email parsers now use ReDoS-safe patterns validated by SonarCloud
+  - Replaced vulnerable regex patterns with string matching and split() operations
+  - Zero remaining security hotspots in SonarCloud analysis
+
 ### Fixed
 - Parser integration issues resolved
   - Fixed import errors with `BaseEmailParser` vs `ParserBase`
   - Added missing `can_handle` method implementations
   - Corrected parser configuration to enable new parsers
+- **ReDoS Security Vulnerabilities** (PR #14 - Oct 28, 2025)
+  - Eliminated 5 Regular Expression Denial of Service vulnerabilities in email parsers
+  - `jobbank_parser.py`: Replaced regex pattern with simple string matching (`" new job -"` / `" new jobs -"`)
+  - `recruiter_parser.py`: Fixed 3 patterns with nested quantifiers causing catastrophic backtracking
+  - `workintech_parser.py`: Replaced complex regex with `split()` for middot separator parsing
+  - All parsers now use ReDoS-safe patterns validated by SonarCloud
+- **CI/CD Test Infrastructure** (PR #14 - Oct 28, 2025)
+  - Added `PYTHONPATH=$PWD` to pytest commands in both `ci.yml` and `security.yml`
+  - Fixed import errors in test execution for both local and CI environments
+  - Configured coverage to use relative paths (`relative_files = true` in pyproject.toml)
+  - SonarCloud now correctly receives and parses coverage data
+  - Updated `sonar-project.properties` to exclude utility scripts from coverage requirements
 
 ## [0.2.1] - 2025-10-24
 
