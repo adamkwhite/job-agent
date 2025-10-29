@@ -31,6 +31,24 @@
       "description": "Built In job alert emails"
     },
     {
+      "name": "jobbank",
+      "enabled": true,
+      "type": "job_alert",
+      "description": "Job Bank Canada job alerts (mechanical engineering, etc.)"
+    },
+    {
+      "name": "recruiter",
+      "enabled": true,
+      "type": "job_alert",
+      "description": "Direct recruiter outreach and LinkedIn saved jobs"
+    },
+    {
+      "name": "workintech",
+      "enabled": true,
+      "type": "job_alert",
+      "description": "Work In Tech job board notifications"
+    },
+    {
       "name": "indeed",
       "enabled": false,
       "type": "job_alert",

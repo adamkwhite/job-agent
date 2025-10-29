@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Three new email parsers for expanded job source coverage
+  - **Job Bank Parser** (`src/parsers/jobbank_parser.py`) - Parses Canadian Job Bank mechanical engineering alerts
+  - **Recruiter Parser** (`src/parsers/recruiter_parser.py`) - Handles LinkedIn saved jobs and direct recruiter outreach
+  - **Work In Tech Parser** (`src/parsers/workintech_parser.py`) - Parses Work In Tech (getro.com) job board emails
+- Parser wrapper classes for integration with parser registry
+  - `src/parsers/jobbank_wrapper.py` - Wraps Job Bank parser with BaseEmailParser interface
+  - `src/parsers/recruiter_wrapper.py` - Wraps Recruiter parser with BaseEmailParser interface
+  - `src/parsers/workintech_wrapper.py` - Wraps Work In Tech parser with BaseEmailParser interface
+- Duplicate email prevention system
+  - Added `sent_to_wes` and `sent_to_wes_at` columns to jobs database
+  - New script `src/send_digest_to_wes_v2.py` - Only sends unsent jobs to prevent duplicates
+  - New script `src/send_all_unsent_to_wes.py` - Sends comprehensive digest of ALL unsent jobs including low-scoring ones
+- Workflow documentation (`docs/development/workflow-diagram.md`)
+  - System architecture overview with data flow
+  - Email processing pipeline sequence diagram
+  - Job scoring system breakdown (115-point system)
+  - Weekly automation cron flow
+  - Parser registry pattern class diagram
+  - Database schema ERD
+
+### Changed
+- Updated `config/parsers.json` to register and enable new parsers
+  - Added jobbank_parser configuration
+  - Added recruiter_parser configuration
+  - Added workintech_parser configuration
+- Enhanced `src/processor_v2.py` to track sent status
+  - Marks jobs as sent after email digest generation
+  - Prevents duplicate jobs in future digests
+
+### Fixed
+- Parser integration issues resolved
+  - Fixed import errors with `BaseEmailParser` vs `ParserBase`
+  - Added missing `can_handle` method implementations
+  - Corrected parser configuration to enable new parsers
+
 ## [0.2.1] - 2025-10-24
 
 ### Added

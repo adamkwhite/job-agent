@@ -40,7 +40,7 @@ jobs:
         continue-on-error: true  # Don't fail if no tests exist yet
         run: |
           if find tests/ -name "test_*.py" -type f | grep -q .; then
-            pytest tests/ \
+            PYTHONPATH=$PWD pytest tests/ \
               --cov=src \
               --cov-report=xml \
               --cov-report=html \
