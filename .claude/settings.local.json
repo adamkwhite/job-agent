@@ -81,7 +81,8 @@
       "mcp__claude-memory__add_conversation",
       "Bash(./job-agent-venv/bin/python:*)",
       "Bash(PYTHONPATH=/home/adam/Code/job-agent job-agent-venv/bin/python:*)",
-      "Bash(PYTHONPATH=/home/adam/Code/job-agent job-agent-venv/bin/pytest:*)"
+      "Bash(PYTHONPATH=/home/adam/Code/job-agent job-agent-venv/bin/pytest:*)",
+      "Bash(PYTHONPATH=$PWD job-agent-venv/bin/pytest:*)"
     ],
     "deny": []
   }
