@@ -68,21 +68,25 @@ def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
                 if img and "Logo" in img.get("alt", ""):
                     company = img["alt"].replace(" Logo", "").strip()
 
-                # Look for company and location in text patterns
-                text = parent_container.get_text()
-                # Extract company from patterns like "Company Name · Location"
-                # Simplified to avoid ReDoS - middot separator without optional spaces
-                company_match = re.search(r"([^·\n]+)·([^·\n]+)", text)
-                if company_match:
-                    potential_company = company_match.group(1).strip()
-                    potential_location = company_match.group(2).strip()
-                    # Make sure it's not the job title
-                    if potential_company != title:
-                        if company == "Unknown Company":
-                            company = potential_company
-                        # Always use the extracted location if found
-                        if potential_location and "·" in text:
-                            location = potential_location
+                # Look for company and location in div/span elements
+                # Find all text elements that contain the middot separator
+                for elem in parent_container.find_all(["div", "span", "p"]):
+                    elem_text = elem.get_text(strip=True)
+                    # Extract company from patterns like "Company Name · Location"
+                    # Use split instead of regex to avoid ReDoS vulnerability
+                    if "·" in elem_text:
+                        parts = elem_text.split("·", 1)  # Split on first middot only
+                        if len(parts) == 2:
+                            potential_company = parts[0].strip()
+                            potential_location = parts[1].strip()
+                            # Make sure it's not the job title
+                            if potential_company and potential_company != title:
+                                if company == "Unknown Company":
+                                    company = potential_company
+                                # Always use the extracted location if found
+                                if potential_location:
+                                    location = potential_location
+                                break
 
             # Additional location extraction - only use as fallback
             if location == "Unknown Location":

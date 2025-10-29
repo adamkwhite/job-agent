@@ -98,5 +98,5 @@ def can_parse(from_addr: str, subject: str) -> bool:
     if "job bank" in from_addr.lower():
         return True
     # Subject patterns like "3 new jobs - Mechanical engineers in various locations"
-    # Use atomic groups to prevent backtracking
-    return bool(re.search(r"\d+ new jobs? -", subject.lower()))
+    # Use specific pattern to prevent backtracking - no nested quantifiers
+    return bool(re.search(r"\d+ new job(?:s)? -", subject.lower()))
