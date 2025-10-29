@@ -3,8 +3,6 @@ Job Bank Canada job alert email parser
 Handles Canadian government job bank notifications
 """
 
-import re
-
 from bs4 import BeautifulSoup
 
 
@@ -98,5 +96,6 @@ def can_parse(from_addr: str, subject: str) -> bool:
     if "job bank" in from_addr.lower():
         return True
     # Subject patterns like "3 new jobs - Mechanical engineers in various locations"
-    # Use specific pattern to prevent backtracking - no nested quantifiers
-    return bool(re.search(r"\d+ new job(?:s)? -", subject.lower()))
+    # Use string matching instead of regex to avoid ReDoS vulnerability
+    subject_lower = subject.lower()
+    return " new job -" in subject_lower or " new jobs -" in subject_lower
