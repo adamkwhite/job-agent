@@ -68,40 +68,62 @@ Multi-factor scoring system (0-115 points) evaluating jobs against Wesley's prof
 - Location-based filtering buttons (Remote/Hybrid/Ontario)
 - Sent to wesvanooyen@gmail.com with scoring breakdowns
 
-### 5. Master Pipeline (`src/processor_master.py`)
-Unified command running all sources:
+### 5. Unified Weekly Scraper (`src/jobs/weekly_unified_scraper.py`) **RECOMMENDED**
+Combines ALL job sources into one automated workflow:
+- **Email processing** (LinkedIn, Supra, F6S, Artemis, Built In, etc.)
+- **Robotics/Deeptech sheet** (1,092 jobs from Google Sheets)
+- **Company monitoring** (Wes's 26+ companies via Firecrawl)
+
 ```bash
-job-agent-venv/bin/python src/processor_master.py
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py
 ```
-Runs email processors + robotics scraper + generates HTML + sends digest
+
+**Key features**:
+- Single command runs all sources
+- Unified scoring and deduplication
+- Configurable thresholds per source
+- Comprehensive stats and logging
+- Cron-friendly for weekly automation
+
+**Scoring thresholds**:
+- Emails: All passing filter
+- Robotics: B+ grade (70+)
+- Companies: D+ grade (50+) ← Lower threshold for more options
+
+### 6. Company Monitoring (`src/jobs/company_scraper.py`)
+- Scrapes 26+ companies' career pages for leadership roles
+- Uses Firecrawl MCP for JavaScript-heavy pages
+- Stores D+ grade jobs (50+) to capture more opportunities
+- Tracks last_checked timestamps
+- Sends notifications for A/B grade jobs (80+)
 
 ## Development Commands
 
-### Run Email Processors
+### Run Unified Weekly Scraper (RECOMMENDED)
 ```bash
-# All email sources + scoring
-job-agent-venv/bin/python src/processor_v2.py
+# All sources: emails + robotics + company monitoring
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py
 
-# Fetch latest emails and process
+# Email only
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --email-only --email-limit 100
+
+# Robotics only
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --robotics-only --robotics-min-score 70
+
+# Company monitoring only (Wes's 26 companies)
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --companies-only --company-filter "From Wes"
+```
+
+### Run Individual Components (Legacy)
+```bash
+# Email processors only
 job-agent-venv/bin/python src/processor_v2.py --fetch-emails --limit 50
-```
 
-### Run Robotics Scraper
-```bash
-# Weekly scraper (B+ grade, leadership only)
-job-agent-venv/bin/python src/jobs/weekly_robotics_scraper.py
+# Robotics scraper only
+job-agent-venv/bin/python src/jobs/weekly_robotics_scraper.py --min-score 70
 
-# Custom threshold
-job-agent-venv/bin/python src/jobs/weekly_robotics_scraper.py --min-score 80
-
-# Include IC roles
-job-agent-venv/bin/python src/jobs/weekly_robotics_scraper.py --all-roles
-```
-
-### Run Master Pipeline (All Sources)
-```bash
-# Everything: emails + robotics + HTML + digest
-job-agent-venv/bin/python src/processor_master.py
+# Company scraper only
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/company_scraper.py --filter "From Wes"
 ```
 
 ### Generate HTML Report
@@ -115,23 +137,31 @@ open jobs.html  # or xdg-open on Linux
 
 ### Send Email Digest
 ```bash
-# Send to Wesley
-job-agent-venv/bin/python src/send_digest_to_wes.py
+# Send to Wesley (only unsent jobs)
+PYTHONPATH=$PWD job-agent-venv/bin/python src/send_digest_to_wes.py
+
+# Force resend all jobs (for testing)
+PYTHONPATH=$PWD job-agent-venv/bin/python src/send_digest_to_wes.py --force-resend
 
 # Send copy to Adam
 job-agent-venv/bin/python src/send_digest_copy.py
 ```
 
-### Cron Setup
+**Digest Tracking**: The system automatically tracks which jobs have been sent in previous digests using the `digest_sent_at` field. Running the script multiple times will only send new jobs, preventing duplicate emails.
+
+### Cron Setup (Weekly Automation)
 ```bash
-# Setup weekly scraper (Monday 9am)
-./scripts/setup_weekly_scraper_cron.sh
+# Setup unified weekly scraper (Monday 9am) - RECOMMENDED
+./scripts/setup_unified_weekly_scraper.sh
 
 # View cron jobs
 crontab -l
 
 # View logs
-tail -f logs/weekly_scraper.log
+tail -f logs/unified_weekly_scraper.log
+
+# Test manually
+./scripts/run_unified_scraper.sh
 ```
 
 ## Success Metrics (V2 - Achieved)

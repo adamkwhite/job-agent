@@ -3,7 +3,10 @@ IMAP email client for fetching job alert emails
 Shared functionality used by both processor.py and processor_v2.py
 """
 
+from __future__ import annotations
+
 import email
+import email.message
 import imaplib
 import os
 

@@ -4,6 +4,7 @@ Wrapper class for Recruiter parser to match ParserBase interface
 
 from email.message import Message
 
+from models import OpportunityData, ParserResult
 from parsers.base_parser import BaseEmailParser
 from parsers.recruiter_parser import can_parse, parse_recruiter_email
 
@@ -24,6 +25,43 @@ class RecruiterParser(BaseEmailParser):
         """Check if this parser can handle the email"""
         return can_parse(from_addr, subject)
 
-    def parse(self, html_content: str) -> list[dict[str, str]]:
+    def parse(self, email_message: Message) -> ParserResult:
         """Parse recruiter email content"""
-        return parse_recruiter_email(html_content)
+        try:
+            from_email = self.extract_email_address(email_message.get("From", ""))
+            html_body, text_body = self.extract_email_body(email_message)
+
+            # Use HTML body if available, otherwise text
+            content = html_body or text_body
+
+            if not content:
+                return ParserResult(
+                    parser_name=self.name,
+                    success=False,
+                    opportunities=[],
+                    error="No email content found",
+                )
+
+            # Parse using the recruiter parser
+            jobs = parse_recruiter_email(content)
+
+            # Convert to OpportunityData objects
+            opportunities = [
+                OpportunityData(
+                    type="direct_job",
+                    title=job["title"],
+                    company=job["company"],
+                    location=job["location"],
+                    link=job["link"],
+                    source="recruiter",
+                    source_email=from_email,
+                )
+                for job in jobs
+            ]
+
+            return ParserResult(parser_name=self.name, success=True, opportunities=opportunities)
+
+        except Exception as e:
+            return ParserResult(
+                parser_name=self.name, success=False, opportunities=[], error=str(e)
+            )
