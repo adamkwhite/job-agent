@@ -20,10 +20,12 @@ if _spec and _spec.loader:
     _old_models = importlib.util.module_from_spec(_spec)
     _spec.loader.exec_module(_old_models)
     OpportunityData = _old_models.OpportunityData
+    EnrichmentResult = _old_models.EnrichmentResult
     ParserResult = _old_models.ParserResult
 else:
     # Fallback - will cause errors but at least won't break imports
     OpportunityData = None  # type: ignore
+    EnrichmentResult = None  # type: ignore
     ParserResult = None  # type: ignore
 
-__all__ = ["Company", "OpportunityData", "ParserResult"]
+__all__ = ["Company", "OpportunityData", "EnrichmentResult", "ParserResult"]
