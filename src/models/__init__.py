@@ -1,22 +1,29 @@
 """Models package
 
 Provides unified data models for the job agent.
+
+This package directory coexists with src/models.py for backwards compatibility.
+We re-export models from models.py so existing code continues to work.
 """
 
-from pydantic import BaseModel, Field
+# Import from this package
+# Re-export from the old models.py file for backwards compatibility
+# Use importlib to avoid Python treating src/models as this package
+import importlib.util
+from pathlib import Path
 
 from .company import Company
 
+_models_file = Path(__file__).parent.parent / "models.py"
+_spec = importlib.util.spec_from_file_location("_old_models", _models_file)
+if _spec and _spec.loader:
+    _old_models = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_old_models)
+    OpportunityData = _old_models.OpportunityData
+    ParserResult = _old_models.ParserResult
+else:
+    # Fallback - will cause errors but at least won't break imports
+    OpportunityData = None  # type: ignore
+    ParserResult = None  # type: ignore
 
-# Re-export ParserResult for backwards compatibility with existing parsers
-# This is defined inline to avoid circular imports with src/models.py
-class ParserResult(BaseModel):
-    """Result from parsing an email"""
-
-    parser_name: str
-    success: bool
-    opportunities: list = Field(default_factory=list)  # type: ignore
-    error: str | None = None
-
-
-__all__ = ["Company", "ParserResult"]
+__all__ = ["Company", "OpportunityData", "ParserResult"]
