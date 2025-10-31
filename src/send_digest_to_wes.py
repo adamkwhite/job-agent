@@ -199,17 +199,31 @@ def generate_email_html(jobs):
     return html
 
 
-def send_digest():
-    """Send digest email to Wesley"""
+def send_digest(force_resend: bool = False):
+    """Send digest email to Wesley
+
+    Args:
+        force_resend: If True, send all jobs regardless of digest_sent_at status
+    """
 
     print("Generating job digest for Wesley van Ooyen...")
 
-    # Get all jobs, sorted by score
+    # Get jobs that haven't been sent in digest yet
     db = JobDatabase()
-    jobs = db.get_recent_jobs(limit=100)
-    jobs = sorted(jobs, key=lambda x: x.get("fit_score") or 0, reverse=True)
 
-    print(f"✓ Found {len(jobs)} jobs in database")
+    if force_resend:
+        print("⚠️  Force resend mode - including previously sent jobs")
+        jobs = db.get_recent_jobs(limit=100)
+        jobs = sorted(jobs, key=lambda x: x.get("fit_score") or 0, reverse=True)
+    else:
+        jobs = db.get_jobs_for_digest(limit=100)
+
+    print(f"✓ Found {len(jobs)} {'total' if force_resend else 'unsent'} jobs in database")
+
+    # If no unsent jobs, skip sending
+    if len(jobs) == 0:
+        print("\n⏸  No new jobs to send - all jobs have been sent in previous digests")
+        return False
 
     high_scoring = [j for j in jobs if j.get("fit_score", 0) >= 80]
     good_scoring = [j for j in jobs if j.get("fit_score", 0) >= 70]
@@ -245,8 +259,12 @@ def send_digest():
         msg["Subject"] = (
             f"🎯 {len(high_scoring)} Top Job Matches for You - {datetime.now().strftime('%Y-%m-%d')}"
         )
-        msg["From"] = os.getenv("GMAIL_USERNAME")
+        gmail_user = os.getenv("GMAIL_USERNAME")
+        if not gmail_user:
+            raise ValueError("GMAIL_USERNAME environment variable not set")
+        msg["From"] = gmail_user
         msg["To"] = wes_email
+        msg["Cc"] = "adamkwhite@gmail.com"
 
         # Plain text version
         text_body = f"""
@@ -295,13 +313,28 @@ Generated on {datetime.now().strftime("%Y-%m-%d at %H:%M")}
 
         server = smtplib.SMTP(smtp_server, smtp_port)
         server.starttls()
-        server.login(os.getenv("GMAIL_USERNAME"), os.getenv("GMAIL_APP_PASSWORD"))
-        server.send_message(msg)
+        gmail_password = os.getenv("GMAIL_APP_PASSWORD")
+        if not gmail_password:
+            raise ValueError("GMAIL_APP_PASSWORD environment variable not set")
+        server.login(gmail_user, gmail_password)
+
+        # Send to both To and CC recipients
+        recipients = [wes_email, "adamkwhite@gmail.com"]
+        server.send_message(msg, to_addrs=recipients)
         server.quit()
 
         print(f"✓ Email sent successfully to {wes_email}")
+        print("  CC: adamkwhite@gmail.com")
         print(f"\n📧 Subject: {msg['Subject']}")
         print(f"📊 Content: {len(high_scoring)} top matches + scoring breakdown")
+
+        # Mark all jobs as sent in digest (unless force_resend mode)
+        if not force_resend:
+            job_ids = [job["id"] for job in jobs]
+            db.mark_digest_sent(job_ids)
+            print(f"✓ Marked {len(job_ids)} jobs as sent in digest")
+        else:
+            print("⚠️  Force resend mode - jobs NOT marked as sent")
 
         return True
 
@@ -314,4 +347,14 @@ Generated on {datetime.now().strftime("%Y-%m-%d at %H:%M")}
 
 
 if __name__ == "__main__":
-    send_digest()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Send weekly job digest to Wesley")
+    parser.add_argument(
+        "--force-resend",
+        action="store_true",
+        help="Force resend all jobs, ignoring digest_sent_at status",
+    )
+
+    args = parser.parse_args()
+    send_digest(force_resend=args.force_resend)
