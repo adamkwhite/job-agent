@@ -38,6 +38,7 @@ class JobDatabase:
                 source_email TEXT,
                 received_at TEXT NOT NULL,
                 notified_at TEXT,
+                digest_sent_at TEXT,
                 keywords_matched TEXT,
                 raw_email_content TEXT,
                 fit_score INTEGER,
@@ -73,9 +74,16 @@ class JobDatabase:
         if "score_breakdown" not in columns:
             cursor.execute("ALTER TABLE jobs ADD COLUMN score_breakdown TEXT")
 
+        if "digest_sent_at" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN digest_sent_at TEXT")
+
         # Create index after column exists
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_fit_score ON jobs(fit_score)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_digest_sent_at ON jobs(digest_sent_at)
         """)
 
         conn.commit()
@@ -172,6 +180,26 @@ class JobDatabase:
         conn.commit()
         conn.close()
 
+    def mark_digest_sent(self, job_ids: list[int]):
+        """Mark jobs as included in digest"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        now = datetime.now().isoformat()
+
+        for job_id in job_ids:
+            cursor.execute(
+                """
+                UPDATE jobs
+                SET digest_sent_at = ?, updated_at = ?
+                WHERE id = ?
+            """,
+                (now, now, job_id),
+            )
+
+        conn.commit()
+        conn.close()
+
     def update_job_score(self, job_id: int, score: int, grade: str, breakdown: str):
         """Update job with fit score and grade"""
         conn = sqlite3.connect(self.db_path)
@@ -201,6 +229,27 @@ class JobDatabase:
             """
             SELECT * FROM jobs
             ORDER BY received_at DESC
+            LIMIT ?
+        """,
+            (limit,),
+        )
+
+        jobs = [dict(row) for row in cursor.fetchall()]
+
+        conn.close()
+        return jobs
+
+    def get_jobs_for_digest(self, limit: int = 100) -> list[dict]:
+        """Get jobs that haven't been sent in digest yet"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT * FROM jobs
+            WHERE digest_sent_at IS NULL
+            ORDER BY fit_score DESC, received_at DESC
             LIMIT ?
         """,
             (limit,),

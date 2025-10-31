@@ -78,11 +78,14 @@ class F6SParser(BaseEmailParser):
 
         # Pattern to match funding announcements:
         # "$7m for Provision.com from Toronto, Canada (AI, Software) with funding from..."
-        # "£500k for Synthax from London, UK (Health/Medical, Healthcare) with funding from..."
+        # "£500k for Patent Watch from London, UK (Health/Medical, Healthcare) with funding from..."
+        # "$32m for Eden (edenmed.com) from Palo Alto, US (Diagnostics, Healthcare) with funding from..."
 
-        pattern = r"([£$€][\d\.]+[kmb]?)\s+for\s+([^\s]+)\s+from\s+([^,]+),\s+([^\(]+)\s*\(([^\)]+)\)\s+with funding from\s+([^\.]+)"
+        # Updated pattern with non-greedy matching for company names (allows multi-word names)
+        # and handles optional periods at the end
+        pattern = r"([£$€][\d\.]+[kmb]?)\s+for\s+(.+?)\s+from\s+([^,]+),\s+([^\(]+)\s*\(([^\)]+)\)\s+with funding from\s+(.+?)[\.\n]"
 
-        matches = re.finditer(pattern, text, re.IGNORECASE)
+        matches = re.finditer(pattern, text, re.IGNORECASE | re.MULTILINE)
 
         for match in matches:
             amount = match.group(1)

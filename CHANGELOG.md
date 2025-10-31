@@ -8,6 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Automated Weekly Company Monitoring** (Oct 30, 2025)
+  - New company scraping infrastructure for monitoring Wes's 26 companies
+  - `src/jobs/scrape_companies_with_firecrawl.py` - Coordinates Firecrawl MCP scraping workflow
+  - `src/jobs/company_scraper.py` - Company scraping orchestration with database integration
+  - `src/scrapers/firecrawl_career_scraper.py` - Firecrawl-based career page scraper
+  - `src/jobs/store_company_jobs.py` - One-time import script for 14 leadership jobs
+  - `src/jobs/weekly_unified_scraper.py` - Unified scraper combining emails, robotics, and companies
+  - Job extraction from markdown with multiple pattern matching strategies
+  - Leadership role filtering (Director, VP, Manager, etc.)
+  - Integration with existing scoring and notification system
+  - Semi-automated workflow requiring Claude Code for Firecrawl MCP tool calls
+- Documentation for automated workflows
+  - `docs/weekly-automation-workflow.md` - Complete weekly automation guide
+  - `docs/system-diagram.md` - Visual architecture diagram showing all three job sources
+  - `docs/unified-weekly-scraper.md` - Unified scraper documentation
+- Company data management
+  - `data/job_sources.csv` - 26 companies from Wes with career page URLs
+  - Company database table with last_checked tracking
+  - Imported 14 leadership jobs from manual scraping into database
+- Setup scripts
+  - `scripts/setup_unified_weekly_scraper.sh` - Cron job configuration for weekly scraping
 - Three new email parsers for expanded job source coverage
   - **Job Bank Parser** (`src/parsers/jobbank_parser.py`) - Parses Canadian Job Bank mechanical engineering alerts
   - **Recruiter Parser** (`src/parsers/recruiter_parser.py`) - Handles LinkedIn saved jobs and direct recruiter outreach
@@ -29,6 +50,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Database schema ERD
 
 ### Changed
+- **Weekly Digest Tracking System** (Oct 30, 2025)
+  - Added `digest_sent_at` field to database schema for tracking weekly digest sends
+  - Updated `src/database.py` with `mark_digest_sent()` and `get_jobs_for_digest()` methods
+  - Modified `src/send_digest_to_wes.py` to mark jobs as sent and prevent duplicates
+  - Added `--force-resend` flag for testing digest emails
+  - Fixed CC email address from incorrect "roomzz.com" to "adamkwhite@gmail.com"
+  - Digest now only sends unsent jobs (no duplicates across weekly digests)
+- Improved company scraper integration
+  - Updated `src/jobs/company_scraper.py` to call Firecrawl and process results
+  - Modified `src/scrapers/firecrawl_career_scraper.py` with improved job extraction patterns
+  - Enhanced markdown parsing to handle multiple career page formats
 - Updated `config/parsers.json` to register and enable new parsers
   - Added jobbank_parser configuration
   - Added recruiter_parser configuration
