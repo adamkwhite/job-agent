@@ -82,3 +82,54 @@ class IMAPEmailClient:
         mail.logout()
 
         return emails
+
+    def fetch_recent_emails(self, limit: int = 50) -> list[email.message.Message]:
+        """Fetch recent emails from inbox (read or unread)"""
+        mail = self.connect_imap()
+        mail.select("INBOX")
+
+        # Search for ALL emails
+        status, messages = mail.search(None, "ALL")
+
+        if status != "OK":
+            print("No emails found")
+            return []
+
+        email_ids = messages[0].split()
+        print(f"Found {len(email_ids)} total emails")
+
+        # Get the most recent ones (email IDs are chronological)
+        email_ids = email_ids[-limit:] if len(email_ids) > limit else email_ids
+        # Reverse to get newest first
+        email_ids = list(reversed(email_ids))
+
+        emails = []
+        for email_id in email_ids:
+            try:
+                status, msg_data = mail.fetch(email_id, "(RFC822)")
+
+                if (
+                    status != "OK"
+                    or not msg_data
+                    or not isinstance(msg_data, list)
+                    or len(msg_data) == 0
+                ):
+                    continue
+
+                first_msg = msg_data[0]
+                if not isinstance(first_msg, tuple) or len(first_msg) < 2:
+                    continue
+                raw_email = first_msg[1]
+                if not isinstance(raw_email, bytes):
+                    continue
+                email_message = email.message_from_bytes(raw_email)
+                emails.append(email_message)
+
+            except Exception as e:
+                print(f"Error fetching email {email_id}: {e}")
+                continue
+
+        mail.close()
+        mail.logout()
+
+        return emails
