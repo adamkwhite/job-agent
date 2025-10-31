@@ -191,7 +191,7 @@ class EmailCompanyExtractor:
 
         # Pattern: *Company Name* is hiring
         pattern = re.compile(
-            r"\*([A-Za-z0-9\s&.,\'-]+)\*\s+is hiring", re.MULTILINE | re.IGNORECASE
+            r"\*([A-Za-z0-9&.,\'\s-]+)\*\s+is hiring", re.MULTILINE | re.IGNORECASE
         )
 
         matches = pattern.findall(body)
@@ -260,7 +260,7 @@ class EmailCompanyExtractor:
 
         # Find all builtin.com job URLs
         url_pattern = re.compile(
-            r'href="([^"]*(?:builtin\.com(?:%2F|/)job(?:%2F|/)[^"]+))"', re.IGNORECASE
+            r'href="([^"]*builtin\.com(?:%2F|/)job(?:%2F|/)[^"]+)"', re.IGNORECASE
         )
 
         matches = url_pattern.findall(body)

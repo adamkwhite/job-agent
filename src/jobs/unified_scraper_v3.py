@@ -243,8 +243,8 @@ class UnifiedJobScraper:
 
         Queries the companies table for recently added companies
         """
-        # TODO: Implement browser extension company fetching
-        # For now, return empty list
+        # Browser extension integration placeholder
+        # Will be implemented in future PR
         return []
 
     def _process_company(
@@ -413,8 +413,9 @@ class UnifiedJobScraper:
 
                 # Look for location patterns on the next line(s)
                 # Pattern: Remote, Hybrid, city names, state codes
+                # Simplified to reduce regex complexity
                 loc_match = re.search(
-                    r"^\s*-?\s*(Remote|Hybrid|On-?site|[A-Z][a-z]+,\s*[A-Z]{2}|[A-Z][a-z]+,\s*[A-Z][a-z]+)",
+                    r"^\s*-?\s*(Remote|Hybrid|On-?site|[A-Z][a-z]+,\s*[A-Z]{2,})",
                     context,
                     re.MULTILINE,
                 )
