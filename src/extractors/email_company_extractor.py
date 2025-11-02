@@ -258,9 +258,11 @@ class EmailCompanyExtractor:
         # Pattern: https://cb4sdw3d.r.us-west-2.awstrack.me/L0/https:%2F%2Fbuiltin.com%2Fjob%2F...
         # Or direct: https://builtin.com/job/...
 
-        # Find all builtin.com job URLs
+        # Find all href attributes that contain builtin.com/job URLs
+        # Fixed ReDoS: Use explicit character sets to prevent backtracking
+        # Matches both direct links and AWS tracking links containing builtin.com URLs
         url_pattern = re.compile(
-            r'href="([^"]*builtin\.com(?:%2F|/)job(?:%2F|/)[^"]+)"', re.IGNORECASE
+            r'href="([a-zA-Z0-9:\/.%?=&_\-]*builtin\.com[a-zA-Z0-9:\/.%?=&_\-]*)"', re.IGNORECASE
         )
 
         matches = url_pattern.findall(body)

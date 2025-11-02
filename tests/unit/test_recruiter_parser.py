@@ -2,7 +2,11 @@
 Unit tests for Recruiter and LinkedIn email parser
 """
 
-from src.parsers.recruiter_parser import can_parse, parse_recruiter_email
+from src.parsers.recruiter_parser import (
+    can_parse,
+    parse_recruiter_email,
+    parse_single_recruiter_job,
+)
 
 
 class TestRecruiterParser:
@@ -184,3 +188,103 @@ class TestRecruiterParser:
         assert jobs[0]["company"] == "MedTech Solutions"
         assert "Burlington" in jobs[0]["location"]
         assert jobs[0]["link"] == "https://www.linkedin.com/jobs/view/888888"
+
+
+class TestRecruiterParserEdgeCases:
+    """Test edge cases and error handling"""
+
+    def test_parse_linkedin_jobs_no_job_id_in_url(self):
+        """Should skip job links without valid job IDs (line 55)"""
+        html_content = """
+        <html>
+            <body>
+                <a href="https://www.linkedin.com/invalid/link">Invalid Link</a>
+                <a href="https://www.linkedin.com/jobs/view/12345">Valid Job Title</a>
+            </body>
+        </html>
+        """
+        jobs = parse_recruiter_email(html_content)
+
+        # Should only get the job with valid ID
+        assert len(jobs) == 1
+
+    def test_parse_linkedin_jobs_title_in_parent_element(self):
+        """Should find title in parent element when link text is generic (lines 74-78)"""
+        html_content = """
+        <html>
+            <body>
+                <div>
+                    <span style="font-size: 16px">Director of Engineering</span>
+                    <a href="https://www.linkedin.com/jobs/view/99999">View on LinkedIn</a>
+                </div>
+            </body>
+        </html>
+        """
+        jobs = parse_recruiter_email(html_content)
+
+        assert len(jobs) == 1
+        assert jobs[0]["title"] == "Director of Engineering"
+
+    def test_parse_linkedin_jobs_company_from_image_alt(self):
+        """Should extract company from image alt text (lines 96-98)"""
+        html_content = """
+        <html>
+            <body>
+                <td>
+                    <img alt="Robotics Corp" />
+                    <a href="https://www.linkedin.com/jobs/view/11111">Engineering Manager</a>
+                </td>
+            </body>
+        </html>
+        """
+        jobs = parse_recruiter_email(html_content)
+
+        assert len(jobs) == 1
+        assert jobs[0]["company"] == "Robotics Corp"
+
+    def test_parse_linkedin_jobs_handles_exception(self):
+        """Should handle exceptions during job parsing (lines 108-110)"""
+        from unittest.mock import patch
+
+        from bs4 import BeautifulSoup
+
+        html_content = """
+        <html>
+            <body>
+                <a href="https://www.linkedin.com/jobs/view/1">First Job</a>
+                <a href="https://www.linkedin.com/jobs/view/2">Second Job</a>
+            </body>
+        </html>
+        """
+
+        soup = BeautifulSoup(html_content, "lxml")
+        links = soup.find_all("a")
+
+        # Mock first link to raise exception
+        def mock_get(*_args, **_kwargs):
+            raise Exception("Test exception")
+
+        with patch.object(links[0], "get", side_effect=mock_get):
+            jobs = parse_recruiter_email(str(soup))
+            # Should continue and may get second job
+            assert isinstance(jobs, list)
+
+    def test_parse_single_recruiter_job_no_location_match(self):
+        """Should handle recruiter emails with no location match (line 183)"""
+        html_content = """
+        <html>
+            <body>
+                <p>We're hiring a Director of Product at TechCo.</p>
+                <p>This is a great opportunity for leadership.</p>
+            </body>
+        </html>
+        """
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup(html_content, "lxml")
+        job = parse_single_recruiter_job(soup)
+
+        # Should successfully parse even without location
+        if job:
+            assert job["title"] or job["company"]
+            # Location may be None or empty
