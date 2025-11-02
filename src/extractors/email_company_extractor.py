@@ -262,7 +262,7 @@ class EmailCompanyExtractor:
         # Fixed ReDoS: Use explicit character sets to prevent backtracking
         # Matches both direct links and AWS tracking links containing builtin.com URLs
         url_pattern = re.compile(
-            r'href="([a-zA-Z0-9:/.%?=&_-]*builtin\.com[a-zA-Z0-9:/.%?=&_-]*)"', re.IGNORECASE
+            r'href="([a-zA-Z0-9:/.%?=&_\-]*builtin\.com[a-zA-Z0-9:/.%?=&_\-]*)"', re.IGNORECASE
         )
 
         matches = url_pattern.findall(body)
