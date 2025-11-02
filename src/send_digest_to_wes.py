@@ -45,20 +45,26 @@ def generate_email_html(jobs):
             .job {{
                 background: #f8f9fa;
                 border-left: 4px solid #3498db;
-                padding: 15px;
-                margin: 15px 0;
+                padding: 12px;
+                margin: 10px 0;
                 border-radius: 4px;
             }}
+            .job-header {{
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                margin-bottom: 6px;
+            }}
             .job-title {{
-                font-size: 18px;
+                font-size: 16px;
                 font-weight: 600;
                 color: #2c3e50;
-                margin-bottom: 5px;
+                flex: 1;
             }}
             .company {{
-                font-size: 16px;
+                font-size: 14px;
                 color: #7f8c8d;
-                margin-bottom: 8px;
+                margin-top: 2px;
             }}
             .score {{
                 display: inline-block;
@@ -67,7 +73,9 @@ def generate_email_html(jobs):
                 color: white;
                 border-radius: 3px;
                 font-weight: 600;
-                margin-right: 10px;
+                font-size: 13px;
+                white-space: nowrap;
+                margin-left: 10px;
             }}
             .score.grade-A {{
                 background: #27ae60;
@@ -80,13 +88,13 @@ def generate_email_html(jobs):
             }}
             .location {{
                 color: #16a085;
-                font-size: 14px;
-                margin: 5px 0;
+                font-size: 13px;
+                margin: 4px 0;
             }}
             .breakdown {{
-                font-size: 13px;
+                font-size: 12px;
                 color: #7f8c8d;
-                margin: 8px 0;
+                margin: 4px 0;
             }}
             .apply-btn {{
                 display: inline-block;
@@ -140,17 +148,15 @@ def generate_email_html(jobs):
 
             html += f"""
             <div class="job">
-                <div class="job-title">{job["title"]}</div>
-                <div class="company">📍 {job["company"]}</div>
-                <div>
+                <div class="job-header">
+                    <div>
+                        <div class="job-title">{job["title"]}</div>
+                        <div class="company">📍 {job["company"]} · 📌 {job.get("location") or "Location not specified"}</div>
+                    </div>
                     <span class="score grade-{grade}">{grade} {score}/115</span>
                 </div>
-                <div class="location">📌 {job.get("location") or "Location not specified"}</div>
                 <div class="breakdown">
-                    Seniority: {breakdown.get("seniority", 0)} |
-                    Domain: {breakdown.get("domain", 0)} |
-                    Role: {breakdown.get("role_type", 0)} |
-                    Location: {breakdown.get("location", 0)}
+                    Seniority: {breakdown.get("seniority", 0)} | Domain: {breakdown.get("domain", 0)} | Role: {breakdown.get("role_type", 0)} | Location: {breakdown.get("location", 0)}
                 </div>
                 <a href="{job["link"]}" class="apply-btn">View Job →</a>
             </div>
@@ -164,12 +170,13 @@ def generate_email_html(jobs):
 
             html += f"""
             <div class="job">
-                <div class="job-title">{job["title"]}</div>
-                <div class="company">📍 {job["company"]}</div>
-                <div>
+                <div class="job-header">
+                    <div>
+                        <div class="job-title">{job["title"]}</div>
+                        <div class="company">📍 {job["company"]} · 📌 {job.get("location") or "Location not specified"}</div>
+                    </div>
                     <span class="score grade-{grade}">{grade} {score}/115</span>
                 </div>
-                <div class="location">📌 {job.get("location") or "Location not specified"}</div>
                 <a href="{job["link"]}" class="apply-btn">View Job →</a>
             </div>
             """
