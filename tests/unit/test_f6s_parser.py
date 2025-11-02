@@ -15,17 +15,13 @@ class TestF6SParserCanHandle:
     def test_can_handle_f6s_from_address(self):
         """Should handle emails from f6s.com"""
         parser = F6SParser()
-        msg = email.message_from_string(
-            "From: noreply@f6s.com\nSubject: Test\n\nBody"
-        )
+        msg = email.message_from_string("From: noreply@f6s.com\nSubject: Test\n\nBody")
         assert parser.can_handle(msg) is True
 
     def test_can_handle_f6s_subject(self):
         """Should handle emails with f6s in subject"""
         parser = F6SParser()
-        msg = email.message_from_string(
-            "From: test@example.com\nSubject: F6S Funding News\n\nBody"
-        )
+        msg = email.message_from_string("From: test@example.com\nSubject: F6S Funding News\n\nBody")
         assert parser.can_handle(msg) is True
 
     def test_can_handle_funding_subject(self):
@@ -39,9 +35,7 @@ class TestF6SParserCanHandle:
     def test_can_handle_rejects_other_emails(self):
         """Should reject emails without F6S markers"""
         parser = F6SParser()
-        msg = email.message_from_string(
-            "From: test@example.com\nSubject: Random email\n\nBody"
-        )
+        msg = email.message_from_string("From: test@example.com\nSubject: Random email\n\nBody")
         assert parser.can_handle(msg) is False
 
 
@@ -120,10 +114,7 @@ class TestF6SParserShouldProcessCompany:
         from src.models import OpportunityData
 
         opp = OpportunityData(
-            source="f6s",
-            type="funding_lead",
-            company="TestCo",
-            funding_amount_usd=100000
+            source="f6s", type="funding_lead", company="TestCo", funding_amount_usd=100000
         )
         config = {"funding_filters": {"enabled": False}}
 
@@ -135,17 +126,9 @@ class TestF6SParserShouldProcessCompany:
         from src.models import OpportunityData
 
         opp = OpportunityData(
-            source="f6s",
-            type="funding_lead",
-            company="TestCo",
-            funding_amount_usd=5000000
+            source="f6s", type="funding_lead", company="TestCo", funding_amount_usd=5000000
         )
-        config = {
-            "funding_filters": {
-                "enabled": True,
-                "min_amount_usd": 1000000
-            }
-        }
+        config = {"funding_filters": {"enabled": True, "min_amount_usd": 1000000}}
 
         assert parser.should_process_company(opp, config) is True
 
@@ -155,17 +138,9 @@ class TestF6SParserShouldProcessCompany:
         from src.models import OpportunityData
 
         opp = OpportunityData(
-            source="f6s",
-            type="funding_lead",
-            company="TestCo",
-            funding_amount_usd=500000
+            source="f6s", type="funding_lead", company="TestCo", funding_amount_usd=500000
         )
-        config = {
-            "funding_filters": {
-                "enabled": True,
-                "min_amount_usd": 1000000
-            }
-        }
+        config = {"funding_filters": {"enabled": True, "min_amount_usd": 1000000}}
 
         assert parser.should_process_company(opp, config) is False
 
@@ -175,17 +150,9 @@ class TestF6SParserShouldProcessCompany:
         from src.models import OpportunityData
 
         opp = OpportunityData(
-            source="f6s",
-            type="funding_lead",
-            company="TestCo",
-            funding_stage="Series A"
+            source="f6s", type="funding_lead", company="TestCo", funding_stage="Series A"
         )
-        config = {
-            "funding_filters": {
-                "enabled": True,
-                "stages": ["series a", "series b"]
-            }
-        }
+        config = {"funding_filters": {"enabled": True, "stages": ["series a", "series b"]}}
 
         assert parser.should_process_company(opp, config) is True
 
@@ -195,17 +162,9 @@ class TestF6SParserShouldProcessCompany:
         from src.models import OpportunityData
 
         opp = OpportunityData(
-            source="f6s",
-            type="funding_lead",
-            company="TestCo",
-            funding_stage="Seed"
+            source="f6s", type="funding_lead", company="TestCo", funding_stage="Seed"
         )
-        config = {
-            "funding_filters": {
-                "enabled": True,
-                "stages": ["series a", "series b"]
-            }
-        }
+        config = {"funding_filters": {"enabled": True, "stages": ["series a", "series b"]}}
 
         assert parser.should_process_company(opp, config) is False
 
@@ -261,13 +220,26 @@ $7m for CompanyA from Toronto, Canada (AI) with funding from VC1.
         assert result.success is True
         assert len(result.opportunities) == 0
 
-    def test_parse_exception_handling(self):
-        """Should handle parsing exceptions gracefully"""
+    def test_parse_html_content(self):
+        """Should parse HTML emails by converting to text (lines 57, 71-73)"""
         parser = F6SParser()
 
-        # Create malformed message
-        msg = email.message_from_string("Invalid")
+        # HTML email with funding announcement
+        html_content = """<html><body>
+        <p>$7m for RoboCorp from Toronto, Canada (Robotics, AI) with funding from Innovation VC.</p>
+        </body></html>"""
+
+        msg = email.message_from_string(
+            f"""From: f6s@f6s.com
+Subject: Funding news
+Content-Type: text/html
+
+{html_content}"""
+        )
+
         result = parser.parse(msg)
 
-        # Should return error result
-        assert result.success is False or len(result.opportunities) == 0
+        # Should successfully parse from HTML
+        assert result.success is True
+        assert len(result.opportunities) == 1
+        assert result.opportunities[0].company == "RoboCorp"

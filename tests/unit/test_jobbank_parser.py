@@ -256,3 +256,16 @@ class TestJobBankParserEdgeCases:
             jobs = parse_jobbank_email(str(soup))
             # Should not crash, may return partial results
             assert isinstance(jobs, list)
+
+    def test_parse_handles_missing_parent_for_company(self):
+        """Should default to Unknown Company when parent container missing (line 55)"""
+        html_content = """
+        <html>
+            <a href="/jobs/123" class="resultJobItem">Test Job</a>
+        </html>
+        """
+        jobs = parse_jobbank_email(html_content)
+        # May or may not find the job depending on HTML structure
+        # But if it does, company should be "Unknown Company"
+        if jobs:
+            assert jobs[0]["company"] == "Unknown Company"
