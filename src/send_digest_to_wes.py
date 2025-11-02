@@ -42,40 +42,48 @@ def generate_email_html(jobs):
                 color: #34495e;
                 margin-top: 30px;
             }}
-            .job {{
-                background: #f8f9fa;
-                border-left: 4px solid #3498db;
-                padding: 12px;
-                margin: 10px 0;
-                border-radius: 4px;
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin: 20px 0;
+                font-size: 14px;
             }}
-            .job-header {{
-                display: flex;
-                justify-content: space-between;
-                align-items: flex-start;
-                margin-bottom: 6px;
+            th {{
+                background: #34495e;
+                color: white;
+                padding: 10px 8px;
+                text-align: left;
+                font-weight: 600;
+                font-size: 12px;
+            }}
+            td {{
+                padding: 10px 8px;
+                border-bottom: 1px solid #ecf0f1;
+            }}
+            tr:hover {{
+                background: #f8f9fa;
             }}
             .job-title {{
-                font-size: 16px;
                 font-weight: 600;
                 color: #2c3e50;
-                flex: 1;
+            }}
+            .job-title a {{
+                color: #3498db;
+                text-decoration: none;
+            }}
+            .job-title a:hover {{
+                text-decoration: underline;
             }}
             .company {{
-                font-size: 14px;
                 color: #7f8c8d;
-                margin-top: 2px;
+                font-size: 13px;
             }}
             .score {{
-                display: inline-block;
-                padding: 4px 10px;
-                background: #3498db;
-                color: white;
-                border-radius: 3px;
                 font-weight: 600;
-                font-size: 13px;
-                white-space: nowrap;
-                margin-left: 10px;
+                padding: 4px 8px;
+                border-radius: 3px;
+                display: inline-block;
+                color: white;
             }}
             .score.grade-A {{
                 background: #27ae60;
@@ -86,27 +94,12 @@ def generate_email_html(jobs):
             .score.grade-C {{
                 background: #f39c12;
             }}
-            .location {{
-                color: #16a085;
+            .score.grade-D {{
+                background: #e67e22;
+            }}
+            .score-cell {{
+                text-align: center;
                 font-size: 13px;
-                margin: 4px 0;
-            }}
-            .breakdown {{
-                font-size: 12px;
-                color: #7f8c8d;
-                margin: 4px 0;
-            }}
-            .apply-btn {{
-                display: inline-block;
-                padding: 10px 20px;
-                background: #3498db;
-                color: white;
-                text-decoration: none;
-                border-radius: 4px;
-                margin-top: 10px;
-            }}
-            .apply-btn:hover {{
-                background: #2980b9;
             }}
             .summary {{
                 background: #ecf0f1;
@@ -141,45 +134,103 @@ def generate_email_html(jobs):
 
     if high_scoring:
         html += "<h2>⭐ Top Matches (80+ Score)</h2>"
+        html += """
+        <table>
+            <thead>
+                <tr>
+                    <th>Company</th>
+                    <th>Job Title</th>
+                    <th style="text-align: center;">Seniority<br>/30</th>
+                    <th style="text-align: center;">Domain<br>/25</th>
+                    <th style="text-align: center;">Role<br>/20</th>
+                    <th style="text-align: center;">Location<br>/15</th>
+                    <th style="text-align: center;">Tech<br>/10</th>
+                    <th style="text-align: center;">Total<br>/115</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+
         for job in high_scoring[:10]:
             score = job.get("fit_score", 0)
             grade = job.get("fit_grade", "N/A")
             breakdown = json.loads(job.get("score_breakdown", "{}"))
+            location = job.get("location") or ""
 
             html += f"""
-            <div class="job">
-                <div class="job-header">
-                    <div>
-                        <div class="job-title">{job["title"]}</div>
-                        <div class="company">📍 {job["company"]} · 📌 {job.get("location") or "Location not specified"}</div>
-                    </div>
-                    <span class="score grade-{grade}">{grade} {score}/115</span>
-                </div>
-                <div class="breakdown">
-                    Seniority: {breakdown.get("seniority", 0)} | Domain: {breakdown.get("domain", 0)} | Role: {breakdown.get("role_type", 0)} | Location: {breakdown.get("location", 0)}
-                </div>
-                <a href="{job["link"]}" class="apply-btn">View Job →</a>
-            </div>
+                <tr>
+                    <td>
+                        <div>{job["company"]}</div>
+                        <div class="company">📌 {location}</div>
+                    </td>
+                    <td class="job-title">
+                        <a href="{job["link"]}" target="_blank">{job["title"]}</a>
+                    </td>
+                    <td class="score-cell">{breakdown.get("seniority", 0)}</td>
+                    <td class="score-cell">{breakdown.get("domain", 0)}</td>
+                    <td class="score-cell">{breakdown.get("role_type", 0)}</td>
+                    <td class="score-cell">{breakdown.get("location", 0)}</td>
+                    <td class="score-cell">{breakdown.get("technical", 0)}</td>
+                    <td class="score-cell">
+                        <span class="score grade-{grade}">{score}</span>
+                    </td>
+                </tr>
             """
+
+        html += """
+            </tbody>
+        </table>
+        """
 
     if acceptable_scoring and len(acceptable_scoring) > len(high_scoring):
         html += "<h2>✅ Also Worth Considering (70-79 Score)</h2>"
+        html += """
+        <table>
+            <thead>
+                <tr>
+                    <th>Company</th>
+                    <th>Job Title</th>
+                    <th style="text-align: center;">Seniority<br>/30</th>
+                    <th style="text-align: center;">Domain<br>/25</th>
+                    <th style="text-align: center;">Role<br>/20</th>
+                    <th style="text-align: center;">Location<br>/15</th>
+                    <th style="text-align: center;">Tech<br>/10</th>
+                    <th style="text-align: center;">Total<br>/115</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+
         for job in acceptable_scoring[len(high_scoring) : len(high_scoring) + 5]:
             score = job.get("fit_score", 0)
             grade = job.get("fit_grade", "N/A")
+            breakdown = json.loads(job.get("score_breakdown", "{}"))
+            location = job.get("location") or ""
 
             html += f"""
-            <div class="job">
-                <div class="job-header">
-                    <div>
-                        <div class="job-title">{job["title"]}</div>
-                        <div class="company">📍 {job["company"]} · 📌 {job.get("location") or "Location not specified"}</div>
-                    </div>
-                    <span class="score grade-{grade}">{grade} {score}/115</span>
-                </div>
-                <a href="{job["link"]}" class="apply-btn">View Job →</a>
-            </div>
+                <tr>
+                    <td>
+                        <div>{job["company"]}</div>
+                        <div class="company">📌 {location}</div>
+                    </td>
+                    <td class="job-title">
+                        <a href="{job["link"]}" target="_blank">{job["title"]}</a>
+                    </td>
+                    <td class="score-cell">{breakdown.get("seniority", 0)}</td>
+                    <td class="score-cell">{breakdown.get("domain", 0)}</td>
+                    <td class="score-cell">{breakdown.get("role_type", 0)}</td>
+                    <td class="score-cell">{breakdown.get("location", 0)}</td>
+                    <td class="score-cell">{breakdown.get("technical", 0)}</td>
+                    <td class="score-cell">
+                        <span class="score grade-{grade}">{score}</span>
+                    </td>
+                </tr>
             """
+
+        html += """
+            </tbody>
+        </table>
+        """
 
     html += f"""
         <div class="footer">
