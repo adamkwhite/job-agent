@@ -199,7 +199,7 @@ def generate_email_html(jobs):
     return html
 
 
-def send_digest(force_resend: bool = False):
+def send_digest(force_resend: bool = False, test_email: str | None = None):
     """Send digest email to Wesley
 
     Args:
@@ -237,10 +237,13 @@ def send_digest(force_resend: bool = False):
     # Send via notifier
     JobNotifier()
 
-    # Send to Wesley's email
-    wes_email = "wesvanooyen@gmail.com"
+    # Send to Wesley's email (or test email if specified)
+    wes_email = test_email if test_email else "wesvanooyen@gmail.com"
 
-    print(f"\nSending digest to {wes_email}...")
+    if test_email:
+        print(f"\n🧪 TEST MODE - Sending digest to {wes_email}...")
+    else:
+        print(f"\nSending digest to {wes_email}...")
 
     try:
         # Use the notifier's email functionality
@@ -256,15 +259,26 @@ def send_digest(force_resend: bool = False):
         load_dotenv()
 
         msg = MIMEMultipart("mixed")
-        msg["Subject"] = (
-            f"🎯 {len(high_scoring)} Top Job Matches for You - {datetime.now().strftime('%Y-%m-%d')}"
-        )
+
+        # Generate subject line based on findings
+        if len(high_scoring) > 0:
+            subject = f"🎯 {len(high_scoring)} Excellent Job Match{'es' if len(high_scoring) > 1 else ''} for You"
+        elif len(good_scoring) > 0:
+            subject = f"✨ {len(good_scoring)} Good Job Match{'es' if len(good_scoring) > 1 else ''} Found"
+        else:
+            subject = "📋 Job Digest - No Top Matches This Week"
+
+        subject += f" - {datetime.now().strftime('%Y-%m-%d')}"
+        msg["Subject"] = subject
         gmail_user = os.getenv("GMAIL_USERNAME")
         if not gmail_user:
             raise ValueError("GMAIL_USERNAME environment variable not set")
         msg["From"] = gmail_user
         msg["To"] = wes_email
-        msg["Cc"] = "adamkwhite@gmail.com"
+
+        # Only CC Adam if not in test mode
+        if not test_email:
+            msg["Cc"] = "adamkwhite@gmail.com"
 
         # Plain text version
         text_body = f"""
@@ -319,12 +333,16 @@ Generated on {datetime.now().strftime("%Y-%m-%d at %H:%M")}
         server.login(gmail_user, gmail_password)
 
         # Send to both To and CC recipients
-        recipients = [wes_email, "adamkwhite@gmail.com"]
+        recipients = [wes_email]
+        if not test_email:
+            recipients.append("adamkwhite@gmail.com")
+
         server.send_message(msg, to_addrs=recipients)
         server.quit()
 
         print(f"✓ Email sent successfully to {wes_email}")
-        print("  CC: adamkwhite@gmail.com")
+        if not test_email:
+            print("  CC: adamkwhite@gmail.com")
         print(f"\n📧 Subject: {msg['Subject']}")
         print(f"📊 Content: {len(high_scoring)} top matches + scoring breakdown")
 
@@ -355,6 +373,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Force resend all jobs, ignoring digest_sent_at status",
     )
+    parser.add_argument(
+        "--test-email",
+        type=str,
+        help="Send to test email instead of Wesley (e.g., adamkwhite@gmail.com)",
+    )
 
     args = parser.parse_args()
-    send_digest(force_resend=args.force_resend)
+    send_digest(force_resend=args.force_resend, test_email=args.test_email)
