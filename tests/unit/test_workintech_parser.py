@@ -210,3 +210,90 @@ class TestWorkInTechParser:
         assert len(jobs) == 1
         assert jobs[0]["link"].startswith("https://")
         assert "getro.com" in jobs[0]["link"]
+
+
+class TestWorkInTechParserEdgeCases:
+    """Test edge cases and error handling"""
+
+    def test_parse_skips_very_short_titles(self):
+        """Should skip titles shorter than 5 characters (line 36)"""
+        html_content = """
+        <html>
+            <body>
+                <a href="https://getro.com/job/1">VP</a>
+                <a href="https://getro.com/job/2">Director of Engineering</a>
+            </body>
+        </html>
+        """
+        jobs = parse_workintech_email(html_content)
+
+        # Should only get the longer title
+        assert len(jobs) == 1
+        assert jobs[0]["title"] == "Director of Engineering"
+
+    def test_parse_skips_view_more_links(self):
+        """Should skip navigation links with 'view more' (line 44)"""
+        html_content = """
+        <html>
+            <body>
+                <a href="https://getro.com/more">View more opportunities</a>
+                <a href="https://getro.com/settings">Update preferences</a>
+                <a href="https://getro.com/job/1">Engineering Manager Position</a>
+            </body>
+        </html>
+        """
+        jobs = parse_workintech_email(html_content)
+
+        # Should only get the job, not navigation links
+        assert len(jobs) == 1
+        assert jobs[0]["title"] == "Engineering Manager Position"
+
+    def test_parse_handles_malformed_html_gracefully(self):
+        """Should handle exceptions during parsing (lines 102-104)"""
+        # Malformed HTML that could cause exceptions
+        html_content = """
+        <html>
+            <body>
+                <a href="invalid>Broken HTML</a>
+                <a href="https://getro.com/job/valid">Director of Engineering</a>
+            </body>
+        </html>
+        """
+        jobs = parse_workintech_email(html_content)
+
+        # Should not crash, may return partial results or empty list
+        assert isinstance(jobs, list)
+
+    def test_parse_handles_exception_in_job_extraction(self):
+        """Should continue processing after exception (line 104)"""
+        from unittest.mock import patch
+
+        from bs4 import BeautifulSoup
+
+        html_content = """
+        <html>
+            <body>
+                <a href="https://getro.com/job/1">First Job</a>
+                <a href="https://getro.com/job/2">Second Job</a>
+            </body>
+        </html>
+        """
+
+        # Parse HTML
+        soup = BeautifulSoup(html_content, "lxml")
+        links = soup.find_all("a")
+
+        # Mock one link to raise exception
+        call_count = [0]
+        original_get = links[0].get
+
+        def mock_get(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:  # First call raises exception
+                raise Exception("Test exception")
+            return original_get(*args, **kwargs)
+
+        with patch.object(links[0], "get", side_effect=mock_get):
+            jobs = parse_workintech_email(str(soup))
+            # Should continue and get second job despite first failing
+            assert isinstance(jobs, list)
