@@ -269,3 +269,57 @@ class TestBuiltInParserHelperMethods:
         assert result.error == "No job opportunities found in email"
         assert result.parser_name == "builtin"
         assert len(result.opportunities) == 0
+
+
+class TestBuiltInParserExceptionHandling:
+    """Test exception handling in builtin_parser"""
+
+    def test_parse_handles_malformed_html(self):
+        """Should handle malformed HTML gracefully"""
+        parser = BuiltInParser()
+
+        # Create email with malformed HTML that will cause parsing errors
+        email_msg = email.message_from_string(
+            """From: jobs@builtin.com
+Subject: New job matches
+
+Content-Type: text/html
+
+<html><body><a href="invalid>Broken HTML</body>"""
+        )
+
+        result = parser.parse(email_msg)
+
+        # Should return result (either success with no jobs or error)
+        assert result is not None
+        assert result.parser_name == "builtin"
+
+    def test_parse_job_link_handles_exception(self):
+        """Should return None when exception occurs in _parse_job_link"""
+        parser = BuiltInParser()
+        from bs4 import BeautifulSoup
+
+        # Create a link that will cause an exception
+        html = '<a href="https://builtin.com/job/123"></a>'
+        soup = BeautifulSoup(html, "lxml")
+        link = soup.find("a")
+
+        # Mock _extract_job_details to raise exception
+        from unittest.mock import patch
+
+        with patch.object(parser, "_extract_job_details", side_effect=Exception("Test error")):
+            result = parser._parse_job_link(link, set())
+
+            # Should return None instead of crashing
+            assert result is None
+
+    def test_extract_clean_url_removes_query_params(self):
+        """Should remove query parameters from URLs"""
+        parser = BuiltInParser()
+
+        # URL with query parameters
+        url = "https://builtin.com/job/123?utm_source=email&utm_campaign=test"
+        clean_url = parser._extract_clean_url(url)
+
+        assert clean_url == "https://builtin.com/job/123"
+        assert "?" not in clean_url
