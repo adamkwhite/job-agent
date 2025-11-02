@@ -366,9 +366,9 @@ class UnifiedJobScraper:
 
         # Pattern 1: Markdown links with job-related URLs
         # Example: [Director, Product Management - Platform](https://miovision.applytojob.com/apply/ICgkCMvoO0/...)
-        # Fixed ReDoS: Removed nested quantifiers to prevent catastrophic backtracking
+        # Fixed ReDoS: Use specific character classes to prevent catastrophic backtracking
         job_link_pattern = re.compile(
-            r"\[([^\]]+)\]\((https?://[^)\s]+(?:job|apply|career|position|opening)[^)\s]*)\)",
+            r"\[([\w\s,.\-()&/]+)\]\((https?://[a-zA-Z0-9._/?&=%-]+(?:job|apply|career|position|opening)[a-zA-Z0-9._/?&=%-]*)\)",
             re.IGNORECASE,
         )
 

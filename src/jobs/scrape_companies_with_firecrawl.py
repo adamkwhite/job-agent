@@ -198,9 +198,9 @@ class CompanyScraperWithFirecrawl:
         # ## Vision Engineer
         # Cambridge, ON, Canada
         # [View Job](https://url)
-        # Fixed ReDoS: Use specific quantifiers instead of greedy + to prevent backtracking
+        # Fixed ReDoS: Use specific character classes to prevent backtracking
         pattern1 = re.compile(
-            r"##\s+([^\n]+)\n([^\n]+)\n\[(?:View Job|Apply|Learn More)\]\(([^)]+)\)",
+            r"##\s+([\w\s,.-]+)\n([\w\s,.-]+)\n\[(?:View Job|Apply|Learn More)\]\((https?://[a-zA-Z0-9._/?&=%-]+)\)",
             re.MULTILINE,
         )
 
