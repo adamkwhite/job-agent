@@ -91,8 +91,10 @@ class FirecrawlCareerScraper:
         # Common patterns for job listings
         # Pattern 1: Job title followed by location (Greenhouse, Lever style)
         # Example: "Senior Engineer\n\nToronto, Canada"
+        # Fixed ReDoS: Changed reluctant quantifiers to greedy and improved URL pattern
         pattern1 = re.compile(
-            r"\[([\w\s,\-\(\)]+?)\s*(?:\\<br>\\<br>|\\n\\n|\n\n)(.+?)\]" r"\((https?://[^\)]+)\)",
+            r"\[([\w\s,\-\(\)]+)\s*(?:\\<br>\\<br>|\\n\\n|\n\n)([^\]]+)\]"
+            r"\((https?://[^)\s]+)\)",
             re.MULTILINE,
         )
 

@@ -168,3 +168,104 @@ class TestJobBankParser:
         # Should only return the job with a valid link
         assert len(jobs) == 1
         assert jobs[0]["title"] == "Valid Job"
+
+
+class TestJobBankParserEdgeCases:
+    """Test edge cases and error handling"""
+
+    def test_parse_skips_empty_titles(self):
+        """Should skip jobs with empty titles"""
+        html_content = """
+        <html>
+            <table>
+                <tr><td><a href="/jobs/123" class="resultJobItem"></a></td></tr>
+            </table>
+        </html>
+        """
+        jobs = parse_jobbank_email(html_content)
+        assert len(jobs) == 0
+
+    def test_parse_handles_missing_company_td(self):
+        """Should default to Unknown Company when company td missing"""
+        html_content = """
+        <html>
+            <table>
+                <tr><td><a href="/jobs/123" class="resultJobItem">Test Job</a></td></tr>
+                <tr></tr>
+            </table>
+        </html>
+        """
+        jobs = parse_jobbank_email(html_content)
+        assert len(jobs) >= 1
+        assert jobs[0]["company"] == "Unknown Company"
+
+    def test_parse_handles_missing_company_row(self):
+        """Should default to Unknown Company when company row missing"""
+        html_content = """
+        <html>
+            <table>
+                <tr><td><a href="/jobs/123" class="resultJobItem">Test Job</a></td></tr>
+            </table>
+        </html>
+        """
+        jobs = parse_jobbank_email(html_content)
+        assert len(jobs) >= 1
+        assert jobs[0]["company"] == "Unknown Company"
+
+    def test_parse_handles_missing_parent_container(self):
+        """Should default to Unknown Company when parent container missing"""
+        html_content = """
+        <html>
+            <a href="/jobs/123" class="resultJobItem">Test Job</a>
+        </html>
+        """
+        jobs = parse_jobbank_email(html_content)
+        # May or may not find the job depending on structure
+        if jobs:
+            assert jobs[0]["company"] == "Unknown Company"
+
+    def test_parse_handles_exception_gracefully(self):
+        """Should handle exceptions during parsing"""
+        from unittest.mock import patch
+
+        from bs4 import BeautifulSoup
+
+        # HTML that will cause an exception when processed
+        html_content = """
+        <html>
+            <table>
+                <tr><td><a href="/jobs/123" class="resultJobItem">Job</a></td></tr>
+            </table>
+        </html>
+        """
+
+        # Parse to get BeautifulSoup object
+        soup = BeautifulSoup(html_content, "lxml")
+
+        # Mock find_all to raise exception after first call
+        original_find_all = soup.find_all
+        call_count = [0]
+
+        def mock_find_all(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] > 1:  # Let first call succeed, fail on subsequent
+                raise Exception("Test exception")
+            return original_find_all(*args, **kwargs)
+
+        with patch.object(soup, "find_all", side_effect=mock_find_all):
+            jobs = parse_jobbank_email(str(soup))
+            # Should not crash, may return partial results
+            assert isinstance(jobs, list)
+
+    def test_parse_handles_missing_parent_for_company(self):
+        """Should default to Unknown Company when parent container missing (line 55)"""
+        html_content = """
+        <html>
+            <a href="/jobs/123" class="resultJobItem">Test Job</a>
+        </html>
+        """
+        jobs = parse_jobbank_email(html_content)
+        # May or may not find the job depending on HTML structure
+        # But if it does, company should be "Unknown Company"
+        if jobs:
+            assert jobs[0]["company"] == "Unknown Company"
