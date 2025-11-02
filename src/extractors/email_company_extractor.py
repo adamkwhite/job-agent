@@ -259,8 +259,9 @@ class EmailCompanyExtractor:
         # Or direct: https://builtin.com/job/...
 
         # Find all builtin.com job URLs
+        # Fixed ReDoS: Changed [^"]* to [^"\s]* to add whitespace boundary
         url_pattern = re.compile(
-            r'href="([^"]*builtin\.com(?:%2F|/)job(?:%2F|/)[^"]+)"', re.IGNORECASE
+            r'href="([^"\s]*builtin\.com(?:%2F|/)job(?:%2F|/)[^"\s]+)"', re.IGNORECASE
         )
 
         matches = url_pattern.findall(body)

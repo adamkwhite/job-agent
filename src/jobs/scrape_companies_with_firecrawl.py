@@ -198,8 +198,9 @@ class CompanyScraperWithFirecrawl:
         # ## Vision Engineer
         # Cambridge, ON, Canada
         # [View Job](https://url)
+        # Fixed ReDoS: Use specific quantifiers instead of greedy + to prevent backtracking
         pattern1 = re.compile(
-            r"##\s+([^\n]+)\n+([^\n]+)\n+\[(?:View Job|Apply|Learn More)\]\(([^\)]+)\)",
+            r"##\s+([^\n]+)\n([^\n]+)\n\[(?:View Job|Apply|Learn More)\]\(([^)]+)\)",
             re.MULTILINE,
         )
 
@@ -224,8 +225,9 @@ class CompanyScraperWithFirecrawl:
 
         # Pattern 2: Markdown links with job titles (fallback)
         # Example: [Senior Engineer](https://careers.company.com/job/123)
+        # Fixed ReDoS: Changed reluctant quantifier to greedy and improved URL pattern
         if not jobs:
-            pattern2 = re.compile(r"\[([\w\s,\-\(\)/&]+?)\]\((https?://[^\)]+)\)", re.MULTILINE)
+            pattern2 = re.compile(r"\[([\w\s,\-\(\)/&]+)\]\((https?://[^)\s]+)\)", re.MULTILINE)
 
             matches = pattern2.findall(markdown)
             for title, link in matches:
