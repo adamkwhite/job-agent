@@ -18,7 +18,22 @@
     "vp engineering",
     "vice president of engineering",
     "head of engineering",
-    "engineering lead"
+    "engineering lead",
+    "software",
+    "infrastructure",
+    "platform",
+    "technical director",
+    "technology",
+    "architecture",
+    "systems",
+    "manufacturing",
+    "operations",
+    "supply chain",
+    "production",
+    "chief technology",
+    "chief technical",
+    "cto",
+    "vp of technology"
   ],
   "exclude_keywords": [
     "EMR",
@@ -30,7 +45,13 @@
     "marketing coordinator",
     "intern",
     "entry level",
-    "junior"
+    "junior",
+    "hr",
+    "human resources",
+    "finance",
+    "accounting",
+    "recruiter",
+    "recruiting"
   ],
   "company_include": [
     "mission-driven",
