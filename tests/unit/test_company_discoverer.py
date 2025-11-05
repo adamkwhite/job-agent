@@ -336,3 +336,41 @@ class TestCompanyDiscoverer:
 
         # Should still create company with extracted careers URL
         assert len(companies) == 1
+
+    def test_discover_skips_opportunities_with_exception_in_url_parsing(self, discoverer):
+        """Test discovering skips opportunities when URL parsing raises exception"""
+        import unittest.mock as mock
+
+        opportunities = [
+            OpportunityData(
+                type="direct_job",
+                title="Director",
+                company="Test Company",
+                location="Remote",
+                link="https://example.com/jobs/123",
+                source="robotics_sheet",
+            ),
+            OpportunityData(
+                type="direct_job",
+                title="VP Engineering",
+                company="Valid Company",
+                location="Remote",
+                link="https://valid.com/jobs/456",
+                source="robotics_sheet",
+            ),
+        ]
+
+        # Mock urlparse to raise exception for first URL
+        original_urlparse = discoverer._extract_careers_url
+
+        def mock_extract(url):
+            if "example.com" in url:
+                return ""  # Simulate exception returning empty string
+            return original_urlparse(url)
+
+        with mock.patch.object(discoverer, "_extract_careers_url", side_effect=mock_extract):
+            companies = discoverer.discover_from_robotics_sheet(opportunities)
+
+        # Should skip the first opportunity and process the second
+        assert len(companies) == 1
+        assert companies[0]["name"] == "Valid Company"

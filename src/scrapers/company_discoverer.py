@@ -63,26 +63,20 @@ class CompanyDiscoverer:
 
         return companies
 
-    def _extract_greenhouse_url(self, domain: str, path: str) -> str | None:  # noqa: ARG002
+    def _extract_greenhouse_url(self, domain: str, path: str) -> str:  # noqa: ARG002
         """Extract Greenhouse ATS career page URL"""
         parts = path.strip("/").split("/")
-        if len(parts) >= 1:
-            return f"https://boards.greenhouse.io/{parts[0]}"
-        return None
+        return f"https://boards.greenhouse.io/{parts[0]}"
 
-    def _extract_lever_url(self, domain: str, path: str) -> str | None:  # noqa: ARG002
+    def _extract_lever_url(self, domain: str, path: str) -> str:  # noqa: ARG002
         """Extract Lever ATS career page URL"""
         parts = path.strip("/").split("/")
-        if len(parts) >= 1:
-            return f"https://jobs.lever.co/{parts[0]}"
-        return None
+        return f"https://jobs.lever.co/{parts[0]}"
 
-    def _extract_workday_url(self, domain: str, path: str) -> str | None:
+    def _extract_workday_url(self, domain: str, path: str) -> str:
         """Extract Workday ATS career page URL"""
         parts = path.strip("/").split("/")
-        if len(parts) >= 1:
-            return f"https://{domain}/{parts[0]}"
-        return None
+        return f"https://{domain}/{parts[0]}"
 
     def _extract_generic_careers_url(self, domain: str, path: str) -> str:
         """Extract career page URL from generic company website"""
@@ -139,13 +133,13 @@ class CompanyDiscoverer:
 
             # Try known ATS platforms first
             if "greenhouse.io" in domain:
-                return self._extract_greenhouse_url(domain, path) or ""
+                return self._extract_greenhouse_url(domain, path)
 
             if "lever.co" in domain:
-                return self._extract_lever_url(domain, path) or ""
+                return self._extract_lever_url(domain, path)
 
             if "myworkdayjobs.com" in domain:
-                return self._extract_workday_url(domain, path) or ""
+                return self._extract_workday_url(domain, path)
 
             # Generic company career page
             return self._extract_generic_careers_url(domain, path)
