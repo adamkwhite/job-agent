@@ -360,3 +360,60 @@ class TestHybridJobScraper:
 
         assert stats["jobs_stored"] == 1
         assert stats["notifications_sent"] == 0  # Failed to send
+
+    def test_scrape_company_with_non_leadership_title(self, scraper, mock_dependencies):
+        """Test _scrape_company filters out non-leadership roles"""
+        mock_jobs = [
+            OpportunityData(
+                type="direct_job",
+                title="Software Engineer",  # Not leadership
+                company="Test Co",
+                location="Remote",
+                link="https://example.com/jobs/123",
+                source="company_monitoring",
+            ),
+            OpportunityData(
+                type="direct_job",
+                title="Junior Developer",  # Not leadership
+                company="Test Co",
+                location="Remote",
+                link="https://example.com/jobs/456",
+                source="company_monitoring",
+            ),
+        ]
+        mock_dependencies["firecrawl"].scrape_jobs.return_value = mock_jobs
+
+        stats = scraper._scrape_company("Test Co", "https://example.com")
+
+        assert stats["jobs_found"] == 2
+        assert stats["leadership_jobs"] == 0  # No leadership roles
+        assert stats["jobs_stored"] == 0
+
+    def test_run_hybrid_scrape_no_new_companies(self, scraper, mock_dependencies):
+        """Test hybrid scrape when all companies already exist"""
+        mock_opportunities = [
+            OpportunityData(
+                type="direct_job",
+                title="Director",
+                company="Existing Co",
+                location="Remote",
+                link="https://existing.com/jobs/123",
+                source="robotics_sheet",
+            )
+        ]
+        mock_dependencies["robotics"].scrape.return_value = mock_opportunities
+        mock_dependencies["discoverer"].discover_from_robotics_sheet.return_value = [
+            {"name": "Existing Co", "careers_url": "https://existing.com"}
+        ]
+        mock_dependencies["company_service"].add_companies_batch.return_value = {
+            "added": 0,  # All duplicates
+            "skipped_duplicates": 1,
+            "errors": 0,
+            "details": [],
+        }
+
+        stats = scraper.run_hybrid_scrape(skip_scraping=False)
+
+        assert stats["companies_discovered"] == 1
+        assert stats["companies_added"] == 0
+        assert stats["companies_scraped"] == 0  # Nothing new to scrape
