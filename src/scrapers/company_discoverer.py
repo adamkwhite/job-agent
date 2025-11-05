@@ -63,6 +63,52 @@ class CompanyDiscoverer:
 
         return companies
 
+    def _extract_greenhouse_url(self, domain: str, path: str) -> str | None:  # noqa: ARG002
+        """Extract Greenhouse ATS career page URL"""
+        parts = path.strip("/").split("/")
+        if len(parts) >= 1:
+            return f"https://boards.greenhouse.io/{parts[0]}"
+        return None
+
+    def _extract_lever_url(self, domain: str, path: str) -> str | None:  # noqa: ARG002
+        """Extract Lever ATS career page URL"""
+        parts = path.strip("/").split("/")
+        if len(parts) >= 1:
+            return f"https://jobs.lever.co/{parts[0]}"
+        return None
+
+    def _extract_workday_url(self, domain: str, path: str) -> str | None:
+        """Extract Workday ATS career page URL"""
+        parts = path.strip("/").split("/")
+        if len(parts) >= 1:
+            return f"https://{domain}/{parts[0]}"
+        return None
+
+    def _extract_generic_careers_url(self, domain: str, path: str) -> str:
+        """Extract career page URL from generic company website"""
+        if "/careers" in path.lower() or "/jobs" in path.lower():
+            # Find the careers or jobs segment
+            path_parts = path.split("/")
+            careers_index = next(
+                (
+                    i
+                    for i, part in enumerate(path_parts)
+                    if "career" in part.lower() or "job" in part.lower()
+                ),
+                None,
+            )
+            if careers_index is not None:
+                base_path = "/".join(path_parts[: careers_index + 1])
+                return f"https://{domain}{base_path}"
+
+        # Fallback: use domain + first path segment
+        first_segment = path.strip("/").split("/")[0] if path.strip("/") else ""
+        if first_segment:
+            return f"https://{domain}/{first_segment}"
+
+        # Last resort: domain with /careers
+        return f"https://{domain}/careers"
+
     def _extract_careers_url(self, job_url: str) -> str:
         """
         Extract base career page URL from a specific job posting URL
@@ -91,55 +137,18 @@ class CompanyDiscoverer:
             domain = parsed.netloc
             path = parsed.path
 
-            # Greenhouse pattern: boards.greenhouse.io/company
+            # Try known ATS platforms first
             if "greenhouse.io" in domain:
-                parts = path.strip("/").split("/")
-                if len(parts) >= 1:
-                    company_slug = parts[0]
-                    return f"https://boards.greenhouse.io/{company_slug}"
+                return self._extract_greenhouse_url(domain, path) or ""
 
-            # Lever pattern: jobs.lever.co/company
-            elif "lever.co" in domain:
-                parts = path.strip("/").split("/")
-                if len(parts) >= 1:
-                    company_slug = parts[0]
-                    return f"https://jobs.lever.co/{company_slug}"
+            if "lever.co" in domain:
+                return self._extract_lever_url(domain, path) or ""
 
-            # Workday pattern: company.wd1.myworkdayjobs.com/CareerSite
-            elif "myworkdayjobs.com" in domain:
-                parts = path.strip("/").split("/")
-                if len(parts) >= 1:
-                    career_site = parts[0]
-                    return f"https://{domain}/{career_site}"
+            if "myworkdayjobs.com" in domain:
+                return self._extract_workday_url(domain, path) or ""
 
-            # Generic ATS or company career page
-            # Just use the domain + first path segment
-            elif len(path.strip("/").split("/")) > 0:
-                # For generic URLs, try to identify career page base
-                # Common patterns: /careers, /jobs, /about/careers
-                if "/careers" in path.lower() or "/jobs" in path.lower():
-                    # Find the careers or jobs segment
-                    path_parts = path.split("/")
-                    careers_index = next(
-                        (
-                            i
-                            for i, part in enumerate(path_parts)
-                            if "career" in part.lower() or "job" in part.lower()
-                        ),
-                        None,
-                    )
-                    if careers_index is not None:
-                        # Reconstruct URL up to careers segment
-                        base_path = "/".join(path_parts[: careers_index + 1])
-                        return f"https://{domain}{base_path}"
-
-                # Fallback: use domain + first path segment
-                first_segment = path.strip("/").split("/")[0] if path.strip("/") else ""
-                if first_segment:
-                    return f"https://{domain}/{first_segment}"
-
-            # Last resort: just the domain with /careers
-            return f"https://{domain}/careers"
+            # Generic company career page
+            return self._extract_generic_careers_url(domain, path)
 
         except Exception as e:
             print(f"[CompanyDiscoverer] Error extracting careers URL from {job_url}: {e}")

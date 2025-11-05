@@ -184,6 +184,62 @@ class HybridJobScraper:
 
         return stats
 
+    def _is_leadership_role(self, title: str) -> bool:
+        """Check if job title is a leadership role"""
+        leadership_keywords = [
+            "director",
+            "vp",
+            "vice president",
+            "head of",
+            "chief",
+            "manager",
+            "lead",
+            "principal",
+            "senior manager",
+        ]
+        title_lower = (title or "").lower()
+        return any(kw in title_lower for kw in leadership_keywords)
+
+    def _prepare_job_for_storage(self, job, score: int, grade: str, breakdown: dict) -> dict:
+        """Prepare job dictionary with metadata for storage"""
+        job_dict = {
+            "title": job.title,
+            "company": job.company,
+            "location": job.location or "",
+            "link": job.link,
+            "source": "hybrid_scraper",
+            "type": "direct_job",
+            "received_at": datetime.now().isoformat(),
+            "fit_score": score,
+            "fit_grade": grade,
+            "score_breakdown": json.dumps(breakdown),
+            "keywords_matched": json.dumps([]),
+            "source_email": "",
+        }
+        return job_dict
+
+    def _send_notification_if_needed(
+        self, job_dict: dict, job_id: int, score: int, grade: str
+    ) -> bool:
+        """Send notification for high-scoring jobs. Returns True if sent successfully"""
+        if score < self.notify_threshold:
+            return False
+
+        try:
+            notification_job = job_dict.copy()
+            notification_job["title"] = f"[{grade} {score}] {job_dict['title']}"
+
+            notification_results = self.notifier.notify_job(notification_job)
+
+            if notification_results.get("email") or notification_results.get("sms"):
+                self.database.mark_notified(job_id)
+                print("    ✓ Notification sent")
+                return True
+        except Exception as e:
+            print(f"    ✗ Notification failed: {e}")
+
+        return False
+
     def _scrape_company(self, company_name: str, careers_url: str) -> dict:
         """
         Scrape a single company's career page
@@ -211,24 +267,9 @@ class HybridJobScraper:
             print("  ⊘ No jobs found")
             return stats
 
-        # Filter for leadership roles
-        leadership_keywords = [
-            "director",
-            "vp",
-            "vice president",
-            "head of",
-            "chief",
-            "manager",
-            "lead",
-            "principal",
-            "senior manager",
-        ]
-
         for job in jobs:
-            title_lower = (job.title or "").lower()
-
-            # Check if leadership role
-            if not any(kw in title_lower for kw in leadership_keywords):
+            # Filter for leadership roles
+            if not self._is_leadership_role(job.title):
                 continue
 
             stats["leadership_jobs"] += 1
@@ -240,27 +281,13 @@ class HybridJobScraper:
                 "location": job.location or "",
                 "link": job.link,
             }
-
             score, grade, breakdown = self.scorer.score_job(job_dict)
 
             if score < self.min_score:
                 continue
 
-            # Prepare for storage
-            job_dict.update(
-                {
-                    "source": "hybrid_scraper",
-                    "type": "direct_job",
-                    "received_at": datetime.now().isoformat(),
-                    "fit_score": score,
-                    "fit_grade": grade,
-                    "score_breakdown": json.dumps(breakdown),
-                    "keywords_matched": json.dumps([]),
-                    "source_email": "",
-                }
-            )
-
-            # Store in database
+            # Prepare and store job
+            job_dict = self._prepare_job_for_storage(job, score, grade, breakdown)
             job_id = self.database.add_job(job_dict)
 
             if job_id:
@@ -272,21 +299,9 @@ class HybridJobScraper:
                 print(f"    Location: {job.location}")
                 print(f"    Link: {job.link}")
 
-                # Send notification if above threshold
-                if score >= self.notify_threshold:
-                    try:
-                        notification_job = job_dict.copy()
-                        notification_job["title"] = f"[{grade} {score}] {job.title}"
-
-                        notification_results = self.notifier.notify_job(notification_job)
-
-                        if notification_results.get("email") or notification_results.get("sms"):
-                            stats["notifications_sent"] += 1
-                            self.database.mark_notified(job_id)
-                            print("    ✓ Notification sent")
-
-                    except Exception as e:
-                        print(f"    ✗ Notification failed: {e}")
+                # Send notification if needed
+                if self._send_notification_if_needed(job_dict, job_id, score, grade):
+                    stats["notifications_sent"] += 1
             else:
                 stats["duplicates_skipped"] += 1
                 print(f"  - Duplicate: {job.title}")
