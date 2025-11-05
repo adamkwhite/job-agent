@@ -298,3 +298,41 @@ class TestCompanyDiscoverer:
         companies = discoverer.discover_from_robotics_sheet(opportunities)
 
         assert len(companies) == 0
+
+    def test_extract_greenhouse_url_with_empty_path(self, discoverer):
+        """Test Greenhouse URL extraction with empty path returns base URL"""
+        result = discoverer._extract_greenhouse_url("boards.greenhouse.io", "")
+        assert result == "https://boards.greenhouse.io/"
+
+    def test_extract_lever_url_with_empty_path(self, discoverer):
+        """Test Lever URL extraction with empty path returns base URL"""
+        result = discoverer._extract_lever_url("jobs.lever.co", "")
+        assert result == "https://jobs.lever.co/"
+
+    def test_extract_workday_url_with_empty_path(self, discoverer):
+        """Test Workday URL extraction with empty path returns base URL"""
+        result = discoverer._extract_workday_url("company.wd1.myworkdayjobs.com", "")
+        assert result == "https://company.wd1.myworkdayjobs.com/"
+
+    def test_extract_generic_careers_url_fallback_to_domain(self, discoverer):
+        """Test generic URL extraction falls back to /careers for empty path"""
+        result = discoverer._extract_generic_careers_url("example.com", "")
+        assert result == "https://example.com/careers"
+
+    def test_discover_skips_unparseable_url(self, discoverer):
+        """Test discovering skips opportunities with URLs that can't be parsed"""
+        opportunities = [
+            OpportunityData(
+                type="direct_job",
+                title="Director",
+                company="Test Company",
+                location="Remote",
+                link="https://example.com",  # Generic URL, will extract to generic careers page
+                source="robotics_sheet",
+            )
+        ]
+
+        companies = discoverer.discover_from_robotics_sheet(opportunities)
+
+        # Should still create company with extracted careers URL
+        assert len(companies) == 1
