@@ -10,6 +10,10 @@ import re
 
 from bs4 import BeautifulSoup
 
+# Constants
+UNKNOWN_COMPANY = "Unknown Company"
+UNKNOWN_LOCATION = "Unknown Location"
+
 
 def parse_recruiter_email(html_content: str) -> list[dict[str, str]]:
     """
@@ -78,8 +82,8 @@ def parse_linkedin_jobs(soup: BeautifulSoup) -> list[dict[str, str]]:
                         title = title_elem.get_text(strip=True)
 
             # Find company and location
-            company = "Unknown Company"
-            location = "Unknown Location"
+            company = UNKNOWN_COMPANY
+            location = UNKNOWN_LOCATION
 
             # Look for company logo and info nearby - search more thoroughly
             parent_container = link.find_parent(["td", "div", "table"])
@@ -93,13 +97,13 @@ def parse_linkedin_jobs(soup: BeautifulSoup) -> list[dict[str, str]]:
                         location = parts[1].strip()
 
                 # Strategy 2: Look for company in alt text of images
-                if company == "Unknown Company":
+                if company == UNKNOWN_COMPANY:
                     img = parent_container.find("img", alt=True)
                     if img and img["alt"] and img["alt"] != title:
                         company = img["alt"]
 
                 # Strategy 3: Search in all text nodes near the link
-                if company == "Unknown Company":
+                if company == UNKNOWN_COMPANY:
                     # Get all text from parent, split by newlines
                     all_text = parent_container.get_text(separator="\n", strip=True)
                     lines = [line.strip() for line in all_text.split("\n") if line.strip()]
@@ -221,7 +225,7 @@ def parse_single_recruiter_job(soup: BeautifulSoup) -> dict[str, str] | None:
     if title and (company or location or link):
         return {
             "title": title,
-            "company": company or "Unknown Company",
+            "company": company or UNKNOWN_COMPANY,
             "location": location or "Unknown Location",
             "link": str(link) if link else "",
         }

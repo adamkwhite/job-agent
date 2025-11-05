@@ -232,3 +232,23 @@ class TestCompanyMatcher:
         """Test URL normalization handles empty string"""
         normalized = matcher._normalize_url("")
         assert normalized == ""
+
+    def test_normalize_url_handles_exception(self, matcher):
+        """Test URL normalization handles exceptions in urlparse"""
+        # Test with None (causes exception)
+        normalized = matcher._normalize_url(None)
+        # Should return empty or fallback
+        assert normalized is not None
+
+    def test_find_match_with_missing_existing_fields(self, matcher):
+        """Test finding match when existing company has missing fields"""
+        candidate = {"name": "Test Company", "careers_url": "https://example.com"}
+        existing = [
+            {"name": "", "careers_url": ""},  # Missing fields
+            {"name": "Valid Company", "careers_url": "https://valid.com"},
+        ]
+
+        match = matcher.find_match(candidate, existing)
+
+        # Should not match the invalid entry
+        assert match is None or match["name"] == "Valid Company"

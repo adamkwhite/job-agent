@@ -258,3 +258,43 @@ class TestCompanyDiscoverer:
         filtered = discoverer.filter_by_company_names(companies, target_names)
 
         assert len(filtered) == 0
+
+    def test_extract_url_with_exception(self, discoverer):
+        """Test URL extraction handles exceptions gracefully"""
+        # Test with None input (causes exception in urlparse)
+        careers_url = discoverer._extract_careers_url(None)
+        assert careers_url == ""
+
+    def test_discover_handles_whitespace_company(self, discoverer):
+        """Test discovering with whitespace-only company name"""
+        opportunities = [
+            OpportunityData(
+                type="direct_job",
+                title="Director",
+                company="   ",
+                location="Remote",
+                link="https://example.com/jobs/123",
+                source="robotics_sheet",
+            )
+        ]
+
+        companies = discoverer.discover_from_robotics_sheet(opportunities)
+
+        assert len(companies) == 0
+
+    def test_discover_handles_whitespace_link(self, discoverer):
+        """Test discovering with whitespace-only link"""
+        opportunities = [
+            OpportunityData(
+                type="direct_job",
+                title="Director",
+                company="Test Company",
+                location="Remote",
+                link="   ",
+                source="robotics_sheet",
+            )
+        ]
+
+        companies = discoverer.discover_from_robotics_sheet(opportunities)
+
+        assert len(companies) == 0
