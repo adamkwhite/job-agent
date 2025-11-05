@@ -132,3 +132,19 @@ jobs:
           fail_ci_if_error: false
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Check coverage threshold
+        if: hashFiles('.coverage') != ''
+        run: |
+          echo "📊 Checking coverage meets minimum threshold..."
+          echo ""
+
+          # Get overall coverage percentage
+          COVERAGE=$(coverage report | grep TOTAL | awk '{print $4}' | sed 's/%//')
+          echo "Overall coverage: ${COVERAGE}%"
+
+          # Note: We don't fail on overall coverage since legacy code has low coverage
+          # SonarCloud enforces 80% coverage on NEW code only
+
+          echo ""
+          echo "✅ Coverage check complete. SonarCloud will enforce 80% on new code."

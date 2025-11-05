@@ -3,8 +3,15 @@ Company monitoring service - handles database operations for companies
 """
 
 import sqlite3
+import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
+
+# Add project root to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from utils.company_matcher import CompanyMatcher
 
 
 class CompanyService:
@@ -70,6 +77,98 @@ class CompanyService:
 
         finally:
             conn.close()
+
+    def add_companies_batch(
+        self, companies: list[dict], similarity_threshold: float = 90.0
+    ) -> dict:
+        """
+        Add multiple companies in batch, with fuzzy matching to prevent duplicates
+
+        Args:
+            companies: List of dicts with 'name', 'careers_url', 'notes' (optional), 'source' (optional)
+            similarity_threshold: Fuzzy matching threshold (0-100, default 90)
+
+        Returns:
+            Dict with stats: {added: int, skipped_duplicates: int, errors: int, details: list}
+        """
+        # Get existing companies for fuzzy matching
+        existing_companies = self.get_all_companies(active_only=False)
+
+        # Initialize matcher
+        matcher = CompanyMatcher(similarity_threshold=similarity_threshold)
+
+        stats: dict[str, Any] = {
+            "added": 0,
+            "skipped_duplicates": 0,
+            "errors": 0,
+            "details": [],
+        }
+
+        print(f"\n[CompanyService] Batch import of {len(companies)} companies...")
+        print(f"  Matching against {len(existing_companies)} existing companies")
+        print(f"  Fuzzy matching threshold: {similarity_threshold}%\n")
+
+        for company in companies:
+            name = company.get("name", "").strip()
+            careers_url = company.get("careers_url", "").strip()
+            notes = company.get("notes", "")
+
+            if not name or not careers_url:
+                stats["errors"] += 1
+                stats["details"].append(
+                    {
+                        "company": name or "(no name)",
+                        "status": "error",
+                        "reason": "Missing name or URL",
+                    }
+                )
+                continue
+
+            # Check for fuzzy match with existing companies
+            match = matcher.find_match(company, existing_companies)
+
+            if match:
+                stats["skipped_duplicates"] += 1
+                stats["details"].append(
+                    {
+                        "company": name,
+                        "status": "skipped",
+                        "reason": f"Matches existing: {match['name']}",
+                    }
+                )
+                print(f"  ⊘ SKIP: {name} (matches {match['name']})")
+                continue
+
+            # Add company
+            result = self.add_company(name=name, careers_url=careers_url, notes=notes)
+
+            if result["success"]:
+                stats["added"] += 1
+                stats["details"].append({"company": name, "status": "added", "url": careers_url})
+                print(f"  ✓ ADDED: {name}")
+
+                # Add to existing companies list for future fuzzy matching within this batch
+                existing_companies.append(
+                    {
+                        "name": name,
+                        "careers_url": careers_url,
+                        "notes": notes,
+                    }
+                )
+            else:
+                # Already exists (exact match from database UNIQUE constraint)
+                stats["skipped_duplicates"] += 1
+                stats["details"].append(
+                    {"company": name, "status": "skipped", "reason": "Already exists (exact match)"}
+                )
+                print(f"  ⊘ SKIP: {name} (exact match in DB)")
+
+        print("\n[CompanyService] Batch import complete:")
+        print(f"  ✓ Added: {stats['added']}")
+        print(f"  ⊘ Skipped (duplicates): {stats['skipped_duplicates']}")
+        print(f"  ✗ Errors: {stats['errors']}")
+
+        return stats
 
     def get_all_companies(self, active_only: bool = True) -> list[dict]:
         """
