@@ -97,6 +97,44 @@ PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py
 - Tracks last_checked timestamps
 - Sends notifications for A/B grade jobs (80+)
 
+## Testing & Coverage Requirements
+
+**Coverage Policy (Enforced by SonarCloud):**
+- **All new code MUST have ≥80% test coverage** (enforced by SonarCloud quality gate)
+- Legacy code coverage is currently 17%, but this does NOT block PRs
+- SonarCloud only checks coverage on NEW/CHANGED code in PRs
+
+**Writing Tests:**
+- Place tests in `tests/unit/` directory
+- Follow existing test patterns (see `tests/unit/test_company_service.py` for reference)
+- Use `pytest` fixtures for test setup
+- Mock external dependencies (APIs, databases, file I/O)
+- Test both success and failure cases
+
+**Running Tests Locally:**
+```bash
+# Run all tests with coverage
+PYTHONPATH=$PWD job-agent-venv/bin/pytest tests/ -v --cov=src --cov-report=term-missing
+
+# Run specific test file
+PYTHONPATH=$PWD job-agent-venv/bin/pytest tests/unit/test_company_matcher.py -v
+
+# Run with coverage for specific module
+PYTHONPATH=$PWD job-agent-venv/bin/pytest tests/unit/ --cov=src/utils/company_matcher --cov-report=term-missing
+```
+
+**Pre-Commit Hooks:**
+The project uses pre-commit hooks to enforce code quality before commits:
+- Ruff linting and formatting
+- mypy type checking
+- Bandit security scanning
+- File validation (trailing whitespace, end-of-file, JSON/YAML validation)
+
+To skip hooks temporarily (use sparingly):
+```bash
+SKIP=python-safety-dependencies-check git commit -m "message"
+```
+
 ## Development Commands
 
 ### Run Unified Weekly Scraper (RECOMMENDED)

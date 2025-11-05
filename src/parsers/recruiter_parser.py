@@ -10,6 +10,10 @@ import re
 
 from bs4 import BeautifulSoup
 
+# Constants
+UNKNOWN_COMPANY = "Unknown Company"
+UNKNOWN_LOCATION = "Unknown Location"
+
 
 def parse_recruiter_email(html_content: str) -> list[dict[str, str]]:
     """
@@ -78,24 +82,42 @@ def parse_linkedin_jobs(soup: BeautifulSoup) -> list[dict[str, str]]:
                         title = title_elem.get_text(strip=True)
 
             # Find company and location
-            company = "Unknown Company"
-            location = "Unknown Location"
+            company = UNKNOWN_COMPANY
+            location = UNKNOWN_LOCATION
 
-            # Look for company logo and info nearby
+            # Look for company logo and info nearby - search more thoroughly
             parent_container = link.find_parent(["td", "div", "table"])
             if parent_container:
-                # Company often in text with middot separator
+                # Strategy 1: Company often in text with middot separator
                 company_text = parent_container.find(text=re.compile(r"·"))
                 if company_text:
                     parts = company_text.split("·")
                     if len(parts) >= 2:
                         company = parts[0].strip()
                         location = parts[1].strip()
-                else:
-                    # Look for company in alt text of images
+
+                # Strategy 2: Look for company in alt text of images
+                if company == UNKNOWN_COMPANY:
                     img = parent_container.find("img", alt=True)
                     if img and img["alt"] and img["alt"] != title:
                         company = img["alt"]
+
+                # Strategy 3: Search in all text nodes near the link
+                if company == UNKNOWN_COMPANY:
+                    # Get all text from parent, split by newlines
+                    all_text = parent_container.get_text(separator="\n", strip=True)
+                    lines = [line.strip() for line in all_text.split("\n") if line.strip()]
+
+                    # Look for line with middot that might be company·location
+                    for line in lines:
+                        if "·" in line:
+                            parts = line.split("·")
+                            # First part before · is often company
+                            if len(parts) >= 1 and parts[0].strip() and parts[0].strip() != title:
+                                company = parts[0].strip()
+                                if len(parts) >= 2:
+                                    location = parts[1].strip()
+                                break
 
             # Skip if we don't have essential information
             if not title or title == company or len(title) < 3:
@@ -109,7 +131,19 @@ def parse_linkedin_jobs(soup: BeautifulSoup) -> list[dict[str, str]]:
             print(f"Error parsing LinkedIn job: {e}")
             continue
 
-    return jobs
+    # Deduplicate jobs by link (in case email has multiple links to same job)
+    unique_jobs = {}
+    for job in jobs:
+        link = job["link"]
+        # Keep the job with more complete information (prefer ones with real company names)
+        if link not in unique_jobs:
+            unique_jobs[link] = job
+        else:
+            # If we already have this link, keep the one with more complete title
+            if len(job["title"]) > len(unique_jobs[link]["title"]):
+                unique_jobs[link] = job
+
+    return list(unique_jobs.values())
 
 
 def parse_single_recruiter_job(soup: BeautifulSoup) -> dict[str, str] | None:
@@ -191,7 +225,7 @@ def parse_single_recruiter_job(soup: BeautifulSoup) -> dict[str, str] | None:
     if title and (company or location or link):
         return {
             "title": title,
-            "company": company or "Unknown Company",
+            "company": company or UNKNOWN_COMPANY,
             "location": location or "Unknown Location",
             "link": str(link) if link else "",
         }

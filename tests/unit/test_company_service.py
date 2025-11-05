@@ -136,3 +136,130 @@ def test_toggle_active_status(temp_db):
     # Toggle back to active
     new_status = temp_db.toggle_active(company_id)
     assert new_status is True
+
+
+def test_add_companies_batch_success(temp_db):
+    """Test batch adding multiple companies"""
+    companies = [
+        {
+            "name": "Boston Dynamics",
+            "careers_url": "https://bostondynamics.com/careers",
+            "notes": "Test note A",
+        },
+        {
+            "name": "Agility Robotics",
+            "careers_url": "https://agilityrobotics.com/careers",
+            "notes": "Test note B",
+        },
+        {
+            "name": "Skydio Corporation",
+            "careers_url": "https://skydio.com/careers",
+            "notes": "Test note C",
+        },
+    ]
+
+    result = temp_db.add_companies_batch(companies, similarity_threshold=90.0)
+
+    assert result["added"] == 3
+    assert result["skipped_duplicates"] == 0
+    assert result["errors"] == 0
+    assert len(result["details"]) == 3
+
+
+def test_add_companies_batch_with_duplicates(temp_db):
+    """Test batch import skips fuzzy duplicates"""
+    # Add one company first
+    temp_db.add_company("Boston Dynamics", "https://bostondynamics.com/careers")
+
+    companies = [
+        {
+            "name": "Boston Dynamics Inc",  # Fuzzy match
+            "careers_url": "https://bostondynamics.com/careers",
+            "notes": "Duplicate",
+        },
+        {
+            "name": "Agility Robotics",
+            "careers_url": "https://agility.io/careers",
+            "notes": "New company",
+        },
+    ]
+
+    result = temp_db.add_companies_batch(companies, similarity_threshold=90.0)
+
+    assert result["added"] == 1  # Only Agility
+    assert result["skipped_duplicates"] == 1  # Boston Dynamics duplicate
+
+
+def test_add_companies_batch_missing_fields(temp_db):
+    """Test batch import handles missing required fields"""
+    companies = [
+        {
+            "name": "",  # Missing name
+            "careers_url": "https://a.com/careers",
+        },
+        {
+            "name": "Valid Company",
+            "careers_url": "",  # Missing URL
+        },
+        {
+            "name": "Good Company",
+            "careers_url": "https://good.com/careers",
+        },
+    ]
+
+    result = temp_db.add_companies_batch(companies, similarity_threshold=90.0)
+
+    assert result["added"] == 1  # Only Good Company
+    assert result["errors"] == 2  # Two invalid entries
+
+
+def test_add_companies_batch_empty_list(temp_db):
+    """Test batch import with empty list"""
+    result = temp_db.add_companies_batch([], similarity_threshold=90.0)
+
+    assert result["added"] == 0
+    assert result["skipped_duplicates"] == 0
+    assert result["errors"] == 0
+
+
+def test_add_companies_batch_exact_duplicate_from_db(temp_db):
+    """Test batch import detects exact duplicates from database UNIQUE constraint"""
+    # Add company first
+    temp_db.add_company("Test Company", "https://test.com/careers")
+
+    # Try to add exact same company
+    companies = [
+        {
+            "name": "Test Company",  # Exact match
+            "careers_url": "https://test.com/careers",  # Exact match
+        }
+    ]
+
+    result = temp_db.add_companies_batch(companies, similarity_threshold=90.0)
+
+    assert result["added"] == 0
+    assert result["skipped_duplicates"] == 1
+
+
+def test_add_companies_batch_within_batch_deduplication(temp_db):
+    """Test batch import deduplicates within the batch itself"""
+    companies = [
+        {
+            "name": "Figure AI",
+            "careers_url": "https://figure.ai/careers",
+        },
+        {
+            "name": "Figure AI Inc",  # Similar to first
+            "careers_url": "https://figure.ai/careers",
+        },
+        {
+            "name": "Bright Machines",
+            "careers_url": "https://brightmachines.com/careers",
+        },
+    ]
+
+    result = temp_db.add_companies_batch(companies, similarity_threshold=90.0)
+
+    # First Figure AI added, second skipped, Bright Machines added
+    assert result["added"] == 2
+    assert result["skipped_duplicates"] == 1
