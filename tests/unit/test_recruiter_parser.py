@@ -2,7 +2,7 @@
 Unit tests for Recruiter and LinkedIn email parser
 """
 
-from src.parsers.recruiter_parser import (
+from parsers.recruiter_parser import (
     can_parse,
     parse_recruiter_email,
     parse_single_recruiter_job,
@@ -188,6 +188,86 @@ class TestRecruiterParser:
         assert jobs[0]["company"] == "MedTech Solutions"
         assert "Burlington" in jobs[0]["location"]
         assert jobs[0]["link"] == "https://www.linkedin.com/jobs/view/888888"
+
+    def test_parse_linkedin_job_concatenated_title_with_metadata(self):
+        """Test parsing LinkedIn job with concatenated title/company/location/salary (Issue #32)"""
+        html_content = """
+        <html>
+            <body>
+                <table>
+                    <td>
+                        <a href="https://www.linkedin.com/jobs/view/99">
+                            (USA) Director, Software EngineeringWalmart · Sunnyvale, CA (On-site)$169K-$338K / year2 connectionsFast growing
+                        </a>
+                    </td>
+                </table>
+            </body>
+        </html>
+        """
+
+        jobs = parse_recruiter_email(html_content)
+
+        assert len(jobs) == 1
+        # Title should be clean, without company name concatenated
+        assert jobs[0]["title"] == "(USA) Director, Software Engineering"
+        assert jobs[0]["company"] == "Walmart"
+        # Location should be cleaned without salary
+        assert jobs[0]["location"] == "Sunnyvale, CA (On-site)"
+        assert "$" not in jobs[0]["location"]
+        assert "connection" not in jobs[0]["location"].lower()
+
+    def test_parse_linkedin_job_concatenated_with_hybrid(self):
+        """Test parsing LinkedIn job with title concatenated with company and hybrid location"""
+        html_content = """
+        <html>
+            <body>
+                <table>
+                    <td>
+                        <a href="https://www.linkedin.com/jobs/view/101">
+                            Technical Product ManagerCVS Health · New York, NY (Hybrid)$83K-$222K / year1 connection
+                        </a>
+                    </td>
+                </table>
+            </body>
+        </html>
+        """
+
+        jobs = parse_recruiter_email(html_content)
+
+        assert len(jobs) == 1
+        # Title should be clean, company extracted from concatenation
+        assert jobs[0]["title"] == "Technical Product Manager"
+        # Should extract multi-word company name
+        assert jobs[0]["company"] == "CVS Health"
+        assert jobs[0]["location"] == "New York, NY (Hybrid)"
+        # Verify clean extraction without salary/metadata
+        assert "$" not in jobs[0]["location"]
+        assert "connection" not in jobs[0]["location"].lower()
+
+    def test_parse_linkedin_job_clean_title_unknown_company(self):
+        """Test parsing LinkedIn job with clean title but no company extraction (Issue #32)"""
+        html_content = """
+        <html>
+            <body>
+                <table>
+                    <td>
+                        <a href="https://www.linkedin.com/jobs/view/100">
+                            (USA) Director, Software Engineering
+                        </a>
+                    </td>
+                </table>
+            </body>
+        </html>
+        """
+
+        jobs = parse_recruiter_email(html_content)
+
+        assert len(jobs) == 1
+        # Title should stay clean
+        assert jobs[0]["title"] == "(USA) Director, Software Engineering"
+        # Company extraction should fail gracefully
+        assert jobs[0]["company"] == "Unknown Company"
+        assert jobs[0]["location"] == "Unknown Location"
 
 
 class TestRecruiterParserEdgeCases:

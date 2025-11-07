@@ -63,13 +63,22 @@ def parse_linkedin_jobs(soup: BeautifulSoup) -> list[dict[str, str]]:
             clean_url = f"https://www.linkedin.com/jobs/view/{job_id}"
 
             # Find job title - usually in the link text or nearby
-            title = link.get_text(strip=True)
+            full_link_text = link.get_text(strip=True)
 
             # Skip generic link text
-            if title in ["View on LinkedIn", "Apply", "Learn more", "View job"]:
-                title = ""
+            if full_link_text in ["View on LinkedIn", "Apply", "Learn more", "View job"]:
+                full_link_text = ""
 
-            # If link text is not the title, search nearby
+            # Extract clean title from link text
+            # LinkedIn often concatenates: Title[Company] · [Location][Salary]...
+            # Split at first middot to separate title from metadata
+            title = full_link_text
+            if "·" in full_link_text:
+                # Everything before first middot might be title+company concatenated
+                # We'll clean it further after extracting company
+                title = full_link_text.split("·")[0].strip()
+
+            # If link text is not usable, search nearby
             if not title or len(title) < 3:
                 # Look for title in parent structure
                 parent = link.find_parent("td") or link.find_parent("div")
@@ -80,6 +89,9 @@ def parse_linkedin_jobs(soup: BeautifulSoup) -> list[dict[str, str]]:
                     )
                     if title_elem:
                         title = title_elem.get_text(strip=True)
+                        # Clean this too
+                        if "·" in title:
+                            title = title.split("·")[0].strip()
 
             # Find company and location
             company = UNKNOWN_COMPANY
@@ -88,21 +100,114 @@ def parse_linkedin_jobs(soup: BeautifulSoup) -> list[dict[str, str]]:
             # Look for company logo and info nearby - search more thoroughly
             parent_container = link.find_parent(["td", "div", "table"])
             if parent_container:
-                # Strategy 1: Company often in text with middot separator
-                company_text = parent_container.find(text=re.compile(r"·"))
-                if company_text:
-                    parts = company_text.split("·")
+                # Strategy 1: Look for company in the full link text with middot
+                # Format: Title[Company] · [Location]
+                if "·" in full_link_text and company == UNKNOWN_COMPANY:
+                    parts = full_link_text.split("·")
                     if len(parts) >= 2:
-                        company = parts[0].strip()
-                        location = parts[1].strip()
+                        # Part before first middot contains title+company
+                        before_middot = parts[0].strip()
+                        # Part after first middot has location
+                        after_middot = parts[1].strip()
 
-                # Strategy 2: Look for company in alt text of images
+                        # Try to extract company from before_middot
+                        # Company names are usually capitalized and at the end
+                        # Strategy: First split any concatenated words, then find company
+                        words = before_middot.split()
+
+                        # Step 1: Check all words for concatenation and split them
+                        for i in range(len(words)):
+                            word = words[i]
+                            # Find first capital that comes after a lowercase letter
+                            concat_idx = None
+                            for j in range(1, len(word)):
+                                if word[j].isupper() and word[j - 1].islower():
+                                    concat_idx = j
+                                    break
+
+                            if concat_idx:
+                                # Split word: "ManagerCVS" → ["Manager", "CVS"]
+                                words[i] = word[:concat_idx]
+                                # Insert the company part after this word
+                                words.insert(i + 1, word[concat_idx:])
+                                break  # Only handle one concatenation
+
+                        # Step 2: Find the company (everything after the last title keyword)
+                        # Iterate backwards to find the last title keyword or role descriptor
+                        title_keywords = [
+                            "director",
+                            "manager",
+                            "senior",
+                            "lead",
+                            "vp",
+                            "head",
+                            "chief",
+                            "principal",
+                            "staff",
+                            "software",
+                            "hardware",
+                            "engineering",
+                            "product",
+                            "technical",
+                            "program",
+                            "project",
+                        ]
+                        company_start_idx = None
+                        for i in range(len(words) - 1, -1, -1):
+                            word = words[i]
+                            # Strip punctuation for comparison
+                            word_clean = word.strip(",.;:()[]").lower()
+                            # Check if this is a title keyword or role descriptor
+                            if word_clean in title_keywords:
+                                # Found a title keyword - company starts after this
+                                company_start_idx = i + 1
+                                break
+
+                        # If we found a title keyword, everything after it is the company
+                        if company_start_idx is not None and company_start_idx < len(words):
+                            company = " ".join(words[company_start_idx:])
+                            title = " ".join(words[:company_start_idx]).strip()
+                        # Otherwise, assume last capitalized word(s) are the company
+                        elif len(words) > 1 and words[-1][0].isupper():
+                            # Take last word as company (or last 2 if both capitalized)
+                            if (
+                                len(words) > 2
+                                and words[-2][0].isupper()
+                                and words[-2].lower() not in ["and", "of", "the"]
+                            ):
+                                company = " ".join(words[-2:])
+                                title = " ".join(words[:-2]).strip()
+                            else:
+                                company = words[-1]
+                                title = " ".join(words[:-1]).strip()
+
+                        # Extract location (before salary info)
+                        # Location format: "City, STATE (Type)" or just "City, STATE"
+                        location_match = re.search(
+                            r"([A-Z][^$\d·]+(?:,\s*[A-Z]{2})?(?:\s*\([^)]+\))?)", after_middot
+                        )
+                        if location_match:
+                            location = location_match.group(1).strip()
+
+                # Strategy 2: Company often in text with middot separator (legacy)
+                if company == UNKNOWN_COMPANY:
+                    company_text = parent_container.find(text=re.compile(r"·"))
+                    if company_text:
+                        parts = company_text.split("·")
+                        if len(parts) >= 2:
+                            potential_company = parts[0].strip()
+                            # Only use if it's not the full concatenated title
+                            if potential_company != full_link_text.split("·")[0].strip():
+                                company = potential_company
+                                location = parts[1].strip()
+
+                # Strategy 3: Look for company in alt text of images
                 if company == UNKNOWN_COMPANY:
                     img = parent_container.find("img", alt=True)
                     if img and img["alt"] and img["alt"] != title:
                         company = img["alt"]
 
-                # Strategy 3: Search in all text nodes near the link
+                # Strategy 4: Search in all text nodes near the link
                 if company == UNKNOWN_COMPANY:
                     # Get all text from parent, split by newlines
                     all_text = parent_container.get_text(separator="\n", strip=True)
@@ -118,6 +223,20 @@ def parse_linkedin_jobs(soup: BeautifulSoup) -> list[dict[str, str]]:
                                 if len(parts) >= 2:
                                     location = parts[1].strip()
                                 break
+
+            # Final title cleanup: remove company name if it's still in title
+            if company != UNKNOWN_COMPANY and company in title:
+                title = title.replace(company, "").strip()
+
+            # Clean up location: remove salary and extra metadata
+            if location != UNKNOWN_LOCATION:
+                # Remove everything after closing parenthesis (salary, connections, etc.)
+                if ")" in location:
+                    location = location[: location.rfind(")") + 1]
+                # Remove dollar amounts
+                location = re.sub(r"\$.*", "", location).strip()
+                # Remove number prefixes like "1 connection"
+                location = re.sub(r"\d+\s+connection.*", "", location, flags=re.IGNORECASE).strip()
 
             # Skip if we don't have essential information
             if not title or title == company or len(title) < 3:
