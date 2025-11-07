@@ -233,12 +233,14 @@ def parse_linkedin_jobs(soup: BeautifulSoup) -> list[dict[str, str]]:
                 # Remove everything after closing parenthesis (salary, connections, etc.)
                 if ")" in location:
                     location = location[: location.rfind(")") + 1]
-                # Remove dollar amounts (use [^\n]* to avoid ReDoS with .*)
-                location = re.sub(r"\$[^\n]*", "", location).strip()
-                # Remove number prefixes like "1 connection" (use [^\n]* to avoid ReDoS with .*)
-                location = re.sub(
-                    r"\d+\s+connections?[^\n]*", "", location, flags=re.IGNORECASE
-                ).strip()
+                # Remove dollar amounts - find position and slice (avoids ReDoS)
+                dollar_match = re.search(r"\$", location)
+                if dollar_match:
+                    location = location[: dollar_match.start()].strip()
+                # Remove connection counts - find position and slice (avoids ReDoS)
+                connection_match = re.search(r"\d+\s+connections?", location, flags=re.IGNORECASE)
+                if connection_match:
+                    location = location[: connection_match.start()].strip()
 
             # Skip if we don't have essential information
             if not title or title == company or len(title) < 3:
