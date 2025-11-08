@@ -4,6 +4,7 @@ Database module for job storage and deduplication
 
 import hashlib
 import json
+import re
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -91,8 +92,18 @@ class JobDatabase:
 
     def generate_job_hash(self, title: str, company: str, link: str) -> str:
         """Generate unique hash for job deduplication"""
+        # Normalize link - extract job ID for LinkedIn URLs to ignore tracking parameters
+        normalized_link = link.strip()
+        link_lower = link.lower()
+        if "linkedin.com" in link_lower and "/jobs/view/" in link_lower:
+            # Extract job ID from LinkedIn URL (e.g., /jobs/view/4318329363)
+            match = re.search(r"/jobs/view/(\d+)", link, re.IGNORECASE)
+            if match:
+                # Use normalized form: just the job ID
+                normalized_link = f"linkedin.com/jobs/view/{match.group(1)}"
+
         # Normalize and combine key fields
-        normalized = f"{title.lower().strip()}|{company.lower().strip()}|{link.strip()}"
+        normalized = f"{title.lower().strip()}|{company.lower().strip()}|{normalized_link.lower()}"
         return hashlib.sha256(normalized.encode()).hexdigest()
 
     def job_exists(self, job_hash: str) -> bool:
