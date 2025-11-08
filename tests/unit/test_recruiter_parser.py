@@ -189,6 +189,30 @@ class TestRecruiterParser:
         assert "Burlington" in jobs[0]["location"]
         assert jobs[0]["link"] == "https://www.linkedin.com/jobs/view/888888"
 
+    def test_parse_single_recruiter_job_rejects_search_urls(self):
+        """Test that single recruiter parser rejects LinkedIn search URLs (Issue #35)"""
+        html_content = """
+        <html>
+            <body>
+                <p>We're hiring a Director of Engineering at Tech Corp.</p>
+                <p>Location: Remote (US)</p>
+                <a href="https://www.linkedin.com/comm/jobs/search?keywords=Director+Engineering">
+                    View jobs on LinkedIn
+                </a>
+            </body>
+        </html>
+        """
+
+        jobs = parse_recruiter_email(html_content)
+
+        # Should still extract job but with empty link (search URL rejected)
+        assert len(jobs) == 1
+        assert jobs[0]["title"] == "Director of Engineering"
+        assert jobs[0]["company"] == "Tech Corp."
+        assert jobs[0]["location"] == "Remote (US)"
+        # Link should be empty because search URL was rejected
+        assert jobs[0]["link"] == ""
+
     def test_parse_linkedin_job_concatenated_title_with_metadata(self):
         """Test parsing LinkedIn job with concatenated title/company/location/salary (Issue #32)"""
         html_content = """
@@ -268,6 +292,48 @@ class TestRecruiterParser:
         # Company extraction should fail gracefully
         assert jobs[0]["company"] == "Unknown Company"
         assert jobs[0]["location"] == "Unknown Location"
+
+    def test_parse_linkedin_job_skips_search_urls(self):
+        """Test that parser skips search URLs and only captures job view URLs (Issue #35)"""
+        html_content = """
+        <html>
+            <body>
+                <table>
+                    <td>
+                        <!-- Search URL - should be skipped -->
+                        <a href="https://www.linkedin.com/comm/jobs/search?keywords=Director+Engineering">
+                            Search Results
+                        </a>
+                        <!-- Valid job view URL - should be captured -->
+                        <a href="https://www.linkedin.com/jobs/view/123456">
+                            Director of Engineering
+                        </a>
+                    </td>
+                    <td>
+                        <!-- Another search URL with keywords - should be skipped -->
+                        <a href="https://www.linkedin.com/jobs/search?keywords=VP+Product&location=Remote">
+                            VP Product
+                        </a>
+                        <!-- Another valid job - should be captured -->
+                        <a href="https://www.linkedin.com/jobs/view/789012">
+                            VP of Product Management
+                        </a>
+                    </td>
+                </table>
+            </body>
+        </html>
+        """
+
+        jobs = parse_recruiter_email(html_content)
+
+        # Should only get the 2 job view URLs, not the 2 search URLs
+        assert len(jobs) == 2
+        assert jobs[0]["link"] == "https://www.linkedin.com/jobs/view/123456"
+        assert jobs[1]["link"] == "https://www.linkedin.com/jobs/view/789012"
+        # Verify no search URLs made it through
+        for job in jobs:
+            assert "/jobs/search" not in job["link"]
+            assert "keywords=" not in job["link"]
 
 
 class TestRecruiterParserEdgeCases:
