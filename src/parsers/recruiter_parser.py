@@ -49,6 +49,10 @@ def parse_linkedin_jobs(soup: BeautifulSoup) -> list[dict[str, str]]:
             # Extract URL
             url = link.get("href", "")
 
+            # Skip search URLs - we only want actual job postings
+            if "/jobs/search" in url or "keywords=" in url:
+                continue
+
             # Clean LinkedIn tracking parameters
             if "trackingId=" in url:
                 url = url.split("?")[0]
@@ -339,6 +343,10 @@ def parse_single_recruiter_job(soup: BeautifulSoup) -> dict[str, str] | None:
         linkedin_link = soup.find("a", href=re.compile(r"linkedin\.com.*job"))
         if linkedin_link and hasattr(linkedin_link, "get"):
             link = linkedin_link.get("href", "")
+
+    # Reject search URLs - we only want actual job postings
+    if link and isinstance(link, str) and ("/jobs/search" in link or "keywords=" in link):
+        link = ""
 
     # Clean up link
     if link and isinstance(link, str) and "?" in link:
