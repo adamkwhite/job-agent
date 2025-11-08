@@ -6,7 +6,7 @@ import re
 from abc import ABC, abstractmethod
 from email.message import Message
 
-from src.models import ParserResult
+from models import ParserResult
 
 
 class BaseEmailParser(ABC):
@@ -96,6 +96,10 @@ class BaseEmailParser(ABC):
         exclude_keywords = ["unsubscribe", "preferences", "settings", "privacy", "terms"]
 
         url_lower = url.lower()
+
+        # Reject LinkedIn search URLs - we only want actual job postings
+        if "/jobs/search" in url_lower or "keywords=" in url_lower:
+            return False
 
         if any(keyword in url_lower for keyword in exclude_keywords):
             return False
