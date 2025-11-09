@@ -690,6 +690,35 @@ class TestLinkedInParserHelperMethods:
         assert parser.clean_text("") == ""
         assert parser.clean_text(None) == ""
 
+    def test_clean_title_removes_jobs_similar_to_prefix(self):
+        """Should remove 'Jobs similar to' prefix from email subject lines (Issue #41)"""
+        parser = LinkedInParser()
+
+        # Test basic "Jobs similar to" removal
+        assert (
+            parser._clean_title("Jobs similar to Head of Engineering, Americas at")
+            == "Head of Engineering, Americas"
+        )
+
+        # Test with " at" suffix
+        assert (
+            parser._clean_title("Jobs similar to Director, R&D Software Engineering at")
+            == "Director, R&D Software Engineering"
+        )
+
+        # Test with " at [Company]" in middle
+        assert (
+            parser._clean_title("Jobs similar to Senior Engineering Manager at Dropbox")
+            == "Senior Engineering Manager"
+        )
+
+        # Test normal title without prefix (should be unchanged)
+        assert parser._clean_title("Software Engineer") == "Software Engineer"
+
+        # Test empty/None
+        assert parser._clean_title("") == ""
+        assert parser._clean_title(None) is None
+
 
 class TestLinkedInParserEdgeCases:
     """Test edge cases and error handling"""
