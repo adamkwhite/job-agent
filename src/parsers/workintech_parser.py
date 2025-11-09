@@ -7,6 +7,11 @@ import re
 
 from bs4 import BeautifulSoup
 
+# Constants
+UNKNOWN_COMPANY = "Unknown Company"
+UNKNOWN_LOCATION = "Unknown Location"
+WORK_IN_TECH = "work in tech"
+
 
 def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
     """
@@ -37,8 +42,8 @@ def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
             # 2. Link text is generic ("make a new search") - extract from nearby middot text
 
             title = None
-            company = "Unknown Company"
-            location = "Unknown Location"
+            company = UNKNOWN_COMPANY
+            location = UNKNOWN_LOCATION
 
             # First, try to get title from link/span (most common case)
             title_span = link.find("span", style=re.compile(r"font-size:\s*16px"))
@@ -171,13 +176,13 @@ def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
                                             location = last_part
                                     else:
                                         # First part is likely company name, not job title
-                                        if company == "Unknown Company":
+                                        if company == UNKNOWN_COMPANY:
                                             company = first_part
                                         location = last_part
                                 else:
                                     # We already have a title from link text
                                     # Middot text is probably "Company · Location"
-                                    if company == "Unknown Company":
+                                    if company == UNKNOWN_COMPANY:
                                         company = first_part
                                     location = last_part
 
@@ -189,7 +194,7 @@ def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
             if title.lower() in [
                 "see more jobs",
                 "this link",
-                "work in tech",
+                WORK_IN_TECH,
                 "update your preferences",
                 "make a new search",
             ]:
@@ -207,7 +212,7 @@ def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
             processed_jobs.add(title)
 
             # Additional location extraction - only use as fallback
-            if location == "Unknown Location":
+            if location == UNKNOWN_LOCATION:
                 # Look for location in subscription preferences mentioned in email
                 location_text = soup.find(
                     string=re.compile(r"Ontario|Toronto|Canada|Remote", re.IGNORECASE)
@@ -232,10 +237,10 @@ def can_parse(from_addr: str, subject: str) -> bool:
     subject_lower = subject.lower()
 
     # Work In Tech/Getro emails
-    if "getro" in from_lower or "work in tech" in from_lower:
+    if "getro" in from_lower or WORK_IN_TECH in from_lower:
         return True
 
-    if "work in tech" in subject_lower and "job" in subject_lower:
+    if WORK_IN_TECH in subject_lower and "job" in subject_lower:
         return True
 
     # Pattern for getro job board emails
