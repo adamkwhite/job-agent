@@ -191,7 +191,7 @@ class CompanyScraper:
                     "fit_score": score,
                     "fit_grade": grade,
                     "score_breakdown": json.dumps(breakdown),
-                    "keywords_matched": json.dumps([]),
+                    "keywords_matched": json.dumps(["Company Monitoring"]),
                     "source_email": "",
                 }
             )

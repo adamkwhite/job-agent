@@ -14,7 +14,7 @@ from database import JobDatabase
 from notifier import JobNotifier
 
 
-def generate_email_html(jobs):
+def generate_email_html(jobs, recipient_name="Wes"):
     """Generate HTML email with top jobs"""
 
     # Filter for B+ grade jobs (acceptable locations preferred)
@@ -119,7 +119,7 @@ def generate_email_html(jobs):
     <body>
         <h1>🎯 Your Personalized Job Matches</h1>
 
-        <p>Hi Wes,</p>
+        <p>Hi {recipient_name},</p>
 
         <p>I've analyzed <strong>{len(jobs)} opportunities</strong> from LinkedIn, Supra Product Leadership Jobs, and the Robotics/Deeptech job board, scored against your profile as a <strong>Director/VP-level Engineering & Product leader</strong> in hardware, robotics, and IoT.</p>
 
@@ -289,8 +289,9 @@ def send_digest(force_resend: bool = False, test_email: str | None = None):
     print(f"  - {len(high_scoring)} excellent matches (80+)")
     print(f"  - {len(good_scoring)} good matches (70+)")
 
-    # Generate HTML email
-    html_body = generate_email_html(jobs)
+    # Generate HTML email with appropriate recipient name
+    recipient_name = "Adam" if test_email else "Wes"
+    html_body = generate_email_html(jobs, recipient_name=recipient_name)
 
     # Send via notifier
     JobNotifier()
