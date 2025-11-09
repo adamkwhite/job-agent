@@ -125,19 +125,39 @@ class LinkedInParser(BaseEmailParser):
             # Parse the job info to extract just the title
             title, _, _ = self._parse_job_info(job_info)
             if title:
-                return title
+                return self._clean_title(title)
 
         # Fallback: Try link text first
         title = self.clean_text(link_element.get_text())
 
         if title and len(title) > 10:  # Reasonable title length
-            return title
+            return self._clean_title(title)
 
         # Try title attribute
         if link_element.get("title"):
-            return link_element.get("title")
+            return self._clean_title(link_element.get("title"))
 
-        return title
+        return self._clean_title(title)
+
+    def _clean_title(self, title: str) -> str:
+        """Clean job title by removing email subject line artifacts (Issue #41)"""
+        if not title:
+            return title
+
+        # Remove "Jobs similar to " prefix from email subject lines
+        # Format: "Jobs similar to [Job Title] at [Company]"
+        if title.startswith("Jobs similar to "):
+            title = title.replace("Jobs similar to ", "", 1)
+
+            # Remove trailing " at" or " at [Company]" if present
+            # We want just the job title, company is extracted separately
+            if title.endswith(" at"):
+                title = title[:-3]
+            elif " at " in title:
+                # Strip everything after " at " to remove partial company names
+                title = title.split(" at ")[0]
+
+        return title.strip()
 
     def _extract_company(self, link_element, _soup: BeautifulSoup) -> str:
         """Extract company name from link context"""
