@@ -159,6 +159,67 @@ class TestWorkInTechParser:
         assert jobs[0]["company"] == "Unknown Company"
         assert jobs[0]["location"] == "Unknown Location"
 
+    def test_parse_workintech_make_new_search_link_text(self):
+        """Test parsing when link text is 'make a new search' (Issue #39)"""
+        html_content = """
+        <html>
+            <body>
+                <table>
+                    <td>
+                        <a href="https://url3473.getro.com/ls/click?upn=u001.GE2DtX">
+                            make a new search
+                        </a>
+                        <div>Head of Product · Ontario, Canada</div>
+                    </td>
+                </table>
+                <table>
+                    <td>
+                        <a href="https://url3473.getro.com/ls/click?upn=u001.ABC123">
+                            make a new search
+                        </a>
+                        <div>Director, Commercial Operations · Toronto, ON</div>
+                    </td>
+                </table>
+            </body>
+        </html>
+        """
+
+        jobs = parse_workintech_email(html_content)
+
+        assert len(jobs) == 2
+
+        # Should extract job title from div, not link text
+        assert jobs[0]["title"] == "Head of Product"
+        assert jobs[0]["location"] == "Ontario, Canada"
+        assert "getro.com" in jobs[0]["link"]
+
+        assert jobs[1]["title"] == "Director, Commercial Operations"
+        assert jobs[1]["location"] == "Toronto, ON"
+
+    def test_parse_workintech_three_part_middot_separator(self):
+        """Test parsing middot-separated text with 3 parts: Title · Company · Location"""
+        html_content = """
+        <html>
+            <body>
+                <table>
+                    <td>
+                        <a href="https://getro.com/job/456/click">
+                            make a new search
+                        </a>
+                        <div>Senior Software Engineer · TechCorp · Remote</div>
+                    </td>
+                </table>
+            </body>
+        </html>
+        """
+
+        jobs = parse_workintech_email(html_content)
+
+        assert len(jobs) == 1
+        assert jobs[0]["title"] == "Senior Software Engineer"
+        assert jobs[0]["company"] == "TechCorp"
+        assert jobs[0]["location"] == "Remote"
+
     def test_parse_workintech_infer_ontario_location(self):
         """Test that parser infers Ontario location from context"""
         html_content = """

@@ -27,14 +27,110 @@ def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
 
     for link in job_links:
         try:
-            # Look for job title in link or nearby span
-            title_span = link.find("span", style=re.compile(r"font-size:\s*16px"))
-            title = title_span.get_text(strip=True) if title_span else link.get_text(strip=True)
+            # Extract URL first
+            url = link.get("href", "")
+            if not url.startswith("http"):
+                url = f"https://{url}"
 
-            # Skip if not a job title (navigation links, etc.)
+            # STRATEGY: Work in Tech emails have two patterns:
+            # 1. Link text contains actual job title (use link text)
+            # 2. Link text is generic ("make a new search") - extract from nearby middot text
+
+            title = None
+            company = "Unknown Company"
+            location = "Unknown Location"
+
+            # First, try to get title from link/span (most common case)
+            title_span = link.find("span", style=re.compile(r"font-size:\s*16px"))
+            link_text = title_span.get_text(strip=True) if title_span else link.get_text(strip=True)
+
+            # Check if link text is generic/useless
+            is_generic_link_text = (
+                not link_text
+                or len(link_text) < 5
+                or link_text.lower() in ["make a new search", "see more jobs", "this link"]
+            )
+
+            # If link text is good, use it as title
+            if not is_generic_link_text:
+                title = link_text
+
+            # Look in parent container for additional details or alternative title
+            parent_container = link.find_parent(["td", "table", "div"])
+            if parent_container:
+                # Company often in image alt attribute
+                img = parent_container.find("img", alt=True)
+                if img and "Logo" in img.get("alt", ""):
+                    company = img["alt"].replace(" Logo", "").strip()
+
+                # Look for job details in div/span elements with middot separator
+                # Pattern: "Job Title · Location" or "Company · Location" or "Job Title · Company · Location"
+                for elem in parent_container.find_all(["div", "span", "p"]):
+                    elem_text = elem.get_text(strip=True)
+
+                    # Skip if this is the link text itself
+                    if elem == link or elem_text == link_text:
+                        continue
+
+                    # Extract from middot-separated text
+                    if "·" in elem_text:
+                        parts = elem_text.split("·")
+                        if len(parts) >= 2:
+                            first_part = parts[0].strip()
+                            last_part = parts[-1].strip()
+
+                            # If we don't have a title yet (generic link text), extract from middot
+                            if not title and first_part and len(first_part) > 5:
+                                # Check if first part looks like a job title (has job keywords)
+                                title_keywords = [
+                                    "director",
+                                    "manager",
+                                    "engineer",
+                                    "senior",
+                                    "lead",
+                                    "head",
+                                    "vp",
+                                    "vice president",
+                                    "specialist",
+                                ]
+                                has_title_keyword = any(
+                                    keyword in first_part.lower() for keyword in title_keywords
+                                )
+
+                                if has_title_keyword:
+                                    # First part is likely the job title
+                                    title = first_part
+                                    # If 3 parts: Title · Company · Location
+                                    if len(parts) == 3:
+                                        company = parts[1].strip()
+                                        location = last_part
+                                    else:
+                                        # 2 parts: Title · Location
+                                        location = last_part
+                                else:
+                                    # First part is likely company name, not job title
+                                    if company == "Unknown Company":
+                                        company = first_part
+                                    location = last_part
+                            else:
+                                # We already have a title from link text
+                                # Middot text is probably "Company · Location"
+                                if company == "Unknown Company":
+                                    company = first_part
+                                location = last_part
+
+                            break
+
+            # Skip if not a valid job title
             if not title or len(title) < 5:
                 continue
-            if title in ["See more jobs", "this link", "Work In Tech", "Update your preferences"]:
+            if title.lower() in [
+                "see more jobs",
+                "this link",
+                "work in tech",
+                "update your preferences",
+                "make a new search",
+            ]:
                 continue
             # Skip common navigation patterns
             if any(
@@ -47,46 +143,6 @@ def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
             if title in processed_jobs:
                 continue
             processed_jobs.add(title)
-
-            # Extract URL
-            url = link.get("href", "")
-
-            # The actual job link is often embedded in the tracking URL
-            # Work In Tech uses redirects, so we'll use the tracking URL
-            if not url.startswith("http"):
-                url = f"https://{url}"
-
-            # Find company name - usually in image alt text or nearby text
-            company = "Unknown Company"
-            location = "Unknown Location"
-
-            # Look in parent container
-            parent_container = link.find_parent(["td", "table", "div"])
-            if parent_container:
-                # Company often in image alt attribute
-                img = parent_container.find("img", alt=True)
-                if img and "Logo" in img.get("alt", ""):
-                    company = img["alt"].replace(" Logo", "").strip()
-
-                # Look for company and location in div/span elements
-                # Find all text elements that contain the middot separator
-                for elem in parent_container.find_all(["div", "span", "p"]):
-                    elem_text = elem.get_text(strip=True)
-                    # Extract company from patterns like "Company Name · Location"
-                    # Use split instead of regex to avoid ReDoS vulnerability
-                    if "·" in elem_text:
-                        parts = elem_text.split("·", 1)  # Split on first middot only
-                        if len(parts) == 2:
-                            potential_company = parts[0].strip()
-                            potential_location = parts[1].strip()
-                            # Make sure it's not the job title
-                            if potential_company and potential_company != title:
-                                if company == "Unknown Company":
-                                    company = potential_company
-                                # Always use the extracted location if found
-                                if potential_location:
-                                    location = potential_location
-                                break
 
             # Additional location extraction - only use as fallback
             if location == "Unknown Location":
