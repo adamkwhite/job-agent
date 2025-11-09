@@ -193,7 +193,26 @@ def parse_linkedin_jobs(soup: BeautifulSoup) -> list[dict[str, str]]:
                         if location_match:
                             location = location_match.group(1).strip()
 
-                # Strategy 2: Company often in text with middot separator (legacy)
+                # Strategy 2: Look for company/location in paragraph tag in sibling TR elements
+                # LinkedIn emails often have structure: <tr><a>Title</a></tr><tr><p>Company · Location</p></tr>
+                if company == UNKNOWN_COMPANY:
+                    # Try to find parent TR
+                    parent_tr = link.find_parent("tr")
+                    if parent_tr:
+                        # Look in next TR sibling
+                        next_tr = parent_tr.find_next_sibling("tr")
+                        if next_tr:
+                            # Look for paragraph with middot (company · location format)
+                            p_tag = next_tr.find("p", string=re.compile(r"·"))
+                            if p_tag:
+                                p_text = p_tag.get_text(strip=True)
+                                if "·" in p_text:
+                                    parts = p_text.split("·")
+                                    if len(parts) >= 2:
+                                        company = parts[0].strip()
+                                        location = parts[1].strip()
+
+                # Strategy 3: Company often in text with middot separator (legacy)
                 if company == UNKNOWN_COMPANY:
                     company_text = parent_container.find(text=re.compile(r"·"))
                     if company_text:
@@ -205,13 +224,13 @@ def parse_linkedin_jobs(soup: BeautifulSoup) -> list[dict[str, str]]:
                                 company = potential_company
                                 location = parts[1].strip()
 
-                # Strategy 3: Look for company in alt text of images
+                # Strategy 4: Look for company in alt text of images
                 if company == UNKNOWN_COMPANY:
                     img = parent_container.find("img", alt=True)
                     if img and img["alt"] and img["alt"] != title:
                         company = img["alt"]
 
-                # Strategy 4: Search in all text nodes near the link
+                # Strategy 5: Search in all text nodes near the link
                 if company == UNKNOWN_COMPANY:
                     # Get all text from parent, split by newlines
                     all_text = parent_container.get_text(separator="\n", strip=True)
