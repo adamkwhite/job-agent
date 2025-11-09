@@ -272,6 +272,70 @@ class TestWorkInTechParser:
         assert jobs[0]["link"].startswith("https://")
         assert "getro.com" in jobs[0]["link"]
 
+    def test_parse_workintech_table_based_structure(self):
+        """Test parsing new table-based email format with 3 rows (Issue #45)"""
+        html_content = """
+        <html>
+            <body>
+                <table>
+                    <tr>
+                        <td>
+                            <strong>
+                                <a href="https://url3473.getro.com/ls/click?upn=u001.ABC123">
+                                    <span style="font-size: 16px">Director, Commercial Operations</span>
+                                </a>
+                            </strong>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="color: #6B778E; font-size: 14px;">
+                            <a href="https://url3473.getro.com/ls/click?upn=u001.ABC123">Maple</a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="color: #6B778E; font-size: 13px;">Toronto, ON, Canada</td>
+                    </tr>
+                </table>
+                <table>
+                    <tr>
+                        <td>
+                            <strong>
+                                <a href="https://url3473.getro.com/ls/click?upn=u001.XYZ789">
+                                    <span style="font-size: 16px">Senior Product Manager</span>
+                                </a>
+                            </strong>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="color: #6B778E; font-size: 14px;">
+                            <a href="https://url3473.getro.com/ls/click?upn=u001.XYZ789">Cohere</a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="color: #6B778E; font-size: 13px;">Toronto, ON, Canada (Hybrid)</td>
+                    </tr>
+                </table>
+            </body>
+        </html>
+        """
+
+        jobs = parse_workintech_email(html_content)
+
+        # Should extract both jobs from table structure
+        assert len(jobs) == 2
+
+        # First job
+        assert jobs[0]["title"] == "Director, Commercial Operations"
+        assert jobs[0]["company"] == "Maple"
+        assert jobs[0]["location"] == "Toronto, ON, Canada"
+        assert "getro.com" in jobs[0]["link"]
+
+        # Second job
+        assert jobs[1]["title"] == "Senior Product Manager"
+        assert jobs[1]["company"] == "Cohere"
+        assert jobs[1]["location"] == "Toronto, ON, Canada (Hybrid)"
+        assert "getro.com" in jobs[1]["link"]
+
 
 class TestWorkInTechParserEdgeCases:
     """Test edge cases and error handling"""
