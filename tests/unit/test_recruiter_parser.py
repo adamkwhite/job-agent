@@ -335,6 +335,59 @@ class TestRecruiterParser:
             assert "/jobs/search" not in job["link"]
             assert "keywords=" not in job["link"]
 
+    def test_parse_linkedin_job_company_in_sibling_tr(self):
+        """Test parsing LinkedIn job with company/location in sibling TR element (Issue #47)"""
+        html_content = """
+        <html>
+            <body>
+                <table>
+                    <tr>
+                        <td class="pb-0">
+                            <a href="https://www.linkedin.com/jobs/view/4098765" class="font-bold text-md">
+                                Director of Product Management - Developer Experience
+                            </a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="pb-0">
+                            <p class="text-system-gray-100 text-xs">NVIDIA · Santa Clara, CA</p>
+                        </td>
+                    </tr>
+                </table>
+                <table>
+                    <tr>
+                        <td>
+                            <a href="https://www.linkedin.com/jobs/view/4098766">
+                                Technical Product Manager
+                            </a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <p>CVS Health · New York, NY</p>
+                        </td>
+                    </tr>
+                </table>
+            </body>
+        </html>
+        """
+
+        jobs = parse_recruiter_email(html_content)
+
+        assert len(jobs) == 2
+
+        # First job
+        assert jobs[0]["title"] == "Director of Product Management - Developer Experience"
+        assert jobs[0]["company"] == "NVIDIA"
+        assert jobs[0]["location"] == "Santa Clara, CA"
+        assert jobs[0]["link"] == "https://www.linkedin.com/jobs/view/4098765"
+
+        # Second job
+        assert jobs[1]["title"] == "Technical Product Manager"
+        assert jobs[1]["company"] == "CVS Health"
+        assert jobs[1]["location"] == "New York, NY"
+        assert jobs[1]["link"] == "https://www.linkedin.com/jobs/view/4098766"
+
 
 class TestRecruiterParserEdgeCases:
     """Test edge cases and error handling"""
