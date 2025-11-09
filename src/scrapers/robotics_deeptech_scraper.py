@@ -39,6 +39,35 @@ class RoboticsDeeptechScraper:
             "lead",
         ]
 
+    def is_generic_career_page(self, url: str) -> bool:
+        """
+        Check if URL is a generic career page instead of a specific job posting.
+
+        Generic patterns to reject:
+        - URLs ending in /careers or /careers/
+        - Workday URLs without /job/ path
+        - Greenhouse URLs without /jobs/ path
+        - Lever URLs without /jobs/ path
+        """
+        url_lower = url.lower()
+
+        # Generic career page patterns
+        if url_lower.endswith("/careers") or url_lower.endswith("/careers/"):
+            return True
+        if "/about/careers" in url_lower:
+            return True
+
+        # Workday ATS - must have /job/ in path
+        if "myworkdayjobs.com" in url_lower and "/job/" not in url_lower:
+            return True
+
+        # Greenhouse ATS - must have /jobs/ in path with job ID
+        if ("greenhouse.io" in url_lower or "grnh.se" in url_lower) and "/jobs/" not in url_lower:
+            return True
+
+        # Lever ATS - must have /jobs/ in path
+        return "lever.co" in url_lower and "/jobs/" not in url_lower
+
     def scrape(self) -> list[OpportunityData]:
         """Scrape jobs from Google Sheets"""
         print("Fetching robotics/deeptech jobs from Google Sheets...")
@@ -67,6 +96,11 @@ class RoboticsDeeptechScraper:
 
                 # Skip if missing critical fields
                 if not title or not company or not job_url:
+                    continue
+
+                # Skip generic career page URLs (Issue #44)
+                if self.is_generic_career_page(job_url):
+                    print(f"⚠ Skipping generic career page: {company} - {job_url}")
                     continue
 
                 # Filter for leadership roles (optional - can be removed to get all jobs)
