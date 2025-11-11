@@ -348,3 +348,62 @@ class TestSmartJobRanker:
 
         assert "relevance_score" in ranked[0]
         assert ranked[0]["relevance_score"] >= 0
+
+
+class TestIsLeadershipRole:
+    """Test is_leadership_role method"""
+
+    def test_identifies_director_roles(self, job_filter):
+        """Should identify Director roles as leadership"""
+        assert job_filter.is_leadership_role("Director of Engineering")
+        assert job_filter.is_leadership_role("Engineering Director")
+        assert job_filter.is_leadership_role("director, product management")
+
+    def test_identifies_vp_roles(self, job_filter):
+        """Should identify VP roles as leadership"""
+        assert job_filter.is_leadership_role("VP of Engineering")
+        assert job_filter.is_leadership_role("Vice President, Product")
+        assert job_filter.is_leadership_role("vp engineering")
+
+    def test_identifies_head_of_roles(self, job_filter):
+        """Should identify Head of roles as leadership"""
+        assert job_filter.is_leadership_role("Head of Engineering")
+        assert job_filter.is_leadership_role("head of product")
+
+    def test_identifies_chief_roles(self, job_filter):
+        """Should identify Chief roles as leadership"""
+        assert job_filter.is_leadership_role("Chief Technology Officer")
+        assert job_filter.is_leadership_role("Chief Engineer")
+
+    def test_identifies_manager_roles(self, job_filter):
+        """Should identify Manager roles as leadership"""
+        assert job_filter.is_leadership_role("Engineering Manager")
+        assert job_filter.is_leadership_role("Senior Manager, Product")
+        assert job_filter.is_leadership_role("manager of operations")
+
+    def test_identifies_lead_roles(self, job_filter):
+        """Should identify Lead roles as leadership"""
+        assert job_filter.is_leadership_role("Tech Lead")
+        assert job_filter.is_leadership_role("Engineering Lead")
+
+    def test_identifies_principal_roles(self, job_filter):
+        """Should identify Principal roles as leadership"""
+        assert job_filter.is_leadership_role("Principal Engineer")
+        assert job_filter.is_leadership_role("principal software engineer")
+
+    def test_rejects_ic_roles(self, job_filter):
+        """Should not identify IC roles as leadership"""
+        assert not job_filter.is_leadership_role("Software Engineer")
+        assert not job_filter.is_leadership_role("Senior Software Engineer")
+        assert not job_filter.is_leadership_role("Product Designer")
+
+    def test_case_insensitive(self, job_filter):
+        """Should be case insensitive"""
+        assert job_filter.is_leadership_role("DIRECTOR OF ENGINEERING")
+        assert job_filter.is_leadership_role("Director Of Engineering")
+
+    def test_handles_none_and_empty_title(self, job_filter):
+        """Should handle None and empty titles gracefully"""
+        assert not job_filter.is_leadership_role(None)
+        assert not job_filter.is_leadership_role("")
+        assert not job_filter.is_leadership_role("   ")

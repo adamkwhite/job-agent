@@ -116,6 +116,22 @@ class JobFilter:
 
         return matches
 
+    def is_leadership_role(self, title: str) -> bool:
+        """Check if job title is a leadership role"""
+        leadership_keywords = [
+            "director",
+            "vp",
+            "vice president",
+            "head of",
+            "chief",
+            "manager",
+            "lead",
+            "principal",
+            "senior manager",
+        ]
+        title_lower = (title or "").lower()
+        return any(kw in title_lower for kw in leadership_keywords)
+
     def get_stats(self) -> dict:
         """Get filter configuration stats"""
         return {

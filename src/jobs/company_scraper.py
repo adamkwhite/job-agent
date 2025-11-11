@@ -85,18 +85,10 @@ class CompanyScraper:
             stats["companies_checked"] += 1
 
             try:
-                # Create source opportunity for metadata
-                source_opp = OpportunityData(
-                    type="direct_job",
-                    company=company["name"],
-                    source="company_monitoring",
-                )
-
                 # Scrape jobs from career page using Firecrawl
                 jobs = self.firecrawl_scraper.scrape_jobs(
                     careers_url=company["careers_url"],
                     company_name=company["name"],
-                    source_opportunity=source_opp,
                 )
 
                 stats["jobs_scraped"] += len(jobs)

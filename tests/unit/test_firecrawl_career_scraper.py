@@ -302,11 +302,13 @@ Toronto, ON](https://jobs.company.com/123)
 
 
 class TestFirecrawlScrapeMethod:
-    """Test the Firecrawl scraping placeholder"""
+    """Test the Firecrawl scraping method"""
 
-    def test_firecrawl_scrape_returns_none(self):
-        """Test that _firecrawl_scrape is a placeholder returning None"""
+    def test_firecrawl_scrape_returns_none_when_no_api_key(self):
+        """Test that _firecrawl_scrape returns None when Firecrawl client is not initialized"""
         scraper = FirecrawlCareerScraper()
+        # Ensure firecrawl client is not initialized (no API key scenario)
+        scraper.firecrawl = None
 
         result = scraper._firecrawl_scrape("https://company.com/careers")
 
