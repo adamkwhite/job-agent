@@ -198,8 +198,9 @@ class CompanyScraperWithFirecrawl:
         # ## Vision Engineer
         # Cambridge, ON, Canada
         # [View Job](https://url)
+        # Use {1,3} instead of + to prevent ReDoS
         pattern1 = re.compile(
-            r"##\s+([^\n]+)\n+([^\n]+)\n+\[(?:View Job|Apply|Learn More)\]\(([^\)]+)\)",
+            r"##\s+([^\n]+)\n{1,3}([^\n]+)\n{1,3}\[(?:View Job|Apply|Learn More)\]\(([^\)]+)\)",
             re.MULTILINE,
         )
 
