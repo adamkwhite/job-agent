@@ -92,7 +92,7 @@ class FirecrawlCareerScraper:
         # Pattern 1: Job title followed by location (Greenhouse, Lever style)
         # Example: "Senior Engineer\n\nToronto, Canada"
         pattern1 = re.compile(
-            r"\[([\w\s,\-\(\)]+?)\s*(?:\\<br>\\<br>|\\n\\n|\n\n)(.+?)\]" r"\((https?://[^\)]+)\)",
+            r"\[([\w\s,\-\(\)]+?)\s*(?:\\<br>\\<br>|\\n\\n|\n\n)(.+?)\]\((https?://[^\)]+)\)",
             re.MULTILINE,
         )
 
