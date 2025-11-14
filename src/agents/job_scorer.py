@@ -165,30 +165,66 @@ class JobScorer:
         return 5  # Default for product roles
 
     def _score_role_type(self, title: str) -> int:
-        """Score based on role type (0-20)"""
-        # Engineering leadership: 20 points
-        if "engineering" in title and any(
-            kw in title for kw in ["vp", "director", "head", "chief", "executive"]
+        """
+        Score based on role type (0-20)
+
+        Wes's Profile:
+        - PRIORITIZE: Product leadership, hardware-software integration, program/PMO roles
+        - DEPRIORITIZE: Pure software engineering leadership
+        - BEST FIT: Hardware/IoT product roles, mechatronics, connected devices
+        """
+        is_leadership = any(kw in title for kw in ["vp", "director", "head", "chief", "executive"])
+
+        # TOP TIER: Product + Hardware/Technical (20 points)
+        # "VP Product Hardware", "Director Product IoT", "Head of Technical Product"
+        if "product" in title and any(
+            kw in title
+            for kw in ["hardware", "technical", "iot", "mechatronics", "platform", "devices"]
         ):
             return 20
 
-        # Product + Engineering: 18 points
+        # TIER 2: Product + Engineering Dual Role (18 points)
+        # "Director Product Engineering" - manages both product AND engineering
         if "product" in title and "engineering" in title:
             return 18
 
-        # Hardware Product: 15 points
-        if "product" in title and any(kw in title for kw in ["hardware", "technical", "platform"]):
+        # TIER 3: Product Leadership (15 points)
+        # "VP Product", "Director Product", "Head of Product"
+        if "product" in title and is_leadership:
             return 15
 
-        # Engineering Manager: 12 points
-        if "engineering" in title and "manager" in title:
+        # TIER 4: Program/PMO Leadership in technical domains (12 points)
+        # "Director Program Management", "VP PMO", "Head of Programs"
+        if is_leadership and any(kw in title for kw in ["program", "pmo", "delivery"]):
             return 12
 
-        # Product leadership: 10 points
-        if "product" in title and any(kw in title for kw in ["vp", "director", "head", "chief"]):
-            return 10
+        # PENALTY: Pure software engineering/development leadership (-5 points)
+        # "VP Software Engineering", "Director Software Development", "Head of Backend Engineering"
+        if is_leadership and any(
+            kw in title
+            for kw in [
+                "software",
+                "backend",
+                "frontend",
+                "fullstack",
+                "web",
+                "mobile",
+                "development",
+                "dev",
+            ]
+        ):
+            return -5
 
-        # Generic PM: 5 points
+        # TIER 5: Hardware/R&D Engineering Leadership (10 points)
+        # "Director Hardware Engineering", "VP R&D" - NOT pure software
+        if is_leadership and "engineering" in title:
+            # Check if it's hardware-focused
+            if any(kw in title for kw in ["hardware", "r&d", "mechatronics", "systems"]):
+                return 10
+            # Generic engineering leadership (neutral)
+            return 5
+
+        # TIER 6: Generic Product/Program roles (5 points)
         if "product" in title or "program" in title:
             return 5
 

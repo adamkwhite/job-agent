@@ -163,20 +163,38 @@ class TestDomainScoring:
 class TestRoleTypeScoring:
     """Test role type scoring (0-20 points)"""
 
-    def test_engineering_leadership_scores_20(self):
-        """Test engineering leadership scores 20 points"""
+    def test_pure_software_engineering_penalized(self):
+        """Test pure software engineering leadership gets penalty"""
         scorer = JobScorer()
 
+        # Pure software engineering roles should be penalized (-5 points)
         titles = [
-            "VP of Engineering",
-            "Director of Engineering",
-            "Head of Engineering",
-            "Chief Engineering Officer",
+            "VP of Software Engineering",
+            "Director of Software Development",
+            "Head of Backend Engineering",
         ]
 
         for title in titles:
             score = scorer._score_role_type(title.lower())
-            assert score == 20, f"Failed for: {title}"
+            # Software engineering leadership gets penalty
+            assert score == -5, f"Failed for: {title}, got {score}"
+
+    def test_hardware_engineering_leadership_moderate(self):
+        """Test hardware engineering leadership scores moderately"""
+        scorer = JobScorer()
+
+        # Hardware engineering roles are acceptable but not top tier
+        titles = [
+            "Director of Hardware Engineering",
+            "VP of R&D",
+            "Head of Mechatronics Engineering",
+        ]
+
+        for title in titles:
+            score = scorer._score_role_type(title.lower())
+            # Hardware engineering leadership scores 0-10 points
+            assert score >= 0, f"Failed for: {title}, got {score}"
+            assert score <= 10, f"Failed for: {title}, got {score}"
 
     def test_product_engineering_scores_18_or_higher(self):
         """Test product + engineering roles score 18+ points (may score 20 if engineering leadership detected first)"""
@@ -191,11 +209,15 @@ class TestRoleTypeScoring:
             score = scorer._score_role_type(title.lower())
             assert score >= 18, f"Failed for: {title}"
 
-    def test_hardware_product_scores_15(self):
-        """Test hardware product scores 15 points"""
+    def test_hardware_product_scores_20(self):
+        """Test hardware product leadership scores 20 points (TOP TIER)"""
         scorer = JobScorer()
 
+        # Product + Hardware is now the highest scoring role type
         titles = [
+            "VP Product Hardware",
+            "Director Product IoT",
+            "Head of Technical Product",
             "Hardware Product Manager",
             "Technical Product Manager",
             "Platform Product Manager",
@@ -203,17 +225,24 @@ class TestRoleTypeScoring:
 
         for title in titles:
             score = scorer._score_role_type(title.lower())
-            assert score == 15, f"Failed for: {title}"
+            assert score == 20, f"Failed for: {title}, got {score}"
 
-    def test_engineering_manager_scores_12(self):
-        """Test engineering manager scores 12 points"""
+    def test_program_leadership_scores_12(self):
+        """Test program/PMO leadership scores 12 points"""
         scorer = JobScorer()
 
-        score = scorer._score_role_type("engineering manager")
-        assert score == 12
+        titles = [
+            "Director Program Management",
+            "VP PMO",
+            "Head of Delivery",
+        ]
 
-    def test_product_leadership_scores_10(self):
-        """Test product leadership scores 10 points"""
+        for title in titles:
+            score = scorer._score_role_type(title.lower())
+            assert score == 12, f"Failed for: {title}, got {score}"
+
+    def test_product_leadership_scores_15(self):
+        """Test product leadership scores 15 points (increased from 10)"""
         scorer = JobScorer()
 
         titles = [
