@@ -234,11 +234,11 @@ def generate_email_html(jobs, recipient_name="Wes"):
 
     html += f"""
         <div class="footer">
-            <p><strong>How scoring works:</strong></p>
+            <p><strong>How scoring works (updated Nov 2025):</strong></p>
             <ul>
                 <li><strong>Seniority (0-30):</strong> VP/Director roles score highest</li>
                 <li><strong>Domain (0-25):</strong> Robotics, hardware, automation, IoT, MedTech</li>
-                <li><strong>Role Type (0-20):</strong> Engineering leadership > Product leadership</li>
+                <li><strong>Role Type (0-20):</strong> Product+Hardware (20) > Product+Engineering (18) > Product Leadership (15) > Program/PMO (12) > Hardware Engineering (10) > Software Engineering (PENALTY: -5)</li>
                 <li><strong>Location (0-15):</strong> Remote, Hybrid Ontario, or Ontario cities</li>
                 <li><strong>Technical (0-10):</strong> Mechatronics, embedded, manufacturing keywords</li>
             </ul>
