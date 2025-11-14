@@ -13,6 +13,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from agents.job_scorer import JobScorer
 from database import JobDatabase
 
+# Constants for repeated location strings
+HAMILTON_ONTARIO_CANADA = "Hamilton, Ontario, Canada"
+
 
 def main():
     """Store company jobs in database"""
@@ -53,25 +56,25 @@ def main():
         {
             "title": "Lead Human Resources Business Partner - Stryker Canada (HYBRID)",
             "company": "Stryker",
-            "location": "Hamilton, Ontario, Canada",
+            "location": HAMILTON_ONTARIO_CANADA,
             "link": "https://careers.stryker.com/lead-human-resources-business-partner-stryker-canada-hybrid/job/0D47BC319BD9C53E8133246A8DAF7461",
         },
         {
             "title": "Senior Manager FP&A (8 month contract - Hybrid)",
             "company": "Stryker",
-            "location": "Hamilton, Ontario, Canada",
+            "location": HAMILTON_ONTARIO_CANADA,
             "link": "https://careers.stryker.com/senior-manager-fp-a-8-month-contract-hybrid/job/1DB8E70AAFFD68FB70B97AA6750B9D1D",
         },
         {
             "title": "Associate Manager, Inventory Accounting (hybrid)",
             "company": "Stryker",
-            "location": "Hamilton, Ontario, Canada",
+            "location": HAMILTON_ONTARIO_CANADA,
             "link": "https://careers.stryker.com/associate-manager-inventory-accounting-hybrid/job/0261D85E9C82947261D639DE67797D6A",
         },
         {
             "title": "Senior Product Manager - Patient Care - Hybrid",
             "company": "Stryker",
-            "location": "Hamilton, Ontario, Canada",
+            "location": HAMILTON_ONTARIO_CANADA,
             "link": "https://careers.stryker.com/senior-product-manager-patient-care-hybrid/job/D621045890300D0E92DD5D3B2BFEE3D9",
         },
         # P&P Optica

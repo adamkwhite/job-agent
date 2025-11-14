@@ -301,12 +301,12 @@ class TestCompanyDiscoverer:
 
     def test_extract_greenhouse_url_with_empty_path(self, discoverer):
         """Test Greenhouse URL extraction with empty path returns base URL"""
-        result = discoverer._extract_greenhouse_url("boards.greenhouse.io", "")
+        result = discoverer._extract_greenhouse_url("")
         assert result == "https://boards.greenhouse.io/"
 
     def test_extract_lever_url_with_empty_path(self, discoverer):
         """Test Lever URL extraction with empty path returns base URL"""
-        result = discoverer._extract_lever_url("jobs.lever.co", "")
+        result = discoverer._extract_lever_url("")
         assert result == "https://jobs.lever.co/"
 
     def test_extract_workday_url_with_empty_path(self, discoverer):

@@ -5,6 +5,9 @@ Handles Canadian government job bank notifications
 
 from bs4 import BeautifulSoup
 
+# Constants
+UNKNOWN_COMPANY = "Unknown Company"
+
 
 def parse_jobbank_email(html_content: str) -> list[dict[str, str]]:
     """
@@ -45,16 +48,13 @@ def parse_jobbank_email(html_content: str) -> list[dict[str, str]]:
                     next_row = company_row.find_next_sibling("tr")
                     if next_row:
                         company_td = next_row.find("td")
-                        if company_td:
-                            company = company_td.get_text(strip=True)
-                        else:
-                            company = "Unknown Company"
+                        company = company_td.get_text(strip=True) if company_td else UNKNOWN_COMPANY
                     else:
-                        company = "Unknown Company"
+                        company = UNKNOWN_COMPANY
                 else:
-                    company = "Unknown Company"
+                    company = UNKNOWN_COMPANY
             else:
-                company = "Unknown Company"
+                company = UNKNOWN_COMPANY
 
             # Find location - usually in the third row
             location = "Canada"
