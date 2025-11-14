@@ -91,14 +91,16 @@ class FirecrawlCareerScraper:
         # Common patterns for job listings
         # Pattern 1: Job title followed by location (Greenhouse, Lever style)
         # Example: "Senior Engineer\n\nToronto, Canada"
+        # Fixed ReDoS: Use specific character class [^\]]+ instead of .+?
         pattern1 = re.compile(
-            r"\[([\w\s,\-\(\)]+?)\s*(?:\\<br>\\<br>|\\n\\n|\n\n)(.+?)\]\((https?://[^\)]+)\)",
+            r"\[([\w\s,\-\(\)]+)\s*(?:\\<br>\\<br>|\\n\\n|\n\n)([^\]]+)\]\((https?://[^\)]+)\)",
             re.MULTILINE,
         )
 
         # Pattern 2: Job title in headers
         # Example: "## Senior Software Engineer"
-        pattern2 = re.compile(r"^#{2,4}\s+(.+?)$", re.MULTILINE)
+        # Fixed ReDoS: Use [^\n]+ instead of .+? to avoid backtracking
+        pattern2 = re.compile(r"^#{2,4}\s+([^\n]+)$", re.MULTILINE)
 
         # Try pattern 1 (linked jobs with locations)
         matches = pattern1.findall(markdown)
