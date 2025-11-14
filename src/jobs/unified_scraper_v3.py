@@ -366,15 +366,23 @@ class UnifiedJobScraper:
 
         # Pattern 1: Markdown links with job-related URLs
         # Example: [Director, Product Management - Platform](https://miovision.applytojob.com/apply/ICgkCMvoO0/...)
-        # Fixed ReDoS: Use specific character classes to prevent catastrophic backtracking
+        # Fixed ReDoS: Match entire URL in one go, then filter by keyword
+        # - Title: Match everything except ]
+        # - URL: Match everything except ) using negated character class (no backtracking possible)
         job_link_pattern = re.compile(
-            r"\[([\w\s,.\-()&/]+)\]\((https?://[a-zA-Z0-9\._/?&=%\-]+(?:job|apply|career|position|opening)[a-zA-Z0-9\._/?&=%\-]*)\)",
+            r"\[([^\]]+)\]\((https?://[^)]+)\)",
             re.IGNORECASE,
         )
 
         matches = job_link_pattern.findall(markdown)
 
         for title, url in matches:
+            # Filter: Only process URLs containing job-related keywords
+            if not any(
+                keyword in url.lower()
+                for keyword in ["job", "apply", "career", "position", "opening"]
+            ):
+                continue
             title = title.strip()
 
             # Skip navigation/utility links
