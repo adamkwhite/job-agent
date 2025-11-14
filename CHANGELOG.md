@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Job Scoring - Refined Role Type Scoring** (Nov 13, 2025)
+  - Implemented tiered scoring system prioritizing product/hardware roles (Issue #53)
+  - Product + Hardware/Technical roles now score 20 points (top tier)
+  - Product + Engineering dual roles score 18 points
+  - Product Leadership increased from 10 to 15 points
+  - Program/PMO Leadership added as new tier (12 points)
+  - Pure software engineering leadership now receives -5 point penalty
+  - Scoring aligns with Wesley's background in connected hardware, IoT, MedTech, mechatronics
+  - Updated email digest template to reflect new scoring criteria
+  - Tests updated to verify product roles prioritized over pure software engineering
+
 ### Added
 - **Automated Weekly Company Monitoring** (Oct 30, 2025)
   - New company scraping infrastructure for monitoring Wes's 26 companies
@@ -68,6 +80,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced `src/processor_v2.py` to track sent status
   - Marks jobs as sent after email digest generation
   - Prevents duplicate jobs in future digests
+
+### Fixed
+- **SonarCloud Code Quality Issues** (Nov 13, 2025 - PR #55)
+  - Fixed duplicate character classes in regex patterns (email_company_extractor.py)
+  - Defined constants for duplicated string literals across 3 parsers
+  - Removed unused function parameters in company_discoverer.py
+  - Fixed ReDoS vulnerability in unified_scraper_v3.py by moving keyword filtering to Python
+  - Corrected absolute imports to relative imports in parser_registry.py
+  - Reduced SonarCloud code smell count from 53 to 43
 
 ### Security
 - **Eliminated 5 ReDoS Vulnerabilities** (PR #14 - Oct 28, 2025)
