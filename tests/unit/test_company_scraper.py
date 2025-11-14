@@ -331,3 +331,140 @@ class TestProcessScrapedJobs:
         assert stats["leadership_jobs"] == 1
         assert stats["jobs_above_threshold"] == 1
         assert stats["jobs_stored"] == 1
+
+
+class TestMainCLI:
+    """Test main() CLI entry point"""
+
+    def test_main_with_default_args(self, capsys):
+        """Should run with default arguments"""
+        import sys
+        from unittest.mock import patch
+
+        # Mock sys.argv to simulate command line arguments
+        test_args = ["company_scraper.py"]
+
+        with (
+            patch.object(sys, "argv", test_args),
+            patch("src.jobs.company_scraper.CompanyScraper") as mock_scraper_class,
+        ):
+            # Mock the scraper instance
+            mock_scraper_class.return_value.scrape_all_companies = MagicMock(
+                return_value={
+                    "companies_checked": 5,
+                    "jobs_scraped": 10,
+                    "leadership_jobs": 8,
+                    "jobs_above_threshold": 6,
+                    "jobs_stored": 6,
+                    "notifications_sent": 2,
+                }
+            )
+
+            # Import and call main
+            from src.jobs.company_scraper import main
+
+            main()
+
+            # Verify scraper was called with default min_score=50
+            mock_scraper_class.return_value.scrape_all_companies.assert_called_once_with(
+                min_score=50, company_filter=None
+            )
+
+            # Check output contains summary
+            captured = capsys.readouterr()
+            assert "COMPANY SCRAPER SUMMARY" in captured.out
+            assert "Companies checked: 5" in captured.out
+            assert "Jobs scraped: 10" in captured.out
+
+    def test_main_with_custom_min_score(self):
+        """Should accept custom min_score argument"""
+        import sys
+        from unittest.mock import patch
+
+        test_args = ["company_scraper.py", "--min-score", "70"]
+
+        with (
+            patch.object(sys, "argv", test_args),
+            patch("src.jobs.company_scraper.CompanyScraper") as mock_scraper_class,
+        ):
+            mock_scraper_class.return_value.scrape_all_companies = MagicMock(
+                return_value={
+                    "companies_checked": 0,
+                    "jobs_scraped": 0,
+                    "leadership_jobs": 0,
+                    "jobs_above_threshold": 0,
+                    "jobs_stored": 0,
+                    "notifications_sent": 0,
+                }
+            )
+
+            from src.jobs.company_scraper import main
+
+            main()
+
+            # Verify min_score was passed correctly
+            mock_scraper_class.return_value.scrape_all_companies.assert_called_once_with(
+                min_score=70, company_filter=None
+            )
+
+    def test_main_with_company_filter(self):
+        """Should accept company filter argument"""
+        import sys
+        from unittest.mock import patch
+
+        test_args = ["company_scraper.py", "--filter", "From Wes"]
+
+        with (
+            patch.object(sys, "argv", test_args),
+            patch("src.jobs.company_scraper.CompanyScraper") as mock_scraper_class,
+        ):
+            mock_scraper_class.return_value.scrape_all_companies = MagicMock(
+                return_value={
+                    "companies_checked": 3,
+                    "jobs_scraped": 5,
+                    "leadership_jobs": 4,
+                    "jobs_above_threshold": 2,
+                    "jobs_stored": 2,
+                    "notifications_sent": 1,
+                }
+            )
+
+            from src.jobs.company_scraper import main
+
+            main()
+
+            # Verify filter was passed correctly
+            mock_scraper_class.return_value.scrape_all_companies.assert_called_once_with(
+                min_score=50, company_filter="From Wes"
+            )
+
+    def test_main_with_all_arguments(self):
+        """Should accept both min_score and filter arguments"""
+        import sys
+        from unittest.mock import patch
+
+        test_args = ["company_scraper.py", "--min-score", "80", "--filter", "Priority"]
+
+        with (
+            patch.object(sys, "argv", test_args),
+            patch("src.jobs.company_scraper.CompanyScraper") as mock_scraper_class,
+        ):
+            mock_scraper_class.return_value.scrape_all_companies = MagicMock(
+                return_value={
+                    "companies_checked": 2,
+                    "jobs_scraped": 3,
+                    "leadership_jobs": 3,
+                    "jobs_above_threshold": 1,
+                    "jobs_stored": 1,
+                    "notifications_sent": 1,
+                }
+            )
+
+            from src.jobs.company_scraper import main
+
+            main()
+
+            # Verify both arguments were passed correctly
+            mock_scraper_class.return_value.scrape_all_companies.assert_called_once_with(
+                min_score=80, company_filter="Priority"
+            )
