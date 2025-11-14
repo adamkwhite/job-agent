@@ -304,15 +304,21 @@ Toronto, ON](https://jobs.company.com/123)
 class TestFirecrawlScrapeMethod:
     """Test the Firecrawl scraping method"""
 
-    def test_firecrawl_scrape_returns_none_when_no_api_key(self):
-        """Test that _firecrawl_scrape returns None when Firecrawl client is not initialized"""
+    def test_firecrawl_scrape_returns_none_when_no_api_key(self, capsys):
+        """Test that _firecrawl_scrape returns None and prints manual workflow instructions"""
         scraper = FirecrawlCareerScraper()
-        # Ensure firecrawl client is not initialized (no API key scenario)
-        scraper.firecrawl = None
 
         result = scraper._firecrawl_scrape("https://company.com/careers")
 
         assert result is None
+
+        # Verify it prints helpful instructions for manual workflow
+        captured = capsys.readouterr()
+        assert "Firecrawl scraping cannot be automated from Python" in captured.out
+        assert "Manual workflow:" in captured.out
+        assert "mcp__firecrawl-mcp__firecrawl_scrape" in captured.out
+        assert "https://company.com/careers" in captured.out
+        assert "Formats: ['markdown']" in captured.out
 
 
 class TestOpportunityDataCreation:

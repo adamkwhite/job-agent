@@ -1,30 +1,18 @@
 """
 Firecrawl-based career page scraper
-Uses Firecrawl API to scrape JavaScript-heavy career pages
+Uses Firecrawl MCP to scrape JavaScript-heavy career pages
 """
 
-import os
 import re
-
-from firecrawl import FirecrawlApp
 
 from models import OpportunityData
 
 
 class FirecrawlCareerScraper:
-    """Scrape career pages using Firecrawl API"""
+    """Scrape career pages using Firecrawl MCP"""
 
     def __init__(self):
         self.name = "firecrawl_career_scraper"
-
-        # Initialize Firecrawl API client
-        api_key = os.getenv("FIRECRAWL_API_KEY")
-        if not api_key:
-            print("⚠️  FIRECRAWL_API_KEY not found in environment")
-            print("   Set in .env file: FIRECRAWL_API_KEY=your_key_here")
-            self.firecrawl = None
-        else:
-            self.firecrawl = FirecrawlApp(api_key=api_key)
 
     def scrape_jobs(self, careers_url: str, company_name: str) -> list[OpportunityData]:
         """
@@ -62,45 +50,27 @@ class FirecrawlCareerScraper:
 
     def _firecrawl_scrape(self, url: str) -> dict | None:
         """
-        Scrape URL using Firecrawl API
+        Placeholder for Firecrawl MCP scraping
+
+        Note: This cannot be called directly from Python scripts.
+        Instead, use the manual scraping workflow:
+        1. Run company_scraper.py to get list of companies
+        2. Use Firecrawl MCP tool for each company manually or via Claude Code
+        3. Pass results to process_scraped_jobs()
 
         Args:
             url: URL to scrape
 
         Returns:
-            Dict with 'markdown' key containing scraped content, or None on failure
+            None (placeholder)
         """
-        if not self.firecrawl:
-            print("  ✗ Firecrawl API not initialized (missing API key)")
-            return None
-
-        try:
-            # Scrape page with Firecrawl
-            result = self.firecrawl.scrape(url=url, formats=["markdown"])
-
-            if not result:
-                print("  ✗ Firecrawl returned empty result")
-                return None
-
-            # Extract markdown content from result
-            # Firecrawl API returns data in different structure depending on version
-            if isinstance(result, dict):
-                markdown = result.get("markdown", "")
-                if not markdown and "data" in result:
-                    data = result.get("data", {})
-                    markdown = data.get("markdown", "")
-            else:
-                markdown = getattr(result, "markdown", "")
-
-            if not markdown:
-                print("  ✗ No markdown content in Firecrawl response")
-                return None
-
-            return {"markdown": markdown}
-
-        except Exception as e:
-            print(f"  ✗ Firecrawl API error: {e}")
-            return None
+        print("  ℹ️  Firecrawl scraping cannot be automated from Python")
+        print("  → Manual workflow:")
+        print("     1. Use Firecrawl MCP tool: mcp__firecrawl-mcp__firecrawl_scrape")
+        print(f"     2. URL: {url}")
+        print("     3. Formats: ['markdown']")
+        print("     4. Process results via process_scraped_jobs()")
+        return None
 
     def _extract_jobs_from_markdown(
         self, markdown: str, careers_url: str, company_name: str
@@ -120,17 +90,25 @@ class FirecrawlCareerScraper:
 
         # Common patterns for job listings
         # Pattern 1: Job title followed by location (Greenhouse, Lever style)
-        # Example: "Senior Engineer\n\nToronto, Canada"
-        # Fixed ReDoS: Changed reluctant quantifiers to greedy and improved URL pattern
+        # Example: "[Senior Engineer\n\nToronto, Canada](https://url)"
+        # ReDoS-safe: Negated character classes prevent backtracking
         pattern1 = re.compile(
-            r"\[([\w\s,\-\(\)]+)\s*(?:\\<br>\\<br>|\\n\\n|\n\n)([^\]]+)\]"
-            r"\((https?://[^)\s]+)\)",
+            r"\["  # Opening bracket
+            r"([^\[\]]+?)"  # Title - non-greedy, stops at newlines or ]
+            r"(?:\n\n|\\n\\n|\\<br>\\<br>)"  # Separator between title and location
+            r"([^\[\]]+?)"  # Location - non-greedy, stops at ]
+            r"\]"  # Closing bracket
+            r"\(([^\)]+)\)",  # Link in parentheses - cannot backtrack past )
             re.MULTILINE,
         )
 
         # Pattern 2: Job title in headers
         # Example: "## Senior Software Engineer"
-        pattern2 = re.compile(r"^#{2,4}\s+(.+?)$", re.MULTILINE)
+        # ReDoS-safe: Use space instead of \s+ to prevent backtracking with [^\n]+
+        pattern2 = re.compile(
+            r"^(?:##|###|####) ([^\n]+)$",  # Single space, then capture to end of line
+            re.MULTILINE,
+        )
 
         # Try pattern 1 (linked jobs with locations)
         matches = pattern1.findall(markdown)
