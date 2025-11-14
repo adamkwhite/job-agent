@@ -63,12 +63,12 @@ class CompanyDiscoverer:
 
         return companies
 
-    def _extract_greenhouse_url(self, domain: str, path: str) -> str:  # noqa: ARG002
+    def _extract_greenhouse_url(self, path: str) -> str:
         """Extract Greenhouse ATS career page URL"""
         parts = path.strip("/").split("/")
         return f"https://boards.greenhouse.io/{parts[0]}"
 
-    def _extract_lever_url(self, domain: str, path: str) -> str:  # noqa: ARG002
+    def _extract_lever_url(self, path: str) -> str:
         """Extract Lever ATS career page URL"""
         parts = path.strip("/").split("/")
         return f"https://jobs.lever.co/{parts[0]}"
@@ -133,10 +133,10 @@ class CompanyDiscoverer:
 
             # Try known ATS platforms first
             if "greenhouse.io" in domain:
-                return self._extract_greenhouse_url(domain, path)
+                return self._extract_greenhouse_url(path)
 
             if "lever.co" in domain:
-                return self._extract_lever_url(domain, path)
+                return self._extract_lever_url(path)
 
             if "myworkdayjobs.com" in domain:
                 return self._extract_workday_url(domain, path)

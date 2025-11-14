@@ -11,6 +11,9 @@ from bs4 import BeautifulSoup
 UNKNOWN_COMPANY = "Unknown Company"
 UNKNOWN_LOCATION = "Unknown Location"
 WORK_IN_TECH = "work in tech"
+# Generic link text to skip
+SEE_MORE_JOBS = "see more jobs"
+THIS_LINK = "this link"
 
 
 def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
@@ -51,8 +54,8 @@ def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
 
             # Skip obviously generic/navigation links (but not "make a new search" - that's valid for old format)
             if link_text.lower() in [
-                "see more jobs",
-                "this link",
+                SEE_MORE_JOBS,
+                THIS_LINK,
                 "unsubscribe",
                 "getro",
                 "learning center",
@@ -111,7 +114,7 @@ def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
                 is_generic_link_text = (
                     not link_text
                     or len(link_text) < 5
-                    or link_text.lower() in ["make a new search", "see more jobs", "this link"]
+                    or link_text.lower() in ["make a new search", SEE_MORE_JOBS, THIS_LINK]
                 )
 
                 # If link text is good, use it as title
@@ -192,8 +195,8 @@ def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
             if not title or len(title) < 5:
                 continue
             if title.lower() in [
-                "see more jobs",
-                "this link",
+                SEE_MORE_JOBS,
+                THIS_LINK,
                 WORK_IN_TECH,
                 "update your preferences",
                 "make a new search",
