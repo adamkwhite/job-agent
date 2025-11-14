@@ -146,6 +146,8 @@ omit = [
     "src/generate_jobs_html.py",  # Output generation script
     "src/send_digest_*.py",  # Email sending scripts
     "src/processor_master.py",  # Orchestration script
+    "src/jobs/scrape_companies_with_firecrawl.py",  # Manual/semi-automated orchestration
+    "src/jobs/weekly_unified_scraper.py",  # Orchestration script
 ]
 
 [tool.coverage.report]
