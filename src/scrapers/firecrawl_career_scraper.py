@@ -104,9 +104,9 @@ class FirecrawlCareerScraper:
 
         # Pattern 2: Job title in headers
         # Example: "## Senior Software Engineer"
-        # ReDoS-safe: Match exactly 2, 3, or 4 hashes separately to avoid variable quantifier
+        # ReDoS-safe: Use space instead of \s+ to prevent backtracking with [^\n]+
         pattern2 = re.compile(
-            r"^(?:##|###|####)\s+([^\n]+)$",  # Match 2, 3, or 4 hashes explicitly
+            r"^(?:##|###|####) ([^\n]+)$",  # Single space, then capture to end of line
             re.MULTILINE,
         )
 
