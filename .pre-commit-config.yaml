@@ -74,6 +74,16 @@ repos:
         stages: [commit-msg]
         args: [--strict]
 
+  # Custom scoring sync check
+  - repo: local
+    hooks:
+      - id: check-scoring-sync
+        name: Check scoring/email template sync
+        entry: .pre-commit-hooks/check-scoring-sync.sh
+        language: script
+        files: ^(src/agents/job_scorer\.py|config/filter-keywords\.json)$
+        pass_filenames: false
+
 # Configuration options
 default_language_version:
   python: python3.12

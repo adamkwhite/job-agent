@@ -101,7 +101,9 @@
       "mcp__firecrawl-mcp__firecrawl_search",
       "Bash(git stash:*)",
       "Bash(PYTHONPATH=$PWD job-agent-venv/bin/python3:*)",
-      "Bash(sqlite3:*)"
+      "Bash(sqlite3:*)",
+      "Bash(test:*)",
+      "Bash(chmod:*)"
     ],
     "deny": []
   }
