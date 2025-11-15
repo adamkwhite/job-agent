@@ -1,6 +1,9 @@
 """
 Send job digest to Wesley van Ooyen
 Email the top-scoring jobs that match his profile
+
+⚠️ IMPORTANT: Email template scoring documentation (lines 222-238) must stay
+in sync with actual scoring logic in src/agents/job_scorer.py
 """
 
 import json

@@ -1,6 +1,11 @@
 """
 Job Scoring Agent
 Evaluates job opportunities against candidate profile
+
+⚠️ IMPORTANT: When updating scoring criteria in this file:
+1. Update the email template in src/send_digest_to_wes.py (lines 222-238)
+2. Update CLAUDE.md documentation if categories/ranges change
+3. Consider running src/rescore_all_jobs.py to re-evaluate historical data
 """
 
 import json
