@@ -1,0 +1,65 @@
+name: Check Scoring Documentation Sync
+
+on:
+  pull_request:
+    paths:
+      - 'src/agents/job_scorer.py'
+      - 'config/filter-keywords.json'
+
+jobs:
+  check-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history to see all changed files
+
+      - name: Get changed files
+        id: changed-files
+        run: |
+          echo "Changed files in this PR:"
+          git diff --name-only origin/${{ github.base_ref }}...HEAD
+
+          # Check if scoring files changed
+          SCORING_CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E '(src/agents/job_scorer.py|config/filter-keywords.json)' || true)
+          EMAIL_CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep 'src/send_digest_to_wes.py' || true)
+          CLAUDE_CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep 'CLAUDE.md' || true)
+
+          echo "scoring_changed=${SCORING_CHANGED}" >> $GITHUB_OUTPUT
+          echo "email_changed=${EMAIL_CHANGED}" >> $GITHUB_OUTPUT
+          echo "claude_changed=${CLAUDE_CHANGED}" >> $GITHUB_OUTPUT
+
+      - name: Check if email template was updated
+        if: steps.changed-files.outputs.scoring_changed != ''
+        run: |
+          if [ -z "${{ steps.changed-files.outputs.email_changed }}" ]; then
+            echo "::error::❌ Scoring logic changed but email template (src/send_digest_to_wes.py) was not updated!"
+            echo "::error::Please update the email template (lines 222-238) to match new scoring criteria."
+            echo "::error::See: docs/development/SCORING_UPDATE_CHECKLIST.md"
+            exit 1
+          else
+            echo "✅ Email template was updated along with scoring logic"
+          fi
+
+      - name: Check if CLAUDE.md was updated
+        if: steps.changed-files.outputs.scoring_changed != ''
+        run: |
+          if [ -z "${{ steps.changed-files.outputs.claude_changed }}" ]; then
+            echo "::warning::⚠️ Consider updating CLAUDE.md if scoring categories/ranges changed"
+            echo "::warning::See: docs/development/SCORING_UPDATE_CHECKLIST.md"
+          else
+            echo "✅ CLAUDE.md was updated"
+          fi
+
+      - name: Remind about rescore script
+        if: steps.changed-files.outputs.scoring_changed != ''
+        run: |
+          echo "::notice::📊 Remember to run: python src/rescore_all_jobs.py --dry-run"
+          echo "::notice::This shows how the scoring changes affect existing jobs"
+
+      - name: Success message
+        if: steps.changed-files.outputs.scoring_changed != '' && steps.changed-files.outputs.email_changed != ''
+        run: |
+          echo "✅ All scoring documentation checks passed!"
+          echo "📋 Full checklist: docs/development/SCORING_UPDATE_CHECKLIST.md"
