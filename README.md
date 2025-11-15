@@ -279,3 +279,8 @@ This is a personal project, but contributions are welcome. Please:
 2. Write tests (≥80% coverage on new code)
 3. Run pre-commit hooks
 4. Submit PR with clear description
+
+**If updating job scoring criteria:**
+- Follow the checklist in `docs/development/SCORING_UPDATE_CHECKLIST.md`
+- Use GitHub issue template: `.github/ISSUE_TEMPLATE/scoring-update.md`
+- Update email template in `src/send_digest_to_wes.py` (lines 222-238)

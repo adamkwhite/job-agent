@@ -35,6 +35,9 @@ This is a job discovery and application automation system for Wesley van Ooyen (
 ## Key Components
 
 ### 1. Job Scoring Engine (`src/agents/job_scorer.py`)
+
+⚠️ **When updating scoring criteria, follow the checklist:** `docs/development/SCORING_UPDATE_CHECKLIST.md`
+
 Multi-factor scoring system (0-115 points) evaluating jobs against Wesley's profile:
 - **Seniority** (0-30): VP/Director/Head of roles score highest
 - **Domain** (0-25): Robotics, hardware, automation, IoT, MedTech
