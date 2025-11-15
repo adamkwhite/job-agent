@@ -12,11 +12,20 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from database import JobDatabase
 
 
+def load_role_category_keywords() -> dict:
+    """Load role category keywords from config file"""
+    config_path = Path(__file__).parent.parent.parent / "config" / "filter-keywords.json"
+    with open(config_path) as f:
+        config = json.load(f)
+    return config.get("role_category_keywords", {})
+
+
 class JobScorer:
     """Score jobs against Wesley van Ooyen's profile"""
 
     def __init__(self):
         self.db = JobDatabase()
+        self.role_category_keywords = load_role_category_keywords()
 
         # Wesley's profile criteria
         self.profile = {
@@ -164,71 +173,113 @@ class JobScorer:
 
         return 5  # Default for product roles
 
+    def _count_keyword_matches(self, text: str, keywords: list[str]) -> int:
+        """Count how many keywords from list appear in text (case-insensitive)"""
+        text_lower = text.lower()
+        return sum(1 for kw in keywords if kw.lower() in text_lower)
+
     def _score_role_type(self, title: str) -> int:
         """
-        Score based on role type (0-20)
+        Score based on role type using 7-category system (0-20 base + bonuses)
 
-        Wes's Profile:
-        - PRIORITIZE: Product leadership, hardware-software integration, program/PMO roles
-        - DEPRIORITIZE: Pure software engineering leadership
-        - BEST FIT: Hardware/IoT product roles, mechatronics, connected devices
+        Categories (base scores):
+        1. Product Leadership (15-20)
+        2. Engineering Leadership (15-20)
+        3. Technical Program Management (12-18)
+        4. Manufacturing/NPI/Operations (12-18)
+        5. Product Development/R&D (10-15)
+        6. Platform/Integrations/Systems (15-18)
+        7. Robotics/Automation Engineering (10-15)
+
+        Bonus: +2 points per keyword match (must_keywords + nice_keywords)
+        Penalty: -5 for pure software engineering leadership
         """
         is_leadership = any(kw in title for kw in ["vp", "director", "head", "chief", "executive"])
+        title_lower = title.lower()
 
-        # TOP TIER: Product + Hardware/Technical (20 points)
-        # "VP Product Hardware", "Director Product IoT", "Head of Technical Product"
-        if "product" in title and any(
-            kw in title
-            for kw in ["hardware", "technical", "iot", "mechatronics", "platform", "devices"]
-        ):
-            return 20
+        base_score = 0
+        bonus_score = 0
+        matched_category = None
 
-        # TIER 2: Product + Engineering Dual Role (18 points)
-        # "Director Product Engineering" - manages both product AND engineering
-        if "product" in title and "engineering" in title:
-            return 18
+        # PRIORITY 1: Check for software development penalty first (before other categories)
+        if is_leadership and "software" in title_lower and "development" in title_lower:
+            base_score = -5  # Penalty for "Director Software Development" type roles
+            matched_category = None
 
-        # TIER 3: Product Leadership (15 points)
-        # "VP Product", "Director Product", "Head of Product"
-        if "product" in title and is_leadership:
-            return 15
+        # Category 1: Product Leadership (15-20 base)
+        elif "product" in title_lower and is_leadership:
+            # Higher score for product + hardware/technical
+            if any(kw in title_lower for kw in ["hardware", "technical", "iot", "platform"]):
+                base_score = 20
+            elif "engineering" in title_lower:  # Product Engineering dual role
+                base_score = 18
+            else:
+                base_score = 15
+            matched_category = "product_leadership"
 
-        # TIER 4: Program/PMO Leadership in technical domains (12 points)
-        # "Director Program Management", "VP PMO", "Head of Programs"
-        if is_leadership and any(kw in title for kw in ["program", "pmo", "delivery"]):
-            return 12
+        # Category 2: Engineering Leadership (15-20 base)
+        elif is_leadership and "engineering" in title_lower:
+            # Check for pure software penalty
+            if any(
+                kw in title_lower for kw in ["software", "backend", "frontend", "web", "mobile"]
+            ):
+                base_score = -5  # Penalty for pure software
+            elif any(kw in title_lower for kw in ["hardware", "mechatronics", "systems"]):
+                base_score = 20  # Hardware-focused engineering
+                matched_category = "engineering_leadership"
+            else:
+                base_score = 15  # Generic engineering leadership
+                matched_category = "engineering_leadership"
 
-        # PENALTY: Pure software engineering/development leadership (-5 points)
-        # "VP Software Engineering", "Director Software Development", "Head of Backend Engineering"
-        if is_leadership and any(
-            kw in title
-            for kw in [
-                "software",
-                "backend",
-                "frontend",
-                "fullstack",
-                "web",
-                "mobile",
-                "development",
-                "dev",
-            ]
-        ):
-            return -5
+        # R&D leadership (special case for "VP of R&D" type titles)
+        elif is_leadership and ("r&d" in title_lower or "r & d" in title_lower):
+            base_score = 20
+            matched_category = "engineering_leadership"
 
-        # TIER 5: Hardware/R&D Engineering Leadership (10 points)
-        # "Director Hardware Engineering", "VP R&D" - NOT pure software
-        if is_leadership and "engineering" in title:
-            # Check if it's hardware-focused
-            if any(kw in title for kw in ["hardware", "r&d", "mechatronics", "systems"]):
-                return 10
-            # Generic engineering leadership (neutral)
-            return 5
+        # Category 3: Technical Program Management (12-18 base)
+        elif is_leadership and any(kw in title_lower for kw in ["program", "pmo", "delivery"]):
+            base_score = 15
+            matched_category = "technical_program_management"
 
-        # TIER 6: Generic Product/Program roles (5 points)
-        if "product" in title or "program" in title:
-            return 5
+        # Category 4: Manufacturing/NPI/Operations (12-18 base)
+        elif any(kw in title_lower for kw in ["manufacturing", "npi", "operations", "production"]):
+            base_score = 18 if is_leadership else 12
+            matched_category = "manufacturing_npi_operations"
 
-        return 0
+        # Category 5: Product Development/R&D (10-15 base)
+        elif "development" in title_lower or "r&d" in title_lower:
+            base_score = 15 if is_leadership else 10
+            matched_category = "product_development_rnd"
+
+        # Category 6: Platform/Integrations/Systems (15-18 base)
+        elif any(kw in title_lower for kw in ["platform", "integration", "systems"]):
+            base_score = 18 if is_leadership else 15
+            matched_category = "platform_integrations_systems"
+
+        # Category 7: Robotics/Automation Engineering (10-15 base)
+        elif any(kw in title_lower for kw in ["robotics", "automation", "mechatronics"]):
+            if is_leadership or any(kw in title_lower for kw in ["senior", "lead", "principal"]):
+                base_score = 15
+            else:
+                base_score = 10
+            matched_category = "robotics_automation_engineering"
+
+        # Generic fallback
+        else:
+            base_score = 5 if "product" in title_lower or "program" in title_lower else 0
+
+        # Apply keyword bonuses (+2 per match)
+        if matched_category and matched_category in self.role_category_keywords:
+            category_keywords = self.role_category_keywords[matched_category]
+            must_kw = category_keywords.get("must_keywords", [])
+            nice_kw = category_keywords.get("nice_keywords", [])
+
+            must_matches = self._count_keyword_matches(title, must_kw)
+            nice_matches = self._count_keyword_matches(title, nice_kw)
+
+            bonus_score = (must_matches + nice_matches) * 2
+
+        return base_score + bonus_score
 
     def _score_company_stage(self, _company: str) -> int:
         """Score based on company stage (0-15) - Limited info"""
