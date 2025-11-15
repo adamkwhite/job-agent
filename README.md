@@ -1,79 +1,281 @@
 # Job Discovery & Application Automation
 
-An automated workflow for discovering, researching, and applying to job opportunities with a focus on mission-driven companies.
+An intelligent job discovery and scoring system for robotics/hardware executives with automated email processing, web scraping, and personalized job matching.
 
 ## Project Overview
 
-This system automates the job discovery process for professionals, with a critical 12-hour application window to avoid being lost in applicant queues.
+This system automates job discovery for Wesley van Ooyen (robotics/hardware executive) using a 115-point intelligent scoring system, automated web scraping of 1,092+ robotics jobs weekly, and multi-source email processing. The system filters noise by notifying only on A/B grade matches (80+ points) and delivers weekly email digests with top opportunities.
 
-## Version Roadmap
+**Key Achievement**: Latest digest delivered 5 excellent matches (80+) and 11 good matches (70+) from 50+ processed jobs.
 
-### V1: Minimal Viable Product (Current)
-- **Email monitoring** via IMAP for job alerts
-- **Basic keyword filtering** (include/exclude lists)
-- **Instant notifications** for relevant opportunities
-- **Manual research and application** prep
+## Technology Stack
 
-### V2: Enhanced Intelligence (Future)
-- Automated company research
-- Opportunity scoring system
-- Enhanced notifications with intelligence
+- **Language**: Python 3.12+
+- **Database**: SQLite with SQLAlchemy
+- **Web Scraping**: BeautifulSoup4, lxml, Firecrawl, Playwright
+- **Email Processing**: IMAP client with custom parsers
+- **Notifications**: Twilio (SMS) + SMTP (email)
+- **Testing**: pytest, pytest-cov, pytest-mock
+- **Code Quality**: Ruff, mypy, Bandit, pre-commit hooks
+- **CI/CD**: GitHub Actions with SonarCloud integration
 
-### V3: Full Automation (Future)
-- Semi-automated application submission
-- AI-powered resume customization
-- Interview preparation automation
+## Architecture (V2 - Current)
 
-## Technical Stack (V1)
+### 1. Job Scoring Engine (`src/agents/job_scorer.py`)
+Multi-factor 115-point scoring system evaluating jobs against Wesley's profile:
+- **Seniority** (0-30): VP/Director/Head of roles score highest
+- **Domain** (0-25): Robotics, hardware, automation, IoT, MedTech
+- **Role Type** (0-20): Engineering leadership > Product leadership
+- **Location** (0-15): Remote (+15), Hybrid Ontario (+15), Ontario cities (+12)
+- **Company Stage** (0-15): Series A-C, growth stage preferred
+- **Technical Keywords** (0-10): Mechatronics, embedded, manufacturing
 
-- **Platform**: Self-hosted n8n on Hostinger VPS
-- **Email**: Gmail IMAP integration
-- **Database**: SQLite for job storage
-- **Notifications**: SMS (Twilio) + Email (SMTP)
-- **Parsing**: Basic regex/string matching
+**Grading**: A (98+), B (80+), C (63+), D (46+), F (<46)
+
+### 2. Email Processing Pipeline (`src/processor_v2.py`)
+1. IMAP monitoring of dedicated Gmail account
+2. Email parsing via specialized parsers (LinkedIn, Supra, F6S, Artemis, Built In)
+3. Keyword-based filtering (include/exclude lists)
+4. Job scoring against candidate profile
+5. Job deduplication and SQLite storage
+6. Notification triggers for A/B grade jobs only (80+)
+
+### 3. Web Scrapers
+- **Robotics Scraper** (`src/jobs/weekly_robotics_scraper.py`): 1,092 jobs from robotics/deeptech Google Sheets
+- **Company Monitoring** (`src/jobs/company_scraper.py`): 26+ companies via Firecrawl MCP
+- **Unified Workflow** (`src/jobs/weekly_unified_scraper.py`): Single command for all sources
+
+### 4. Email Digest System (`src/send_digest_to_wes.py`)
+- Generates HTML email with top-scoring jobs
+- Attaches interactive jobs.html file with filtering buttons
+- Location-based filtering (Remote/Hybrid/Ontario)
+- Tracks sent jobs to prevent duplicate emails
 
 ## Project Structure
 
 ```
-├── n8n-workflows/          # n8n workflow JSON exports
+job-agent/
+├── src/                    # Python application source
+│   ├── agents/             # Job scoring engine
+│   ├── jobs/               # Weekly scrapers and automation
+│   ├── scrapers/           # Email parsers and web scrapers
+│   ├── parsers/            # Email parser implementations
+│   ├── enrichment/         # Company research pipeline
+│   ├── models/             # Data models
+│   ├── utils/              # Utility functions
+│   └── api/                # API endpoints
 ├── config/                 # Configuration files and templates
-├── scripts/                # Setup and maintenance scripts
-├── docs/                   # Documentation and setup guides
-├── tests/                  # Test data and validation scripts
+│   ├── email-settings.json
+│   ├── filter-keywords.json
+│   ├── notification-settings.json
+│   └── parsers.json
+├── scripts/                # Setup and deployment scripts
+├── docs/                   # Documentation and PRDs
+├── tests/                  # Test suite
+│   ├── unit/               # Unit tests
+│   └── fixtures/           # Test data
+├── data/                   # SQLite database (jobs.db)
 ├── logs/                   # Application logs
-├── data/                   # Job data and databases
-└── backup/                 # Backup files and exports
+├── requirements.txt        # Python dependencies
+├── pyproject.toml          # Project configuration
+└── .pre-commit-config.yaml # Pre-commit hooks
 ```
 
 ## Quick Start
 
-1. **VPS Setup**: Deploy n8n on Hostinger VPS
-2. **Email Configuration**: Set up dedicated Gmail account with IMAP
-3. **Workflow Import**: Import workflows from `n8n-workflows/`
-4. **Filter Configuration**: Customize keywords in `config/`
-5. **Notification Setup**: Configure SMS/email alerts
+### 1. Environment Setup
+```bash
+# Create virtual environment (Python 3.12+ required)
+python3.12 -m venv job-agent-venv
+source job-agent-venv/bin/activate
 
-## Key Features
+# Install dependencies
+pip install -r requirements.txt
 
-- ⚡ **Fast Notifications**: 30-minute alert window
-- 🎯 **Accurate Filtering**: 90%+ relevant job identification
-- 📧 **Email Integration**: Monitors 10-15 daily job alerts
-- 📱 **Multi-channel Alerts**: SMS + Email notifications
-- 🎯 **Focused Targeting**: Customizable company and role criteria
+# Install pre-commit hooks
+pre-commit install
+```
 
-## Success Criteria (V1)
+### 2. Configuration
+```bash
+# Create .env file with credentials
+cp .env.example .env
+# Edit .env with Gmail app password, Twilio credentials, etc.
 
-- Notifications arrive within 30 minutes of job posting
-- 90%+ accuracy in relevant job identification
-- Zero false negatives for target companies
-- Manual research time reduced by 50%
+# Configure email settings
+vim config/email-settings.json
 
-## Monthly Costs (V1)
+# Customize keyword filters
+vim config/filter-keywords.json
+```
 
-- Hostinger VPS: $4-7/month
-- SMS notifications: $5-10/month
-- **Total**: $9-17/month
+### 3. Run Components
 
-## Getting Started
+**Unified Weekly Scraper (Recommended)**:
+```bash
+# All sources: emails + robotics + company monitoring
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py
 
-See `docs/setup/` for detailed installation and configuration guides.
+# Email only
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --email-only
+
+# Company monitoring only
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --companies-only
+```
+
+**Individual Components**:
+```bash
+# Email processor
+job-agent-venv/bin/python src/processor_v2.py --fetch-emails --limit 50
+
+# Robotics scraper
+job-agent-venv/bin/python src/jobs/weekly_robotics_scraper.py --min-score 70
+
+# Company scraper
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/company_scraper.py --filter "From Wes"
+```
+
+**Generate Reports**:
+```bash
+# Create interactive HTML report
+job-agent-venv/bin/python src/generate_jobs_html.py
+
+# Send email digest
+PYTHONPATH=$PWD job-agent-venv/bin/python src/send_digest_to_wes.py
+```
+
+### 4. Setup Weekly Automation
+```bash
+# Configure cron job (Monday 9am)
+./scripts/setup_unified_weekly_scraper.sh
+
+# View logs
+tail -f logs/unified_weekly_scraper.log
+```
+
+## Development
+
+### Running Tests
+```bash
+# Run all tests with coverage
+PYTHONPATH=$PWD job-agent-venv/bin/pytest tests/ -v --cov=src --cov-report=term-missing
+
+# Run specific test file
+PYTHONPATH=$PWD job-agent-venv/bin/pytest tests/unit/test_job_scorer.py -v
+
+# Run with coverage for specific module
+PYTHONPATH=$PWD job-agent-venv/bin/pytest tests/unit/ --cov=src/agents --cov-report=term-missing
+```
+
+### Code Quality
+
+**Coverage Policy** (Enforced by SonarCloud):
+- All new/changed code must have ≥80% test coverage
+- Legacy code: 17% (doesn't block PRs)
+- SonarCloud quality gate checks new code only
+
+**Pre-commit Hooks**:
+- Ruff linting and formatting
+- mypy type checking
+- Bandit security scanning
+- File validation (trailing whitespace, JSON/YAML validation)
+
+To skip hooks temporarily (use sparingly):
+```bash
+SKIP=python-safety-dependencies-check git commit -m "message"
+```
+
+### Git Workflow
+
+**Branch Strategy** (MANDATORY):
+1. Create feature branch: `git checkout -b feature/description`
+2. Make changes and test locally
+3. Commit with meaningful messages
+4. Push branch: `git push -u origin feature/description`
+5. Create PR: `gh pr create`
+6. Monitor PR checks: `gh pr checks`
+7. Wait for approval before merging
+
+**NEVER commit directly to main branch** - even for small fixes.
+
+## Database Schema
+
+**jobs table** (`data/jobs.db`):
+```sql
+CREATE TABLE jobs (
+    id INTEGER PRIMARY KEY,
+    source TEXT,           -- linkedin, supra_newsletter, robotics_deeptech_sheet, etc.
+    type TEXT,             -- direct_job, funding_lead
+    company TEXT,
+    title TEXT,
+    location TEXT,
+    link TEXT,
+    keywords_matched TEXT, -- JSON array
+    received_at TEXT,
+    fit_score INTEGER,     -- 0-115 points
+    fit_grade TEXT,        -- A, B, C, D, F
+    score_breakdown TEXT,  -- JSON object with category scores
+    digest_sent_at TEXT,   -- Track sent jobs
+    research_notes TEXT,
+    UNIQUE(title, company, link)  -- SHA256 deduplication
+);
+```
+
+## Candidate Profile (Wesley van Ooyen)
+
+- **Background**: Robotics/hardware executive, 11 patents, IoT/MedTech experience
+- **Target Roles**: VP/Director/Head of Engineering or Product
+- **Domains**: Robotics, automation, hardware, IoT, MedTech, mechatronics
+- **Location**: Remote (US/anywhere), Hybrid Ontario (Toronto/Waterloo/Burlington)
+- **Role Preference**: Engineering leadership > Product leadership
+
+## Success Metrics
+
+- ✅ Intelligent 115-point scoring system with A/B/C/D/F grading
+- ✅ Location-aware filtering (Remote/Hybrid Ontario +15 points)
+- ✅ Noise reduction (A/B grade notifications only, 80+)
+- ✅ Weekly automation via cron (Monday 9am)
+- ✅ Email digests with interactive HTML reports
+- ✅ Latest results: 5 excellent matches (80+), 11 good matches (70+)
+
+## Project Roadmap
+
+### ✅ V1: Minimal Viable Product (Completed)
+- Email monitoring via IMAP
+- Basic keyword filtering
+- Instant notifications
+
+### ✅ V2: Enhanced Intelligence (Current)
+- Automated company research
+- 115-point scoring system
+- Multi-source web scraping (1,092+ jobs weekly)
+- Email parsers for 5+ job sources
+- Location-aware filtering
+- Weekly email digests
+
+### 🔮 V3: Full Automation (Planned)
+- Semi-automated application submission
+- AI-powered resume customization
+- Interview preparation automation
+- Configurable scoring weights
+- Daily digest emails
+
+## Documentation
+
+See `docs/` for detailed documentation:
+- `docs/features/` - PRDs for planned features
+- `docs/development/` - Development guidelines
+- `docs/setup/` - Setup and deployment guides
+- `CLAUDE.md` - Project context for Claude AI
+
+## License
+
+MIT
+
+## Contributing
+
+This is a personal project, but contributions are welcome. Please:
+1. Create feature branch
+2. Write tests (≥80% coverage on new code)
+3. Run pre-commit hooks
+4. Submit PR with clear description
