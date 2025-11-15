@@ -219,23 +219,12 @@ def main():
         action="store_true",
         help="Don't update database, just report what would change",
     )
-    parser.add_argument(
-        "--notify-new-matches",
-        action="store_true",
-        help="Send notifications for newly qualifying jobs (requires --min-score 80+)",
-    )
 
     args = parser.parse_args()
-
-    if args.notify_new_matches and args.min_score < 80:
-        print("⚠️  Warning: --notify-new-matches typically used with --min-score 80+")
-        print("   (A/B grade jobs get notifications)")
-        print()
 
     rescore_all_jobs(
         min_score=args.min_score,
         dry_run=args.dry_run,
-        notify_new_matches=args.notify_new_matches,
     )
 
 
