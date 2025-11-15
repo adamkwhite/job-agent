@@ -230,6 +230,19 @@ class JobDatabase:
         conn.commit()
         conn.close()
 
+    def get_all_jobs(self) -> list[dict]:
+        """Get all jobs from database"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT * FROM jobs ORDER BY received_at DESC")
+
+        jobs = [dict(row) for row in cursor.fetchall()]
+
+        conn.close()
+        return jobs
+
     def get_recent_jobs(self, limit: int = 10) -> list[dict]:
         """Get most recent jobs"""
         conn = sqlite3.connect(self.db_path)
