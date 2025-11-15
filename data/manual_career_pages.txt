@@ -1,0 +1,50 @@
+
+======================================================================
+Company: Evidium
+Location: San Francisco, US
+Funding: Series A - $22m
+Industries: AI, Health/Medical
+Investors: Mindset Ventures, Health2047 Capital Partners
+
+Guessed website: https://evidium.com
+Career page URL (fill this in): ____________________________
+
+======================================================================
+Company: Braveheart Bio
+Location: San Francisco, US
+Funding: Series A - $185m
+Industries: Biotech, Biotech R&D
+Investors: Frazier Life Sciences, Enavate Sciences
+
+Guessed website: https://braveheartbio.com
+Career page URL (fill this in): ____________________________
+
+======================================================================
+Company: Elephas
+Location: Madison, US
+Funding: Series B - $40m
+Industries: AI, Biotech
+Investors: ARCH Venture Partners, Tao Capital Partners
+
+Guessed website: https://elephas.com
+Career page URL (fill this in): ____________________________
+
+======================================================================
+Company: Iambic Therapeutics
+Location: San Diego, US
+Funding: Series B - $100m
+Industries: Biochemistry, Biotech
+Investors: Pegasus Tech Ventures, Abingworth
+
+Guessed website: https://iambictherapeutics.com
+Career page URL (fill this in): ____________________________
+
+======================================================================
+Company: Clio (clio.com)
+Location: Burnaby, Canada
+Funding: Series C - $500m
+Industries: B2B/Enterprise, Case Management
+Investors: JMI Equity, Technology Crossover Ventures (TCV)
+
+Guessed website: https://clio
+Career page URL (fill this in): ____________________________
