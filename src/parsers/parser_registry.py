@@ -6,7 +6,7 @@ import json
 from email.message import Message
 from pathlib import Path
 
-from src.models import ParserResult
+from models import ParserResult
 
 from .base_parser import BaseEmailParser
 
