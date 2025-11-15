@@ -51,8 +51,144 @@
     "finance",
     "accounting",
     "recruiter",
-    "recruiting"
+    "recruiting",
+    "construction",
+    "civil",
+    "pure growth marketing",
+    "content marketing"
   ],
+  "role_category_keywords": {
+    "product_leadership": {
+      "must_keywords": [
+        "product roadmap",
+        "cross functional",
+        "stakeholders",
+        "go to market",
+        "okrs",
+        "kpis"
+      ],
+      "nice_keywords": [
+        "platform",
+        "apis",
+        "integrations",
+        "observability",
+        "telemetry",
+        "data driven",
+        "pricing",
+        "monetization"
+      ]
+    },
+    "engineering_leadership": {
+      "must_keywords": [
+        "roadmap delivery",
+        "people management",
+        "hiring",
+        "process",
+        "quality",
+        "reliability"
+      ],
+      "nice_keywords": [
+        "plm",
+        "eco",
+        "scrumban",
+        "sdlc",
+        "dfm",
+        "dfa"
+      ]
+    },
+    "technical_program_management": {
+      "must_keywords": [
+        "program",
+        "portfolio",
+        "stage gate",
+        "risk",
+        "dependencies",
+        "cross functional",
+        "execution"
+      ],
+      "nice_keywords": [
+        "phase gate",
+        "npi",
+        "hardware",
+        "firmware",
+        "software",
+        "manufacturing transfer"
+      ]
+    },
+    "manufacturing_npi_operations": {
+      "must_keywords": [
+        "npi",
+        "dfm",
+        "dfa",
+        "process validation",
+        "work cell",
+        "calibration",
+        "test",
+        "yield",
+        "throughput"
+      ],
+      "nice_keywords": [
+        "process",
+        "cpk",
+        "supplier quality",
+        "cm",
+        "pilot build"
+      ]
+    },
+    "product_development_rnd": {
+      "must_keywords": [
+        "development",
+        "compliance",
+        "certification",
+        "product lifecycle"
+      ],
+      "nice_keywords": [
+        "iso 13485",
+        "iec 62304",
+        "hipaa",
+        "phipa",
+        "soc 2",
+        "pci",
+        "jira",
+        "requirements management"
+      ]
+    },
+    "platform_integrations_systems": {
+      "must_keywords": [
+        "platform",
+        "apis",
+        "integrations",
+        "delivery platform"
+      ],
+      "nice_keywords": [
+        "observability",
+        "telemetry",
+        "data driven",
+        "microservices",
+        "scalability"
+      ]
+    },
+    "robotics_automation_engineering": {
+      "must_keywords": [
+        "robotics",
+        "automation",
+        "mechatronics",
+        "mechanical design",
+        "systems integration",
+        "dfm",
+        "dfa"
+      ],
+      "nice_keywords": [
+        "perception",
+        "camera",
+        "lidar",
+        "pcbas",
+        "actuators",
+        "firmware",
+        "controls"
+      ]
+    }
+  },
   "company_include": [
     "mission-driven",
     "patient impact",

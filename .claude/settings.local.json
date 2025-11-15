@@ -85,7 +85,23 @@
       "Bash(PYTHONPATH=$PWD job-agent-venv/bin/pytest:*)",
       "Bash(PYTHONPATH=$PWD job-agent-venv/bin/python:*)",
       "Bash(claude mcp list:*)",
-      "mcp__firecrawl-mcp__firecrawl_scrape"
+      "mcp__firecrawl-mcp__firecrawl_scrape",
+      "Bash(tee:*)",
+      "WebFetch(domain:sonarcloud.io)",
+      "Bash(if [ -d ~/.claude ])",
+      "Bash(then echo '=== Claude Code Directory Breakdown ===' du -sh ~/.claude/*)",
+      "Bash(sed:*)",
+      "Bash(/dev/null -exec sh -c 'file=\"\"{}\"\"; if ! head -1 \"\"$file\"\" | grep -q \"\"^---$\"\"; then echo \"\"❌ Missing frontmatter: $file\"\"; fi' ;)",
+      "Bash(/dev/null -exec sh -c 'file=\"\"{}\"\"; if ! head -10 \"\"$file\"\" | grep -q \"\"description:\"\"; then echo \"\"⚠️  No description: $file\"\"; fi' ;)",
+      "Bash(if [ -d .claude/skills ])",
+      "Bash(then echo \"=== Project Skills Available ===\")",
+      "Bash(else echo \"No project skills found in .claude/skills/\")",
+      "Bash(fi)",
+      "Bash(then echo \"=== Project Skills Available ===\" find .claude/skills -name \"SKILL.md\" -type f)",
+      "mcp__firecrawl-mcp__firecrawl_search",
+      "Bash(git stash:*)",
+      "Bash(PYTHONPATH=$PWD job-agent-venv/bin/python3:*)",
+      "Bash(sqlite3:*)"
     ],
     "deny": []
   }
