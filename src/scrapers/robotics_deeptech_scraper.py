@@ -81,6 +81,7 @@ class RoboticsDeeptechScraper:
             reader = csv.DictReader(io.StringIO(csv_data))
 
             opportunities = []
+            seen_generic_pages = set()  # Track generic career pages to avoid duplicate warnings
 
             for row in reader:
                 # Extract fields
@@ -100,7 +101,10 @@ class RoboticsDeeptechScraper:
 
                 # Skip generic career page URLs (Issue #44)
                 if self.is_generic_career_page(job_url):
-                    print(f"⚠ Skipping generic career page: {company} - {job_url}")
+                    # Only warn once per unique generic career page
+                    if job_url not in seen_generic_pages:
+                        print(f"⚠ Skipping generic career page: {company} - {job_url}")
+                        seen_generic_pages.add(job_url)
                     continue
 
                 # Filter for leadership roles (optional - can be removed to get all jobs)

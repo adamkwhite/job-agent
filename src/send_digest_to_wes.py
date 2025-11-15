@@ -219,13 +219,22 @@ def generate_email_html(jobs, recipient_name="Wes"):
 
     html += f"""
         <div class="footer">
-            <p><strong>How scoring works (updated Nov 2025):</strong></p>
+            <p><strong>How scoring works (updated Nov 2025 - 7-Category System):</strong></p>
             <ul>
-                <li><strong>Seniority (0-30):</strong> VP/Director roles score highest</li>
-                <li><strong>Domain (0-25):</strong> Robotics, hardware, automation, IoT, MedTech</li>
-                <li><strong>Role Type (0-20):</strong> Product+Hardware (20) > Product+Engineering (18) > Product Leadership (15) > Program/PMO (12) > Hardware Engineering (10) > Software Engineering (PENALTY: -5)</li>
-                <li><strong>Location (0-15):</strong> Remote, Hybrid Ontario, or Ontario cities</li>
-                <li><strong>Technical (0-10):</strong> Mechatronics, embedded, manufacturing keywords</li>
+                <li><strong>Seniority (0-30):</strong> VP/C-level (30), Director (25), Sr Manager/Principal (15), Manager/Lead (10)</li>
+                <li><strong>Domain (0-25):</strong> Robotics/Hardware/Automation (25), MedTech (20), Physical Products (15), Engineering (10)</li>
+                <li><strong>Role Type (0-20 base + keyword bonuses):</strong>
+                    <ul style="margin-top: 5px; font-size: 13px;">
+                        <li>Product Leadership (15-20) | Engineering Leadership (15-20)</li>
+                        <li>Technical Program Management (12-18) | Manufacturing/NPI/Operations (12-18)</li>
+                        <li>Platform/Integrations/Systems (15-18) | Product Development/R&D (10-15)</li>
+                        <li>Robotics/Automation Engineering (10-15) | <strong>Software penalty: -5</strong></li>
+                        <li>+2 bonus per matched keyword (roadmap, platform, dfm, npi, etc.)</li>
+                    </ul>
+                </li>
+                <li><strong>Location (0-15):</strong> Remote (15), Hybrid Ontario (15), Ontario cities (12), Broader Canada (8)</li>
+                <li><strong>Company Stage (0-15):</strong> Series A-C, growth stage (default: 10)</li>
+                <li><strong>Technical Keywords (0-10):</strong> Robotics, automation, IoT, mechatronics, embedded, manufacturing (+2 each)</li>
             </ul>
 
             <p><strong>📊 Full results:</strong> Open the attached HTML file to see all {len(jobs)} jobs with interactive location filters.</p>
