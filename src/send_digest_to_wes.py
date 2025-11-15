@@ -14,6 +14,37 @@ from database import JobDatabase
 from notifier import JobNotifier
 
 
+def _generate_job_table_rows(jobs: list[dict]) -> str:
+    """Generate HTML table rows for job listings (extracted to avoid duplication)"""
+    rows = ""
+    for job in jobs:
+        score = job.get("fit_score", 0)
+        grade = job.get("fit_grade", "N/A")
+        breakdown = json.loads(job.get("score_breakdown", "{}"))
+        location = job.get("location") or ""
+
+        rows += f"""
+                <tr>
+                    <td>
+                        <div>{job["company"]}</div>
+                        <div class="company">📌 {location}</div>
+                    </td>
+                    <td class="job-title">
+                        <a href="{job["link"]}" target="_blank">{job["title"]}</a>
+                    </td>
+                    <td class="score-cell">{breakdown.get("seniority", 0)}</td>
+                    <td class="score-cell">{breakdown.get("domain", 0)}</td>
+                    <td class="score-cell">{breakdown.get("role_type", 0)}</td>
+                    <td class="score-cell">{breakdown.get("location", 0)}</td>
+                    <td class="score-cell">{breakdown.get("technical", 0)}</td>
+                    <td class="score-cell">
+                        <span class="score grade-{grade}">{score}</span>
+                    </td>
+                </tr>
+            """
+    return rows
+
+
 def generate_email_html(jobs, recipient_name="Wes"):
     """Generate HTML email with top jobs"""
 
@@ -151,31 +182,7 @@ def generate_email_html(jobs, recipient_name="Wes"):
             <tbody>
         """
 
-        for job in high_scoring[:10]:
-            score = job.get("fit_score", 0)
-            grade = job.get("fit_grade", "N/A")
-            breakdown = json.loads(job.get("score_breakdown", "{}"))
-            location = job.get("location") or ""
-
-            html += f"""
-                <tr>
-                    <td>
-                        <div>{job["company"]}</div>
-                        <div class="company">📌 {location}</div>
-                    </td>
-                    <td class="job-title">
-                        <a href="{job["link"]}" target="_blank">{job["title"]}</a>
-                    </td>
-                    <td class="score-cell">{breakdown.get("seniority", 0)}</td>
-                    <td class="score-cell">{breakdown.get("domain", 0)}</td>
-                    <td class="score-cell">{breakdown.get("role_type", 0)}</td>
-                    <td class="score-cell">{breakdown.get("location", 0)}</td>
-                    <td class="score-cell">{breakdown.get("technical", 0)}</td>
-                    <td class="score-cell">
-                        <span class="score grade-{grade}">{score}</span>
-                    </td>
-                </tr>
-            """
+        html += _generate_job_table_rows(high_scoring[:10])
 
         html += """
             </tbody>
@@ -201,31 +208,9 @@ def generate_email_html(jobs, recipient_name="Wes"):
             <tbody>
         """
 
-        for job in acceptable_scoring[len(high_scoring) : len(high_scoring) + 5]:
-            score = job.get("fit_score", 0)
-            grade = job.get("fit_grade", "N/A")
-            breakdown = json.loads(job.get("score_breakdown", "{}"))
-            location = job.get("location") or ""
-
-            html += f"""
-                <tr>
-                    <td>
-                        <div>{job["company"]}</div>
-                        <div class="company">📌 {location}</div>
-                    </td>
-                    <td class="job-title">
-                        <a href="{job["link"]}" target="_blank">{job["title"]}</a>
-                    </td>
-                    <td class="score-cell">{breakdown.get("seniority", 0)}</td>
-                    <td class="score-cell">{breakdown.get("domain", 0)}</td>
-                    <td class="score-cell">{breakdown.get("role_type", 0)}</td>
-                    <td class="score-cell">{breakdown.get("location", 0)}</td>
-                    <td class="score-cell">{breakdown.get("technical", 0)}</td>
-                    <td class="score-cell">
-                        <span class="score grade-{grade}">{score}</span>
-                    </td>
-                </tr>
-            """
+        html += _generate_job_table_rows(
+            acceptable_scoring[len(high_scoring) : len(high_scoring) + 5]
+        )
 
         html += """
             </tbody>
