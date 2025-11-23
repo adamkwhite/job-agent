@@ -44,27 +44,25 @@ def scraper(mock_dependencies):  # noqa: ARG001
 class TestHybridJobScraper:
     """Test HybridJobScraper orchestration"""
 
-    def test_init_default_thresholds(self):
+    def test_init_default_thresholds(self, mock_dependencies):  # noqa: ARG002
         """Test initialization with default parameters"""
-        with patch("jobs.hybrid_scraper.CompanyService"):
-            scraper = HybridJobScraper()
+        scraper = HybridJobScraper()
 
-            assert scraper.similarity_threshold == 90.0
-            assert scraper.min_score == 50
-            assert scraper.notify_threshold == 80
+        assert scraper.similarity_threshold == 90.0
+        assert scraper.min_score == 50
+        assert scraper.notify_threshold == 80
 
-    def test_init_custom_thresholds(self):
+    def test_init_custom_thresholds(self, mock_dependencies):  # noqa: ARG002
         """Test initialization with custom parameters"""
-        with patch("jobs.hybrid_scraper.CompanyService"):
-            scraper = HybridJobScraper(
-                similarity_threshold=85.0,
-                min_score=60,
-                notify_threshold=90,
-            )
+        scraper = HybridJobScraper(
+            similarity_threshold=85.0,
+            min_score=60,
+            notify_threshold=90,
+        )
 
-            assert scraper.similarity_threshold == 85.0
-            assert scraper.min_score == 60
-            assert scraper.notify_threshold == 90
+        assert scraper.similarity_threshold == 85.0
+        assert scraper.min_score == 60
+        assert scraper.notify_threshold == 90
 
     def test_run_hybrid_scrape_discovery_only(self, scraper, mock_dependencies):
         """Test hybrid scrape with skip_scraping=True"""
