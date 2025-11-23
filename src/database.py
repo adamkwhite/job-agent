@@ -390,7 +390,11 @@ class JobDatabase:
 
         cursor.execute(
             """
-            SELECT j.*, js.fit_score, js.fit_grade, js.score_breakdown,
+            SELECT j.id, j.job_hash, j.title, j.company, j.location, j.link,
+                   j.description, j.salary, j.job_type, j.posted_date, j.source,
+                   j.source_email, j.received_at, j.notified_at, j.keywords_matched,
+                   j.created_at, j.updated_at,
+                   js.fit_score, js.fit_grade, js.score_breakdown,
                    js.digest_sent_at as profile_digest_sent_at
             FROM jobs j
             JOIN job_scores js ON j.id = js.job_id
