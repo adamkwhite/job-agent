@@ -169,8 +169,14 @@ def parse_linkedin_jobs(soup: BeautifulSoup) -> list[dict[str, str]]:
 
                         # If we found a title keyword, everything after it is the company
                         if company_start_idx is not None and company_start_idx < len(words):
-                            company = " ".join(words[company_start_idx:])
-                            title = " ".join(words[:company_start_idx]).strip()
+                            potential_company = " ".join(words[company_start_idx:])
+                            # Validate company - reject single words like "Inc." or "LLC"
+                            # that are likely company suffixes without the actual name
+                            company_suffixes = ["inc.", "inc", "llc", "ltd", "corp", "co."]
+                            if potential_company.lower().strip(".") not in company_suffixes:
+                                company = potential_company
+                                title = " ".join(words[:company_start_idx]).strip()
+                            # else: keep looking with other strategies
                         # Otherwise, assume last capitalized word(s) are the company
                         elif len(words) > 1 and words[-1][0].isupper():
                             # Take last word as company (or last 2 if both capitalized)

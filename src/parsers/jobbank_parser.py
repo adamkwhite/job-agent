@@ -90,12 +90,16 @@ def can_parse(from_addr: str, subject: str) -> bool:
     """
     Check if this parser can handle the email
     """
+    # Convert to string in case Header objects are passed
+    from_addr_str = str(from_addr) if from_addr else ""
+    subject_str = str(subject) if subject else ""
+
     # Job Bank Canada emails
-    if "jobalert@hrsdc-rhdcc.gc.ca" in from_addr.lower():
+    if "jobalert@hrsdc-rhdcc.gc.ca" in from_addr_str.lower():
         return True
-    if "job bank" in from_addr.lower():
+    if "job bank" in from_addr_str.lower():
         return True
     # Subject patterns like "3 new jobs - Mechanical engineers in various locations"
     # Use string matching instead of regex to avoid ReDoS vulnerability
-    subject_lower = subject.lower()
+    subject_lower = subject_str.lower()
     return " new job -" in subject_lower or " new jobs -" in subject_lower
