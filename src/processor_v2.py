@@ -28,6 +28,7 @@ from parsers.parser_registry import ParserRegistry
 from parsers.recruiter_wrapper import RecruiterParser
 from parsers.supra_parser import SupraParser
 from parsers.workintech_wrapper import WorkInTechParser
+from utils.multi_scorer import get_multi_scorer
 
 
 class JobProcessorV2:
@@ -176,16 +177,29 @@ class JobProcessorV2:
     def _score_and_update_job(
         self, job_id: int, job_dict: dict, stats: dict[str, int | list[str]]
     ) -> tuple[int | None, str | None]:
-        """Score a job and update database"""
+        """Score a job and update database (for Wes - primary user)"""
         try:
+            # Score for primary user (Wes - legacy behavior)
             score, grade, breakdown = self.scorer.score_job(job_dict)
             self.database.update_job_score(job_id, score, grade, json.dumps(breakdown))
 
             self._increment_stat(stats, "jobs_scored")
-            print(f"  ✓ Scored: {grade} ({score}/100)")
+            print(f"  ✓ Scored: {grade} ({score}/115)")
             print(
                 f"    Breakdown: Seniority={breakdown['seniority']}, Domain={breakdown['domain']}, Role={breakdown['role_type']}"
             )
+
+            # Also score for all profiles (multi-person support)
+            try:
+                multi_scorer = get_multi_scorer()
+                profile_scores = multi_scorer.score_job_for_all(job_dict, job_id)
+                profile_summary = ", ".join(
+                    f"{pid}:{s}/{g}" for pid, (s, g) in profile_scores.items()
+                )
+                print(f"  ✓ Multi-profile scores: {profile_summary}")
+            except Exception as mp_error:
+                print(f"  ⚠ Multi-profile scoring failed: {mp_error}")
+
             return score, grade
 
         except Exception as e:

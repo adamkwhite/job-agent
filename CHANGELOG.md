@@ -7,7 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **7-Category Job Scoring System** (Nov 15, 2025 - Issue #56)
+  - Implemented comprehensive 7-category role scoring with keyword bonuses
+  - Categories: Product Leadership, Engineering Leadership, Technical Program Management, Manufacturing/NPI/Operations, Product Development/R&D, Platform/Integrations/Systems, Robotics/Automation Engineering
+  - Base scores (10-20 points) + keyword bonuses (+2 per match from must_keywords & nice_keywords)
+  - 100+ domain-specific keywords in `config/filter-keywords.json`
+  - Software engineering leadership penalty: -5 points
+  - Total scoring system: 115 points (Seniority 30 + Domain 25 + Role 20 + Location 15 + Company Stage 15 + Technical 10)
+  - Grade thresholds: A (98+), B (80+), C (63+), D (46+), F (<46)
+- **Historical Job Re-scoring Tool** (`src/rescore_all_jobs.py`)
+  - Re-evaluate all historical jobs with updated scoring criteria
+  - Dry-run mode for impact preview
+  - Configurable minimum score threshold
+  - Shows newly qualifying jobs, score changes, and grade transitions
+  - Example results: 10 newly qualifying jobs at 70+ threshold, 2 upgraded to B grade
+- **Scoring Update Documentation & Enforcement**
+  - Comprehensive checklist: `docs/development/SCORING_UPDATE_CHECKLIST.md`
+  - GitHub issue template: `.github/ISSUE_TEMPLATE/scoring-update.md`
+  - Warning comments in `job_scorer.py` and `send_digest_to_wes.py`
+  - References added to CLAUDE.md and README.md
+- **Automated Scoring/Email Sync Enforcement** (3-layer protection)
+  - GitHub Action (`.github/workflows/check-scoring-sync.yml`) - fails PR if email template not updated
+  - Pre-commit hook (`.pre-commit-hooks/check-scoring-sync.sh`) - local warning before commit
+  - Branch protection documentation (`docs/development/GITHUB_REQUIRED_CHECKS.md`)
+  - Prevents email template from getting out of sync with scoring logic
+
 ### Changed
+- **Email Digest Template Updated** (`src/send_digest_to_wes.py` lines 222-238)
+  - Documented new 7-category scoring system
+  - Shows category ranges and keyword bonus system
+  - Clarifies software penalty and location scoring details
+- **Robotics Scraper Output Optimization**
+  - Reduced duplicate "Skipping generic career page" warnings
+  - Now warns once per unique URL instead of per job row
+  - Example: Gecko Robotics (16 jobs) now shows 1 warning instead of 16
+
 - **Job Scoring - Refined Role Type Scoring** (Nov 13, 2025)
   - Implemented tiered scoring system prioritizing product/hardware roles (Issue #53)
   - Product + Hardware/Technical roles now score 20 points (top tier)
