@@ -7,7 +7,15 @@ Tests markdown job extraction from career pages scraped by Firecrawl:
 - Job title filtering and validation
 """
 
+import pytest
+
 from src.scrapers.firecrawl_career_scraper import FirecrawlCareerScraper
+
+
+@pytest.fixture(autouse=True)
+def mock_firecrawl_api_key(monkeypatch):
+    """Ensure FIRECRAWL_API_KEY is set for all tests"""
+    monkeypatch.setenv("FIRECRAWL_API_KEY", "test-api-key")
 
 
 class TestFirecrawlCareerScraperInit:
@@ -17,6 +25,13 @@ class TestFirecrawlCareerScraperInit:
         """Test scraper initializes with correct name"""
         scraper = FirecrawlCareerScraper()
         assert scraper.name == "firecrawl_career_scraper"
+
+    def test_init_raises_without_api_key(self, monkeypatch):
+        """Test that initialization raises ValueError without FIRECRAWL_API_KEY"""
+        monkeypatch.delenv("FIRECRAWL_API_KEY", raising=False)
+
+        with pytest.raises(ValueError, match="FIRECRAWL_API_KEY not found"):
+            FirecrawlCareerScraper()
 
 
 class TestJobTitleValidation:
@@ -304,21 +319,78 @@ Toronto, ON](https://jobs.company.com/123)
 class TestFirecrawlScrapeMethod:
     """Test the Firecrawl scraping method"""
 
-    def test_firecrawl_scrape_returns_none_when_no_api_key(self, capsys):
-        """Test that _firecrawl_scrape returns None and prints manual workflow instructions"""
+    def test_firecrawl_scrape_returns_markdown_on_success(self, mocker):
+        """Test that _firecrawl_scrape returns markdown dict when API succeeds"""
         scraper = FirecrawlCareerScraper()
+
+        # Mock the firecrawl.scrape method
+        mock_document = mocker.Mock()
+        mock_document.markdown = "# Jobs\n\n## Senior Engineer"
+        mocker.patch.object(scraper.firecrawl, "scrape", return_value=mock_document)
+
+        result = scraper._firecrawl_scrape("https://company.com/careers")
+
+        assert result is not None
+        assert result["markdown"] == "# Jobs\n\n## Senior Engineer"
+
+    def test_firecrawl_scrape_returns_none_on_api_error(self, mocker, capsys):
+        """Test that _firecrawl_scrape returns None when API call fails"""
+        scraper = FirecrawlCareerScraper()
+
+        # Mock the firecrawl.scrape method to raise an exception
+        mocker.patch.object(
+            scraper.firecrawl, "scrape", side_effect=Exception("API rate limit exceeded")
+        )
 
         result = scraper._firecrawl_scrape("https://company.com/careers")
 
         assert result is None
 
-        # Verify it prints helpful instructions for manual workflow
+        # Verify error message is printed
         captured = capsys.readouterr()
-        assert "Firecrawl scraping cannot be automated from Python" in captured.out
-        assert "Manual workflow:" in captured.out
-        assert "mcp__firecrawl-mcp__firecrawl_scrape" in captured.out
-        assert "https://company.com/careers" in captured.out
-        assert "Formats: ['markdown']" in captured.out
+        assert "Firecrawl API error" in captured.out
+
+
+class TestRateLimiting:
+    """Test rate limiting functionality"""
+
+    def test_rate_limit_waits_when_at_limit(self, mocker):
+        """Test that rate limiting waits when request limit is reached"""
+        scraper = FirecrawlCareerScraper(requests_per_minute=2)
+
+        # Mock time.sleep to avoid actual delays
+        mock_sleep = mocker.patch("src.scrapers.firecrawl_career_scraper.time.sleep")
+
+        # Simulate being at the rate limit (2 requests in last 60 seconds)
+        import time
+
+        now = time.time()
+        scraper.request_times = [now - 30, now - 10]  # 2 recent requests
+
+        # Call the rate limit method
+        scraper._wait_for_rate_limit()
+
+        # Should have waited (sleep called for rate limit)
+        assert mock_sleep.called
+
+    def test_minimum_delay_between_requests(self, mocker):
+        """Test that minimum delay is enforced between consecutive requests"""
+        scraper = FirecrawlCareerScraper(requests_per_minute=9)
+
+        # Mock time.sleep
+        mock_sleep = mocker.patch("src.scrapers.firecrawl_career_scraper.time.sleep")
+
+        # Simulate a very recent request (less than min_delay ago)
+        import time
+
+        now = time.time()
+        scraper.request_times = [now - 1]  # Request 1 second ago, min_delay is ~6.67s
+
+        # Call the rate limit method
+        scraper._wait_for_rate_limit()
+
+        # Should have waited for minimum delay
+        assert mock_sleep.called
 
 
 class TestOpportunityDataCreation:
