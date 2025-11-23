@@ -187,10 +187,15 @@ class FirecrawlCareerScraper:
         # If no jobs found with pattern 1, try pattern 2 (headers)
         if not jobs:
             # Look for job indicators like "7 jobs" or "Current Job Openings" or "Open Positions"
+            # ReDoS-safe: Use [^a-z]* instead of .* to prevent backtracking
             has_jobs = (
                 re.search(r"(\d+)\s+jobs?", markdown, re.IGNORECASE)
-                or re.search(r"(current|open).*(job|position|opening)", markdown, re.IGNORECASE)
-                or re.search(r"(we'?re|we are).*(hiring|recruiting)", markdown, re.IGNORECASE)
+                or re.search(
+                    r"(current|open)[^a-z]{0,30}(job|position|opening)", markdown, re.IGNORECASE
+                )
+                or re.search(
+                    r"(we'?re|we are)[^a-z]{0,30}(hiring|recruiting)", markdown, re.IGNORECASE
+                )
             )
 
             if has_jobs:
@@ -210,8 +215,9 @@ class FirecrawlCareerScraper:
 
                         # Look for city, province/state pattern on its own line
                         # Pattern: newlines, optional "Location: " prefix, then "City Name, XX"
+                        # ReDoS-safe: Use {1,5} limits instead of + to prevent backtracking
                         location_match = re.search(
-                            r"\n+(?:Location:\s*)?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?,\s*[A-Z]{2})",
+                            r"\n{1,5}(?:Location:\s{0,5})?([A-Z][a-z]+(?:\s[A-Z][a-z]+)?,\s{0,2}[A-Z]{2})",
                             context,
                         )
                         location = location_match.group(1).strip() if location_match else ""
