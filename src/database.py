@@ -328,6 +328,165 @@ class JobDatabase:
             "jobs_by_source": jobs_by_source,
         }
 
+    # ===== Multi-Person Scoring Methods =====
+
+    def upsert_job_score(
+        self, job_id: int, profile_id: str, score: int, grade: str, breakdown: str
+    ):
+        """Insert or update score for a specific job and profile"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        now = datetime.now().isoformat()
+
+        cursor.execute(
+            """
+            INSERT INTO job_scores (
+                job_id, profile_id, fit_score, fit_grade, score_breakdown,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(job_id, profile_id) DO UPDATE SET
+                fit_score = excluded.fit_score,
+                fit_grade = excluded.fit_grade,
+                score_breakdown = excluded.score_breakdown,
+                updated_at = excluded.updated_at
+        """,
+            (job_id, profile_id, score, grade, breakdown, now, now),
+        )
+
+        conn.commit()
+        conn.close()
+
+    def get_job_score(self, job_id: int, profile_id: str) -> dict | None:
+        """Get score for a specific job and profile"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT * FROM job_scores
+            WHERE job_id = ? AND profile_id = ?
+        """,
+            (job_id, profile_id),
+        )
+
+        row = cursor.fetchone()
+        conn.close()
+
+        return dict(row) if row else None
+
+    def get_jobs_for_profile_digest(
+        self, profile_id: str, min_grade: str = "C", limit: int = 100
+    ) -> list[dict]:
+        """Get jobs for digest that haven't been sent to this profile"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # Map grades to numeric for comparison
+        grade_order = {"A": 1, "B": 2, "C": 3, "D": 4, "F": 5}
+        min_grade_num = grade_order.get(min_grade, 3)
+
+        cursor.execute(
+            """
+            SELECT j.id, j.job_hash, j.title, j.company, j.location, j.link,
+                   j.description, j.salary, j.job_type, j.posted_date, j.source,
+                   j.source_email, j.received_at, j.notified_at, j.keywords_matched,
+                   j.created_at, j.updated_at,
+                   js.fit_score, js.fit_grade, js.score_breakdown,
+                   js.digest_sent_at as profile_digest_sent_at
+            FROM jobs j
+            JOIN job_scores js ON j.id = js.job_id
+            WHERE js.profile_id = ?
+              AND js.digest_sent_at IS NULL
+              AND (
+                  (js.fit_grade = 'A' AND ? >= 1) OR
+                  (js.fit_grade = 'B' AND ? >= 2) OR
+                  (js.fit_grade = 'C' AND ? >= 3) OR
+                  (js.fit_grade = 'D' AND ? >= 4) OR
+                  (js.fit_grade = 'F' AND ? >= 5)
+              )
+            ORDER BY js.fit_score DESC, j.received_at DESC
+            LIMIT ?
+        """,
+            (
+                profile_id,
+                min_grade_num,
+                min_grade_num,
+                min_grade_num,
+                min_grade_num,
+                min_grade_num,
+                limit,
+            ),
+        )
+
+        jobs = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return jobs
+
+    def mark_profile_digest_sent(self, job_ids: list[int], profile_id: str):
+        """Mark jobs as sent in digest for a specific profile"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        now = datetime.now().isoformat()
+
+        for job_id in job_ids:
+            cursor.execute(
+                """
+                UPDATE job_scores
+                SET digest_sent_at = ?, updated_at = ?
+                WHERE job_id = ? AND profile_id = ?
+            """,
+                (now, now, job_id, profile_id),
+            )
+
+        conn.commit()
+        conn.close()
+
+    def get_profile_stats(self, profile_id: str) -> dict:
+        """Get statistics for a specific profile"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT COUNT(*) FROM job_scores WHERE profile_id = ?
+        """,
+            (profile_id,),
+        )
+        total_scored = cursor.fetchone()[0]
+
+        cursor.execute(
+            """
+            SELECT fit_grade, COUNT(*) as count
+            FROM job_scores
+            WHERE profile_id = ?
+            GROUP BY fit_grade
+        """,
+            (profile_id,),
+        )
+        by_grade = dict(cursor.fetchall())
+
+        cursor.execute(
+            """
+            SELECT COUNT(*) FROM job_scores
+            WHERE profile_id = ? AND digest_sent_at IS NULL
+        """,
+            (profile_id,),
+        )
+        unsent = cursor.fetchone()[0]
+
+        conn.close()
+
+        return {
+            "profile_id": profile_id,
+            "total_scored": total_scored,
+            "by_grade": by_grade,
+            "unsent_digest": unsent,
+        }
+
 
 if __name__ == "__main__":
     # Test the database
