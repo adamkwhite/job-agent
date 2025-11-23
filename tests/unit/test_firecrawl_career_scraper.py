@@ -12,6 +12,12 @@ import pytest
 from src.scrapers.firecrawl_career_scraper import FirecrawlCareerScraper
 
 
+@pytest.fixture(autouse=True)
+def mock_firecrawl_api_key(monkeypatch):
+    """Ensure FIRECRAWL_API_KEY is set for all tests"""
+    monkeypatch.setenv("FIRECRAWL_API_KEY", "test-api-key")
+
+
 class TestFirecrawlCareerScraperInit:
     """Test FirecrawlCareerScraper initialization"""
 
