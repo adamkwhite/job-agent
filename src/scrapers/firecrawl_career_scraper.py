@@ -187,9 +187,9 @@ class FirecrawlCareerScraper:
         # If no jobs found with pattern 1, try pattern 2 (headers)
         if not jobs:
             # Look for job indicators like "7 jobs" or "Current Job Openings" or "Open Positions"
-            # ReDoS-safe: Use [^a-z]* instead of .* to prevent backtracking
+            # ReDoS-safe: Use bounded quantifiers to prevent backtracking
             has_jobs = (
-                re.search(r"(\d+)\s+jobs?", markdown, re.IGNORECASE)
+                re.search(r"(\d+)\s{1,10}jobs?", markdown, re.IGNORECASE)
                 or re.search(
                     r"(current|open)[^a-z]{0,30}(job|position|opening)", markdown, re.IGNORECASE
                 )
