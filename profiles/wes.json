@@ -1,0 +1,45 @@
+{
+  "id": "wes",
+  "name": "Wesley van Ooyen",
+  "email": "wesvanooyen@gmail.com",
+  "enabled": true,
+  "email_credentials": {
+    "username": "Wes.jobalerts@gmail.com",
+    "app_password_env": "WES_GMAIL_APP_PASSWORD"
+  },
+  "scoring": {
+    "target_seniority": ["vp", "director", "head of", "executive", "chief", "cto", "cpo"],
+    "domain_keywords": [
+      "robotics", "automation", "iot", "hardware", "medtech", "medical device",
+      "mechatronics", "embedded", "firmware", "mechanical", "physical product",
+      "manufacturing", "supply chain", "dfm", "dfa", "industrial"
+    ],
+    "role_types": {
+      "engineering_leadership": ["engineering", "r&d", "technical", "hardware"],
+      "product_leadership": ["product", "cpo", "chief product"],
+      "dual_role": ["product engineering", "technical product", "hardware product"]
+    },
+    "company_stage": ["series a", "series b", "series c", "growth", "scale-up", "funded"],
+    "avoid_keywords": ["junior", "associate", "intern", "coordinator"],
+    "location_preferences": {
+      "remote_keywords": ["remote", "work from home", "wfh", "anywhere", "distributed"],
+      "hybrid_keywords": ["hybrid"],
+      "preferred_cities": [
+        "toronto", "waterloo", "burlington", "oakville", "hamilton",
+        "mississauga", "kitchener", "guelph"
+      ],
+      "preferred_regions": ["ontario", "canada", "greater toronto area", "gta"]
+    }
+  },
+  "digest": {
+    "min_grade": "C",
+    "min_score": 63,
+    "include_grades": ["A", "B", "C"],
+    "send_frequency": "weekly"
+  },
+  "notifications": {
+    "enabled": true,
+    "min_grade": "B",
+    "min_score": 80
+  }
+}

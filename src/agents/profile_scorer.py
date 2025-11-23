@@ -1,0 +1,286 @@
+"""
+Profile-Based Job Scorer
+Evaluates job opportunities against any user profile
+
+This is the multi-person version of JobScorer that uses Profile objects
+instead of hardcoded Wesley preferences.
+"""
+
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from database import JobDatabase
+from utils.profile_manager import Profile, get_profile_manager
+
+
+def load_role_category_keywords() -> dict:
+    """Load role category keywords from config file"""
+    config_path = Path(__file__).parent.parent.parent / "config" / "filter-keywords.json"
+    with open(config_path) as f:
+        config = json.load(f)
+    return config.get("role_category_keywords", {})
+
+
+class ProfileScorer:
+    """Score jobs against a specific user profile"""
+
+    def __init__(self, profile: Profile):
+        self.profile = profile
+        self.db = JobDatabase()
+        self.role_category_keywords = load_role_category_keywords()
+
+    def score_job(self, job: dict) -> tuple[int, str, dict]:
+        """
+        Score a job from 0-115 with grade and breakdown
+
+        Returns:
+            (score, grade, breakdown_dict)
+        """
+        title = job["title"].lower()
+        company = job["company"].lower()
+        location = (job.get("location") or "").lower()
+
+        breakdown = {}
+
+        # 1. Seniority Match (0-30 points)
+        seniority_score = self._score_seniority(title)
+        breakdown["seniority"] = seniority_score
+
+        # 2. Domain Match (0-25 points)
+        domain_score = self._score_domain(title, company)
+        breakdown["domain"] = domain_score
+
+        # 3. Role Type Match (0-20 points)
+        role_score = self._score_role_type(title)
+        breakdown["role_type"] = role_score
+
+        # 4. Location Match (0-15 points)
+        location_score = self._score_location(location)
+        breakdown["location"] = location_score
+
+        # 5. Company Stage Match (0-15 points)
+        stage_score = self._score_company_stage(company)
+        breakdown["company_stage"] = stage_score
+
+        # 6. Technical Keywords (0-10 points)
+        tech_score = self._score_technical_keywords(title, company)
+        breakdown["technical"] = tech_score
+
+        # Total score (max 115)
+        total_score = sum(breakdown.values())
+
+        # Grade
+        grade = self._calculate_grade(total_score)
+
+        return total_score, grade, breakdown
+
+    def _score_seniority(self, title: str) -> int:
+        """Score based on seniority level (0-30)"""
+        target_seniority = self.profile.get_target_seniority()
+
+        # VP/C-level keywords
+        vp_keywords = ["vp ", "vice president", "chief", "cto", "cpo", "head of"]
+        director_keywords = ["director", "executive director"]
+        senior_keywords = ["senior manager", "principal", "staff"]
+        mid_keywords = ["manager", "lead", "leadership", "senior"]
+
+        # Check for VP/C-level matches (30 points)
+        if any(kw in title for kw in vp_keywords) and any(
+            kw in target_seniority for kw in ["vp", "chief", "head of", "executive"]
+        ):
+            return 30
+
+        # Director (25 points)
+        if any(kw in title for kw in director_keywords) and "director" in target_seniority:
+            return 25
+
+        # Senior Manager/Principal (15 points)
+        if any(kw in title for kw in senior_keywords) and any(
+            kw in target_seniority for kw in ["senior", "principal", "staff"]
+        ):
+            return 15
+
+        # Manager/Lead (10 points)
+        if any(kw in title for kw in mid_keywords) and any(
+            kw in target_seniority for kw in ["manager", "lead", "senior"]
+        ):
+            return 10
+
+        return 0
+
+    def _score_domain(self, title: str, company: str) -> int:
+        """Score based on domain match (0-25)"""
+        text = f"{title} {company}"
+        domain_keywords = self.profile.get_domain_keywords()
+
+        # Count domain keyword matches
+        matches = sum(1 for kw in domain_keywords if kw in text)
+
+        # More matches = higher score
+        if matches >= 3:
+            return 25
+        elif matches >= 2:
+            return 20
+        elif matches >= 1:
+            return 15
+        elif "engineering" in text or "product" in text:
+            return 10
+        return 5
+
+    def _count_keyword_matches(self, text: str, keywords: list[str]) -> int:
+        """Count how many keywords from list appear in text"""
+        text_lower = text.lower()
+        return sum(1 for kw in keywords if kw.lower() in text_lower)
+
+    def _score_role_type(self, title: str) -> int:
+        """Score based on role type (0-20)"""
+        title_lower = title.lower()
+        scoring = self.profile.scoring
+        role_types = scoring.get("role_types", {})
+
+        is_leadership = any(
+            kw in title_lower for kw in ["vp", "director", "head", "chief", "executive"]
+        )
+
+        # Check each role type category
+        for _role_type, keywords in role_types.items():
+            if any(kw in title_lower for kw in keywords):
+                if is_leadership:
+                    return 20
+                return 15
+
+        # Generic fallback
+        if is_leadership:
+            return 10
+        return 5
+
+    def _score_company_stage(self, _company: str) -> int:
+        """Score based on company stage (0-15)"""
+        # Limited info available - default neutral score
+        return 10
+
+    def _score_location(self, location: str) -> int:
+        """Score based on location match (0-15 points)"""
+        if not location:
+            return 0
+
+        location_lower = location.lower()
+        prefs = self.profile.get_location_preferences()
+
+        remote_keywords = prefs.get("remote_keywords", ["remote", "wfh", "anywhere"])
+        hybrid_keywords = prefs.get("hybrid_keywords", ["hybrid"])
+        preferred_cities = prefs.get("preferred_cities", [])
+        preferred_regions = prefs.get("preferred_regions", [])
+
+        # Check for remote (15 points)
+        if any(kw in location_lower for kw in remote_keywords):
+            return 15
+
+        # Check for hybrid
+        is_hybrid = any(kw in location_lower for kw in hybrid_keywords)
+
+        # Check for preferred cities
+        in_preferred_city = any(city in location_lower for city in preferred_cities)
+
+        # Check for preferred regions
+        in_preferred_region = any(region in location_lower for region in preferred_regions)
+
+        # Scoring logic
+        if is_hybrid and (in_preferred_city or in_preferred_region):
+            return 15
+        elif in_preferred_city:
+            return 12
+        elif in_preferred_region:
+            return 8
+        return 0
+
+    def _score_technical_keywords(self, title: str, company: str) -> int:
+        """Score based on technical keyword matches (0-10)"""
+        text = f"{title} {company}".lower()
+        domain_keywords = self.profile.get_domain_keywords()
+
+        score = 0
+        for keyword in domain_keywords:
+            if keyword in text:
+                score += 2
+                if score >= 10:
+                    break
+
+        return min(score, 10)
+
+    def _calculate_grade(self, score: int) -> str:
+        """Convert score to letter grade (out of 115 total)"""
+        if score >= 98:
+            return "A"
+        elif score >= 80:
+            return "B"
+        elif score >= 63:
+            return "C"
+        elif score >= 46:
+            return "D"
+        else:
+            return "F"
+
+
+def score_job_for_profile(job: dict, profile_id: str) -> tuple[int, str, dict] | None:
+    """
+    Convenience function to score a job for a specific profile
+
+    Args:
+        job: Job dictionary with title, company, location
+        profile_id: Profile ID (e.g., 'wes', 'adam')
+
+    Returns:
+        (score, grade, breakdown) or None if profile not found
+    """
+    manager = get_profile_manager()
+    profile = manager.get_profile(profile_id)
+
+    if not profile:
+        return None
+
+    scorer = ProfileScorer(profile)
+    return scorer.score_job(job)
+
+
+def score_job_for_all_profiles(job: dict) -> dict[str, tuple[int, str, dict]]:
+    """
+    Score a job for all enabled profiles
+
+    Args:
+        job: Job dictionary with title, company, location
+
+    Returns:
+        Dictionary mapping profile_id to (score, grade, breakdown)
+    """
+    manager = get_profile_manager()
+    results = {}
+
+    for profile in manager.get_enabled_profiles():
+        scorer = ProfileScorer(profile)
+        results[profile.id] = scorer.score_job(job)
+
+    return results
+
+
+if __name__ == "__main__":
+    # Test scoring the same job for different profiles
+    test_job = {
+        "title": "VP of Engineering",
+        "company": "Robotics Startup Inc",
+        "location": "Remote, USA",
+    }
+
+    print(f"Test Job: {test_job['title']} at {test_job['company']}")
+    print(f"Location: {test_job['location']}")
+    print("=" * 60)
+
+    results = score_job_for_all_profiles(test_job)
+
+    for profile_id, (score, grade, breakdown) in results.items():
+        print(f"\n{profile_id.upper()} Profile:")
+        print(f"  Score: {score}/115 (Grade {grade})")
+        print(f"  Breakdown: {breakdown}")

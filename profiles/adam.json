@@ -1,0 +1,44 @@
+{
+  "id": "adam",
+  "name": "Adam White",
+  "email": "adamkwhite@gmail.com",
+  "enabled": true,
+  "email_credentials": {
+    "username": "adamwhite.jobalerts@gmail.com",
+    "app_password_env": "ADAM_GMAIL_APP_PASSWORD"
+  },
+  "scoring": {
+    "target_seniority": ["senior", "staff", "lead", "principal", "architect"],
+    "domain_keywords": [
+      "software", "fullstack", "backend", "frontend", "web", "cloud",
+      "devops", "data", "machine learning", "ai", "python",
+      "product management", "product", "leadership", "coaching",
+      "consulting", "agile", "strategy", "saas", "technology"
+    ],
+    "role_types": {
+      "engineering": ["software engineer", "developer", "architect"],
+      "data": ["data engineer", "data scientist", "ml engineer"],
+      "devops": ["devops", "sre", "platform engineer"],
+      "product": ["product manager", "product owner", "product lead"]
+    },
+    "company_stage": ["startup", "series a", "series b", "tech"],
+    "avoid_keywords": ["junior", "intern", "coordinator", "sales"],
+    "location_preferences": {
+      "remote_keywords": ["remote", "work from home", "wfh", "anywhere", "distributed"],
+      "hybrid_keywords": ["hybrid"],
+      "preferred_cities": ["toronto", "ottawa"],
+      "preferred_regions": ["ontario", "canada"]
+    }
+  },
+  "digest": {
+    "min_grade": "C",
+    "min_score": 63,
+    "include_grades": ["A", "B", "C"],
+    "send_frequency": "weekly"
+  },
+  "notifications": {
+    "enabled": true,
+    "min_grade": "F",
+    "min_score": 0
+  }
+}
