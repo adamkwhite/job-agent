@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from database import JobDatabase
 from utils.profile_manager import Profile, get_profile_manager
+from utils.scoring_utils import calculate_grade
 
 
 def load_role_category_keywords() -> dict:
@@ -72,8 +73,8 @@ class ProfileScorer:
         # Total score (max 115)
         total_score = sum(breakdown.values())
 
-        # Grade
-        grade = self._calculate_grade(total_score)
+        # Grade (using shared utility)
+        grade = calculate_grade(total_score)
 
         return total_score, grade, breakdown
 
@@ -210,19 +211,6 @@ class ProfileScorer:
                     break
 
         return min(score, 10)
-
-    def _calculate_grade(self, score: int) -> str:
-        """Convert score to letter grade (out of 115 total)"""
-        if score >= 98:
-            return "A"
-        elif score >= 80:
-            return "B"
-        elif score >= 63:
-            return "C"
-        elif score >= 46:
-            return "D"
-        else:
-            return "F"
 
 
 def score_job_for_profile(job: dict, profile_id: str) -> tuple[int, str, dict] | None:

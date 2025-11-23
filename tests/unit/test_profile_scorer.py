@@ -157,20 +157,20 @@ class TestProfileScorer:
         assert breakdown["seniority"] >= 20  # Director level
         assert breakdown["location"] >= 8  # Waterloo/Ontario
 
-    def test_grade_thresholds(self, wes_style_profile):
-        """Test grade calculation thresholds"""
-        scorer = ProfileScorer(wes_style_profile)
+    def test_grade_thresholds(self, wes_style_profile):  # noqa: ARG002
+        """Test grade calculation thresholds (using shared utility)"""
+        from src.utils.scoring_utils import calculate_grade
 
         # Test grade boundaries
-        assert scorer._calculate_grade(98) == "A"
-        assert scorer._calculate_grade(97) == "B"
-        assert scorer._calculate_grade(80) == "B"
-        assert scorer._calculate_grade(79) == "C"
-        assert scorer._calculate_grade(63) == "C"
-        assert scorer._calculate_grade(62) == "D"
-        assert scorer._calculate_grade(46) == "D"
-        assert scorer._calculate_grade(45) == "F"
-        assert scorer._calculate_grade(0) == "F"
+        assert calculate_grade(98) == "A"
+        assert calculate_grade(97) == "B"
+        assert calculate_grade(80) == "B"
+        assert calculate_grade(79) == "C"
+        assert calculate_grade(63) == "C"
+        assert calculate_grade(62) == "D"
+        assert calculate_grade(46) == "D"
+        assert calculate_grade(45) == "F"
+        assert calculate_grade(0) == "F"
 
     def test_location_scoring_remote(self, adam_style_profile):
         """Remote location should score 15 points"""
