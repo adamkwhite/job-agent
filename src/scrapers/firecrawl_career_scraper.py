@@ -1,18 +1,40 @@
 """
 Firecrawl-based career page scraper
-Uses Firecrawl MCP to scrape JavaScript-heavy career pages
+Uses Firecrawl API to scrape JavaScript-heavy career pages
 """
 
+import os
 import re
+import time
+
+from dotenv import load_dotenv
+from firecrawl import FirecrawlApp
 
 from models import OpportunityData
 
+load_dotenv()
+
 
 class FirecrawlCareerScraper:
-    """Scrape career pages using Firecrawl MCP"""
+    """Scrape career pages using Firecrawl API with rate limiting"""
 
-    def __init__(self):
+    def __init__(self, requests_per_minute: int = 9):
+        """
+        Initialize scraper with rate limiting
+
+        Args:
+            requests_per_minute: Max requests per minute (default 9 to stay under 10/min limit)
+        """
         self.name = "firecrawl_career_scraper"
+        api_key = os.getenv("FIRECRAWL_API_KEY")
+        if not api_key:
+            raise ValueError("FIRECRAWL_API_KEY not found in environment")
+        self.firecrawl = FirecrawlApp(api_key=api_key)
+
+        # Rate limiting
+        self.requests_per_minute = requests_per_minute
+        self.request_times: list[float] = []  # Track timestamps of recent requests
+        self.min_delay = 60.0 / requests_per_minute  # Minimum seconds between requests
 
     def scrape_jobs(self, careers_url: str, company_name: str) -> list[OpportunityData]:
         """
@@ -48,29 +70,62 @@ class FirecrawlCareerScraper:
             print(f"  ✗ Error scraping page: {e}")
             return []
 
+    def _wait_for_rate_limit(self):
+        """
+        Enforce rate limiting by waiting if necessary
+
+        Ensures we don't exceed requests_per_minute by tracking request timestamps
+        and adding delays when needed
+        """
+        now = time.time()
+
+        # Remove timestamps older than 60 seconds
+        self.request_times = [t for t in self.request_times if now - t < 60]
+
+        # If we're at the limit, wait until we can make another request
+        if len(self.request_times) >= self.requests_per_minute:
+            # Wait until the oldest request is >60 seconds old
+            oldest_request = self.request_times[0]
+            wait_time = 60 - (now - oldest_request) + 0.5  # Add 0.5s buffer
+            if wait_time > 0:
+                print(f"  ⏳ Rate limit: waiting {wait_time:.1f}s...")
+                time.sleep(wait_time)
+                now = time.time()
+                # Clean up old timestamps again after waiting
+                self.request_times = [t for t in self.request_times if now - t < 60]
+
+        # Also enforce minimum delay between consecutive requests
+        if self.request_times:
+            time_since_last = now - self.request_times[-1]
+            if time_since_last < self.min_delay:
+                wait_time = self.min_delay - time_since_last
+                time.sleep(wait_time)
+                now = time.time()
+
+        # Record this request timestamp
+        self.request_times.append(now)
+
     def _firecrawl_scrape(self, url: str) -> dict | None:
         """
-        Placeholder for Firecrawl MCP scraping
-
-        Note: This cannot be called directly from Python scripts.
-        Instead, use the manual scraping workflow:
-        1. Run company_scraper.py to get list of companies
-        2. Use Firecrawl MCP tool for each company manually or via Claude Code
-        3. Pass results to process_scraped_jobs()
+        Scrape a URL using Firecrawl API with rate limiting
 
         Args:
             url: URL to scrape
 
         Returns:
-            None (placeholder)
+            Dictionary with 'markdown' key containing scraped content, or None on error
         """
-        print("  ℹ️  Firecrawl scraping cannot be automated from Python")
-        print("  → Manual workflow:")
-        print("     1. Use Firecrawl MCP tool: mcp__firecrawl-mcp__firecrawl_scrape")
-        print(f"     2. URL: {url}")
-        print("     3. Formats: ['markdown']")
-        print("     4. Process results via process_scraped_jobs()")
-        return None
+        try:
+            # Wait if necessary to respect rate limits
+            self._wait_for_rate_limit()
+
+            # Make the API request
+            document = self.firecrawl.scrape(url, formats=["markdown"])
+            # Convert Document object to dict for compatibility
+            return {"markdown": document.markdown if document.markdown else ""}
+        except Exception as e:
+            print(f"  ✗ Firecrawl API error: {e}")
+            return None
 
     def _extract_jobs_from_markdown(
         self, markdown: str, careers_url: str, company_name: str
@@ -131,10 +186,21 @@ class FirecrawlCareerScraper:
 
         # If no jobs found with pattern 1, try pattern 2 (headers)
         if not jobs:
-            # Look for job count indicators like "7 jobs"
-            job_count_match = re.search(r"(\d+)\s+jobs?", markdown, re.IGNORECASE)
+            # Look for job indicators like "7 jobs" or "Current Job Openings" or "Open Positions"
+            # Use case-insensitive string search to avoid regex complexity
+            markdown_lower = markdown.lower()
+            has_jobs = (
+                " jobs" in markdown_lower
+                or " job" in markdown_lower
+                or "current" in markdown_lower
+                and "job" in markdown_lower
+                or "open" in markdown_lower
+                and "position" in markdown_lower
+                or "hiring" in markdown_lower
+                or "recruiting" in markdown_lower
+            )
 
-            if job_count_match:
+            if has_jobs:
                 # Find all headers that might be job titles
                 headers = pattern2.findall(markdown)
 
@@ -143,13 +209,20 @@ class FirecrawlCareerScraper:
 
                     if self._is_likely_job_title(header) and len(header) > 10:
                         # Try to find location near this header
+                        # Look for text after the header (skip the header line itself)
                         header_idx = markdown.find(header)
-                        context = markdown[header_idx : header_idx + 200]
+                        # Skip past the header and any immediate newlines
+                        start_search = header_idx + len(header)
+                        context = markdown[start_search : start_search + 100]
 
+                        # Look for city, province/state pattern on its own line
+                        # Pattern: newlines, optional "Location: " prefix, then "City Name, XX"
+                        # ReDoS-safe: Use {1,5} limits instead of + to prevent backtracking
                         location_match = re.search(
-                            r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2,})", context
+                            r"\n{1,5}(?:Location:\s{0,5})?([A-Z][a-z]+(?:\s[A-Z][a-z]+)?,\s{0,2}[A-Z]{2})",
+                            context,
                         )
-                        location = location_match.group(1) if location_match else ""
+                        location = location_match.group(1).strip() if location_match else ""
 
                         jobs.append(
                             OpportunityData(
