@@ -26,12 +26,16 @@ class CompanyScraper:
     Designed to work with Firecrawl MCP for JavaScript-heavy career pages
     """
 
-    def __init__(self):
+    def __init__(self, profile: str | None = None):
+        # Store profile for multi-profile support
+        self.profile = profile
+
+        # Initialize components
         self.company_service = CompanyService()
         self.firecrawl_scraper = FirecrawlCareerScraper()
         self.job_filter = JobFilter()
         self.scorer = JobScorer()
-        self.database = JobDatabase()
+        self.database = JobDatabase(profile=profile)
         self.notifier = JobNotifier()
 
     def scrape_all_companies(
