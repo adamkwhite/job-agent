@@ -191,6 +191,14 @@ def main():
 
     parser = argparse.ArgumentParser(description="Unified weekly scraper - all job sources")
 
+    # Profile selection
+    parser.add_argument(
+        "--profile",
+        type=str,
+        choices=["wes", "adam"],
+        help="Profile to use (determines email account and scoring)",
+    )
+
     # Source toggles
     parser.add_argument("--email-only", action="store_true", help="Only process emails")
     parser.add_argument("--robotics-only", action="store_true", help="Only scrape robotics sheet")
@@ -240,7 +248,7 @@ def main():
         run_robotics = True
         run_companies = True
 
-    scraper = WeeklyUnifiedScraper()
+    scraper = WeeklyUnifiedScraper(profile=args.profile)
     stats = scraper.run_all(
         fetch_emails=run_emails,
         email_limit=args.email_limit,
