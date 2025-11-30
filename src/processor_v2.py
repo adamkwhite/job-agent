@@ -34,12 +34,15 @@ from utils.multi_scorer import get_multi_scorer
 class JobProcessorV2:
     """Main orchestrator for job alert processing with pluggable parsers"""
 
-    def __init__(self):
+    def __init__(self, profile: str | None = None):
+        # Store profile for multi-profile support
+        self.profile = profile
+
         # Initialize components
         self.parser_registry = ParserRegistry()
         self.enrichment = EnrichmentPipeline()
         self.filter = JobFilter()
-        self.database = JobDatabase()
+        self.database = JobDatabase(profile=profile)
         self.notifier = JobNotifier()
         self.scorer = JobScorer()
         self.imap_client = IMAPEmailClient()
