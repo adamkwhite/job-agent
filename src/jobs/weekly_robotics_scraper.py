@@ -278,48 +278,119 @@ Related: #65 (Firecrawl generic career pages)
                         jobs.append(job)
 
             # Pattern 4: Look for markdown links with job titles
-            # Match patterns like "[Director of Engineering](https://...)"
+            # Match patterns like "[**Title** \\\nRemote — Full TimeCity](URL)"
+            # Use re.DOTALL to match across newlines
             markdown_link_pattern = r"\[([^\]]+)\]\((https?://[^\)]+)\)"
-            markdown_links = re.findall(markdown_link_pattern, content)
+            markdown_links = re.findall(markdown_link_pattern, content, re.DOTALL)
 
-            for title, url in markdown_links:
-                if any(kw in title.lower() for kw in leadership_keywords):
-                    # Skip if we already have this title
-                    if any(job.title.lower() == title.lower() for job in jobs):
-                        continue
+            for full_text, url in markdown_links:
+                # Clean up the full text (may contain ** markdown bold, \\ separators, newlines)
+                full_text = full_text.strip()
 
-                    # Extract location from the line after the markdown link
-                    # Pattern: [Title](URL)\nLocation
-                    location = ""
-                    link_pos = content.find(f"[{title}]({url})")
+                # Split on \\ to separate title from location info
+                # Format: [**Title** \\ Remote — Full TimeCity](URL)
+                parts = full_text.split("\\")
+
+                if len(parts) >= 2:
+                    # Title is before \\, clean up ** markdown
+                    title = parts[0].strip().replace("**", "").strip()
+                    # Location info is after \\
+                    location_info = parts[-1].strip()
+                else:
+                    # No \\ separator, treat entire text as title
+                    title = full_text.replace("**", "").strip()
+                    location_info = ""
+
+                # Only process if it's a leadership job
+                if not any(kw in title.lower() for kw in leadership_keywords):
+                    continue
+
+                # Skip if we already have this title
+                if any(job.title.lower() == title.lower() for job in jobs):
+                    continue
+
+                # If no location_info from \\ separator, check line after link
+                if not location_info:
+                    # Find this link in content and check next line
+                    link_pos = content.find(f"[{full_text}]({url})")
                     if link_pos != -1:
-                        # Get next 200 chars after link
-                        after_link = content[link_pos + len(f"[{title}]({url})") : link_pos + 200]
-                        # Location is typically on the next line
+                        # Get content after the link
+                        after_link = content[
+                            link_pos + len(f"[{full_text}]({url})") : link_pos + 200
+                        ]
                         lines_after = after_link.split("\n")
-                        if len(lines_after) > 1:
-                            # Second element (index 1) is first line after the link
-                            potential_location = lines_after[1].strip()
-                            # Validate it looks like a location (not another markdown link or heading)
+                        # Skip blank lines and find first non-empty line
+                        for line in lines_after[1:4]:  # Check next 3 lines
+                            potential_location = line.strip()
+                            # Validate it looks like a location (not markdown or heading)
                             if potential_location and not potential_location.startswith(
-                                ("[", "#", "**")
+                                ("[", "#", "**", "-", "*")
                             ):
-                                location = potential_location
+                                location_info = potential_location
+                                break
 
-                    job = OpportunityData(
-                        source="robotics_deeptech_sheet",
-                        source_email="",
-                        type="direct_job",
-                        company=company,
-                        title=title.strip(),
-                        location=location,
-                        link=url,
-                        description=f"Discovered via Firecrawl scraping of {company} career page",
-                        job_type="",
-                        needs_research=False,
-                        research_notes=f"Scraped from generic career page on {datetime.now().strftime('%Y-%m-%d')}",
-                    )
-                    jobs.append(job)
+                # Parse location from location_info
+                # Format: "Remote — Full TimeCity" or "On-site — Full TimeSan Francisco"
+                location = ""
+                if location_info:
+                    # Extract work type (Remote, On-site, Hybrid)
+                    if "remote" in location_info.lower():
+                        location = "Remote"
+                    elif "hybrid" in location_info.lower():
+                        # Try to extract city after Hybrid
+                        # Look for pattern: "Hybrid — Full TimeCity" or "Hybrid - City"
+                        city_match = re.search(
+                            r"hybrid[^\w]*(?:full time|part time)?[^\w]*(.+)",
+                            location_info,
+                            re.IGNORECASE,
+                        )
+                        if city_match:
+                            city = city_match.group(1).strip()
+                            # Clean up any trailing junk
+                            city = re.sub(r"[^\w\s,\-]+", "", city).strip()
+                            location = f"Hybrid - {city}" if city else "Hybrid"
+                        else:
+                            location = "Hybrid"
+                    elif "on-site" in location_info.lower() or "onsite" in location_info.lower():
+                        # Extract city after On-site
+                        city_match = re.search(
+                            r"on-?site[^\w]*(?:full time|part time)?[^\w]*(.+)",
+                            location_info,
+                            re.IGNORECASE,
+                        )
+                        if city_match:
+                            city = city_match.group(1).strip()
+                            # Clean up any trailing junk
+                            city = re.sub(r"[^\w\s,\-]+", "", city).strip()
+                            location = city if city else "On-site"
+                        else:
+                            location = "On-site"
+                    else:
+                        # No explicit work type, try to extract city
+                        # Look for pattern: "Full TimeCity" or just "City"
+                        city_match = re.search(
+                            r"(?:full time|part time)?[^\w]*(.+)", location_info, re.IGNORECASE
+                        )
+                        if city_match:
+                            city = city_match.group(1).strip()
+                            city = re.sub(r"[^\w\s,\-]+", "", city).strip()
+                            if city:
+                                location = city
+
+                job = OpportunityData(
+                    source="robotics_deeptech_sheet",
+                    source_email="",
+                    type="direct_job",
+                    company=company,
+                    title=title.strip(),
+                    location=location,
+                    link=url,
+                    description=f"Discovered via Firecrawl scraping of {company} career page",
+                    job_type="",
+                    needs_research=False,
+                    research_notes=f"Scraped from generic career page on {datetime.now().strftime('%Y-%m-%d')}",
+                )
+                jobs.append(job)
 
             print(f"  ✓ Extracted {len(jobs)} leadership jobs from {company} markdown")
             return jobs

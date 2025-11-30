@@ -283,10 +283,10 @@ class TestWeeklyScraperIntegration:
         """Test run() respects max_companies_per_run config"""
         checker = WeeklyRoboticsJobChecker()
 
-        # Create 15 generic pages (more than max_companies_per_run of 10)
+        # Create 25 generic pages (more than max_companies_per_run of 20)
         mock_generic_pages = {
             f"Company{i}": {"url": f"https://company{i}.com/careers", "company": f"Company{i}"}
-            for i in range(15)
+            for i in range(25)
         }
 
         with (
@@ -299,8 +299,8 @@ class TestWeeklyScraperIntegration:
         ):
             stats = checker.run(min_score=70)
 
-            # Should limit to max_companies_per_run (10)
-            max_companies = checker.scraper.priority_config.get("max_companies_per_run", 10)
+            # Should limit to max_companies_per_run (20)
+            max_companies = checker.scraper.priority_config.get("max_companies_per_run", 20)
             assert stats["firecrawl_credits_used"] == max_companies
 
     def test_run_respects_weekly_budget(self):
