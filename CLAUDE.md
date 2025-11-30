@@ -59,13 +59,23 @@ Multi-factor scoring system (0-115 points) evaluating jobs against Wesley's prof
 **Supported Sources**: LinkedIn, Supra Product Leadership Jobs, F6S, Artemis, Built In
 
 ### 3. Robotics Web Scraper (`src/jobs/weekly_robotics_scraper.py`)
+**Phase 1: Google Sheets**
 - Scrapes 1,092 jobs from robotics/deeptech Google Sheets
 - Filters for Director+ leadership roles
 - Scores and stores B+ grade jobs (70+)
 - Runs weekly via cron (Monday 9am)
-- **Key Companies**: Boston Dynamics, Waymo, Skydio, Figure AI, Bright Machines
 
-### 4. Email Digest System (`src/send_digest_to_wes.py`)
+**Phase 2: Firecrawl Generic Career Pages** (Issue #65, PR #71)
+- Semi-automated workflow for 10 priority companies with generic career pages
+- Priority companies: Boston Dynamics, Figure, Sanctuary AI, Agility Robotics, 1X Technologies, Skydio, Skild AI, Dexterity, Covariant, Nuro
+- Outputs Firecrawl MCP commands for manual execution
+- Markdown processor extracts leadership jobs from scraped pages
+- Budget tracking: 50 credits/week (~$20/month)
+- Failure monitoring with 50% threshold
+- Expected to discover 25-50+ additional leadership jobs/week
+- Config: `config/robotics_priority_companies.json`
+
+### 4. Email Digest System (`src/send_profile_digest.py`)
 - Generates HTML email with top-scoring jobs
 - Attaches interactive jobs.html file (56KB)
 - Location-based filtering buttons (Remote/Hybrid/Ontario)
@@ -142,17 +152,23 @@ SKIP=python-safety-dependencies-check git commit -m "message"
 
 ### Run Unified Weekly Scraper (RECOMMENDED)
 ```bash
-# All sources: emails + robotics + company monitoring
-PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py
+# For Wes (all sources: emails + robotics + company monitoring)
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --profile wes
 
-# Email only
-PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --email-only --email-limit 100
+# For Adam (all sources)
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --profile adam
+
+# Email only (profile-specific inbox)
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --profile adam --email-only --email-limit 100
 
 # Robotics only
-PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --robotics-only --robotics-min-score 70
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --profile wes --robotics-only --robotics-min-score 70
 
-# Company monitoring only (Wes's 26 companies)
-PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --companies-only --company-filter "From Wes"
+# Company monitoring only
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --profile wes --companies-only --company-filter "From Wes"
+
+# Without profile (uses legacy .env GMAIL_USERNAME)
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py
 ```
 
 ### Run Individual Components (Legacy)
@@ -178,17 +194,41 @@ open jobs.html  # or xdg-open on Linux
 
 ### Send Email Digest
 ```bash
-# Send to Wesley (only unsent jobs)
-PYTHONPATH=$PWD job-agent-venv/bin/python src/send_digest_to_wes.py
+# Send to Wes (only unsent jobs for his profile)
+PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile wes
+
+# Send to Adam (only unsent jobs for his profile)
+PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile adam
+
+# Send to all enabled profiles
+PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --all
+
+# Test digest without sending (dry run)
+PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile adam --dry-run
 
 # Force resend all jobs (for testing)
-PYTHONPATH=$PWD job-agent-venv/bin/python src/send_digest_to_wes.py --force-resend
-
-# Send copy to Adam
-job-agent-venv/bin/python src/send_digest_copy.py
+PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile wes --force-resend
 ```
 
-**Digest Tracking**: The system automatically tracks which jobs have been sent in previous digests using the `digest_sent_at` field. Running the script multiple times will only send new jobs, preventing duplicate emails.
+**Digest Tracking**: The system automatically tracks which jobs have been sent to each profile using the `job_scores.digest_sent_at` field. Running the script multiple times will only send new jobs to each person, preventing duplicate emails. Each profile maintains separate digest tracking.
+
+### Interactive TUI (Easiest Method)
+```bash
+# Launch the interactive terminal UI
+./run-tui.sh
+# or
+job-agent-venv/bin/python src/tui.py
+```
+
+**Features**:
+- Select profile (Wes or Adam)
+- Choose sources to scrape (Email, Robotics sheet, Company monitoring)
+- Pick action (Scrape only, Send digest, or Both)
+- View scoring criteria for each profile
+- Profile-specific email inbox display
+- Confirmation before execution
+
+The TUI automatically passes the correct `--profile` flag to the scraper and shows profile-specific information throughout the workflow.
 
 ### Cron Setup (Weekly Automation)
 ```bash
@@ -254,6 +294,29 @@ CREATE TABLE jobs (
     UNIQUE(title, company, link)  -- SHA256 deduplication
 );
 ```
+
+### Multi-Profile System
+
+The job agent supports multiple user profiles with separate email accounts, scoring criteria, and digest settings.
+
+**Current Profiles**:
+- **Wes** (`profiles/wes.json`) - VP/Director roles in Robotics/Hardware
+- **Adam** (`profiles/adam.json`) - Senior/Staff roles in Software/Product
+
+**Key Features**:
+- Jobs scraped from profile-specific email inboxes
+- Each job scored for ALL enabled profiles (stored in `job_scores` table)
+- Digests sent separately to each profile with personalized matches
+- Database tracks which inbox jobs came from (`jobs.profile` column)
+
+**📖 For detailed information on adding new profiles, see [`docs/development/MULTI_PROFILE_GUIDE.md`](docs/development/MULTI_PROFILE_GUIDE.md)**
+
+Quick summary:
+1. Create `profiles/yourname.json` with scoring criteria
+2. Set up `yourname.jobalerts@gmail.com` with app password
+3. Add credentials to `.env`
+4. Test with `--profile yourname` flag
+5. (Optional) Update TUI in `src/tui.py`
 
 ### Candidate Profile (Wesley van Ooyen)
 - **Background**: Robotics/hardware executive, 11 patents, IoT/MedTech experience
