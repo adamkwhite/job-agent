@@ -1,0 +1,21 @@
+{
+  "priority_companies": [
+    "Boston Dynamics",
+    "Figure",
+    "Sanctuary AI",
+    "Agility Robotics",
+    "1X Technologies",
+    "Skydio",
+    "Skild AI",
+    "Dexterity",
+    "Covariant",
+    "Nuro"
+  ],
+  "rate_limit_seconds": 2,
+  "max_companies_per_run": 10,
+  "failure_threshold_percent": 50,
+  "markdown_cache_enabled": true,
+  "markdown_cache_dir": "data/firecrawl_cache",
+  "credit_budget_weekly": 50,
+  "credit_budget_monthly": 200
+}

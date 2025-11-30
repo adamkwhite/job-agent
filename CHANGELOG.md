@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Firecrawl Integration for Robotics Career Pages** (Nov 29-30, 2025 - Issues #65-#69, PR #71)
+  - Semi-automated workflow to scrape 10 priority robotics companies' generic career pages
+  - Companies: Boston Dynamics, Figure, Sanctuary AI, Agility Robotics, 1X Technologies, Skydio, Skild AI, Dexterity, Covariant, Nuro
+  - Configuration file (`config/robotics_priority_companies.json`) with rate limits, budgets, failure thresholds
+  - `scrape_with_firecrawl_fallback()` method identifies generic career pages from priority companies
+  - `process_firecrawl_markdown()` extracts leadership jobs from Firecrawl markdown output
+  - Phase 2 workflow outputs Firecrawl MCP commands for manual execution
+  - Credit budget tracking: 50 credits/week, 200/month (~$20/month cost)
+  - Failure monitoring: 50% threshold with auto-disable recommendations
+  - Automated GitHub issue creation for repeated scraping failures (3+ consecutive)
+  - Markdown caching to `data/firecrawl_cache/` for debugging
+  - Expected to discover 25-50+ additional leadership jobs per week
+  - Test coverage: 21 new tests (98% scraper, 72% weekly integration)
 - **7-Category Job Scoring System** (Nov 15, 2025 - Issue #56)
   - Implemented comprehensive 7-category role scoring with keyword bonuses
   - Categories: Product Leadership, Engineering Leadership, Technical Program Management, Manufacturing/NPI/Operations, Product Development/R&D, Platform/Integrations/Systems, Robotics/Automation Engineering

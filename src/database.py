@@ -13,8 +13,9 @@ from pathlib import Path
 class JobDatabase:
     """Manages SQLite database for job listings"""
 
-    def __init__(self, db_path: str = "data/jobs.db"):
+    def __init__(self, db_path: str = "data/jobs.db", profile: str | None = None):
         self.db_path = Path(db_path)
+        self.profile = profile
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.init_database()
 
@@ -78,6 +79,11 @@ class JobDatabase:
         if "digest_sent_at" not in columns:
             cursor.execute("ALTER TABLE jobs ADD COLUMN digest_sent_at TEXT")
 
+        if "profile" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN profile TEXT")
+            # Set default profile for existing jobs (assume they're for Wes)
+            cursor.execute("UPDATE jobs SET profile = 'wes' WHERE profile IS NULL")
+
         # Create index after column exists
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_fit_score ON jobs(fit_score)
@@ -85,6 +91,10 @@ class JobDatabase:
 
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_digest_sent_at ON jobs(digest_sent_at)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_profile ON jobs(profile)
         """)
 
         conn.commit()
@@ -143,8 +153,8 @@ class JobDatabase:
                 job_hash, title, company, location, link, description,
                 salary, job_type, posted_date, source, source_email,
                 received_at, keywords_matched, raw_email_content,
-                created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                profile, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 job_hash,
@@ -161,6 +171,7 @@ class JobDatabase:
                 job_data.get("received_at", now),
                 json.dumps(job_data.get("keywords_matched", [])),
                 job_data.get("raw_email_content", ""),
+                self.profile,
                 now,
                 now,
             ),
@@ -377,9 +388,16 @@ class JobDatabase:
         return dict(row) if row else None
 
     def get_jobs_for_profile_digest(
-        self, profile_id: str, min_grade: str = "C", limit: int = 100
+        self, profile_id: str, min_grade: str = "C", limit: int = 100, max_age_days: int = 14
     ) -> list[dict]:
-        """Get jobs for digest that haven't been sent to this profile"""
+        """Get jobs for digest that haven't been sent to this profile
+
+        Args:
+            profile_id: Profile to get jobs for
+            min_grade: Minimum grade to include (A, B, C, D, F)
+            limit: Max jobs to return
+            max_age_days: Only include jobs from last N days (default 14)
+        """
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -400,6 +418,7 @@ class JobDatabase:
             JOIN job_scores js ON j.id = js.job_id
             WHERE js.profile_id = ?
               AND js.digest_sent_at IS NULL
+              AND j.received_at >= datetime('now', '-' || ? || ' days')
               AND (
                   (js.fit_grade = 'A' AND ? >= 1) OR
                   (js.fit_grade = 'B' AND ? >= 2) OR
@@ -412,6 +431,7 @@ class JobDatabase:
         """,
             (
                 profile_id,
+                max_age_days,
                 min_grade_num,
                 min_grade_num,
                 min_grade_num,
