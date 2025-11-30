@@ -147,7 +147,8 @@ Related: #65 (Firecrawl generic career pages)
 
             # Pattern 1: Look for job titles in headings
             # Match patterns like "## Director of Engineering" or "### VP of Product"
-            heading_pattern = r"^#+\s+(.+)$"
+            # Use [^\n]+ instead of .+ to prevent ReDoS attacks (SonarCloud python:S5852)
+            heading_pattern = r"^#{1,6}\s+([^\n]+)$"
             headings = re.findall(heading_pattern, content, re.MULTILINE)
 
             # Pattern 2: URL pattern for job links
@@ -188,7 +189,8 @@ Related: #65 (Firecrawl generic career pages)
             # Pattern 3: Look for structured job listings (table format, lists, etc.)
             # This is a fallback if headings don't work well
             # Match bullet points or numbered lists that look like job titles
-            list_pattern = r"^[\*\-\d\.]+\s+(.+)$"
+            # Use [^\n]+ and limit quantifiers to prevent ReDoS attacks (SonarCloud python:S5852)
+            list_pattern = r"^[\*\-\d\.]{1,5}\s+([^\n]+)$"
             list_items = re.findall(list_pattern, content, re.MULTILINE)
 
             for item in list_items:
