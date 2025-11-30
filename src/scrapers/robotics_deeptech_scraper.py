@@ -5,6 +5,7 @@ Scrapes job listings from public Google Sheets job board
 
 import csv
 import io
+import json
 import sys
 from pathlib import Path
 
@@ -38,6 +39,30 @@ class RoboticsDeeptechScraper:
             "senior manager",
             "lead",
         ]
+
+        # Load Firecrawl priority companies configuration
+        self.priority_config = self._load_priority_companies()
+        self.priority_companies = self.priority_config.get("priority_companies", [])
+
+    def _load_priority_companies(self) -> dict:
+        """
+        Load Firecrawl priority companies configuration from JSON file.
+
+        Returns:
+            dict: Configuration with priority_companies list and scraper settings
+        """
+        config_path = (
+            Path(__file__).parent.parent.parent / "config" / "robotics_priority_companies.json"
+        )
+        try:
+            with open(config_path) as f:
+                return json.load(f)
+        except FileNotFoundError:
+            print(f"⚠ Warning: Priority companies config not found at {config_path}")
+            return {"priority_companies": []}
+        except json.JSONDecodeError as e:
+            print(f"⚠ Warning: Invalid JSON in priority companies config: {e}")
+            return {"priority_companies": []}
 
     def is_generic_career_page(self, url: str) -> bool:
         """
@@ -162,6 +187,56 @@ class RoboticsDeeptechScraper:
         except Exception as e:
             print(f"✗ Error scraping Google Sheets: {e}")
             return []
+
+    def scrape_with_firecrawl_fallback(self) -> tuple[list[OpportunityData], dict]:
+        """
+        Scrape jobs from Google Sheets and identify generic career pages
+        from priority companies for Firecrawl fallback.
+
+        Returns:
+            tuple: (sheet_jobs, generic_pages_dict)
+                - sheet_jobs: List of direct job opportunities from the sheet
+                - generic_pages_dict: Dict of {company_name: {"url": url, "company": company}}
+                  for priority companies with generic career page URLs
+        """
+        # Get all direct jobs from sheet
+        sheet_jobs = self.scrape()
+
+        # Re-parse sheet to find generic URLs from priority companies
+        generic_pages = {}
+
+        try:
+            response = requests.get(self.base_url, timeout=30, allow_redirects=True)
+            response.raise_for_status()
+
+            csv_data = response.text
+            reader = csv.DictReader(io.StringIO(csv_data))
+
+            for row in reader:
+                company = row.get("Company", "").strip()
+                job_url = row.get("Job_Url", "").strip()
+
+                # Skip if missing fields or not a priority company
+                if not company or not job_url:
+                    continue
+                if company not in self.priority_companies:
+                    continue
+
+                # Check if this is a generic career page
+                if self.is_generic_career_page(job_url) and company not in generic_pages:
+                    # Store unique generic pages (in case multiple rows have same URL)
+                    generic_pages[company] = {"url": job_url, "company": company}
+
+            if generic_pages:
+                print(f"✓ Found {len(generic_pages)} generic career pages from priority companies")
+            else:
+                print("✓ No generic career pages found from priority companies")
+
+        except Exception as e:
+            print(f"⚠ Warning: Error identifying generic pages: {e}")
+            # Return empty dict on error, but still return sheet_jobs
+
+        return sheet_jobs, generic_pages
 
     def get_leadership_jobs_only(self) -> list[OpportunityData]:
         """Scrape and filter for leadership roles only"""

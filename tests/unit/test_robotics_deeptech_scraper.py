@@ -506,6 +506,206 @@ Job5,Company5,Desc,,,,,https://example.com/5,NEW"""
             assert "... and 2 more jobs" in captured.out
 
 
+class TestFirecrawlMethods:
+    """Test Firecrawl priority companies and fallback methods (Issue #65)"""
+
+    def test_load_priority_companies_success(self):
+        """Test loading priority companies configuration successfully"""
+        scraper = RoboticsDeeptechScraper()
+
+        # Should have loaded config
+        assert scraper.priority_config is not None
+        assert "priority_companies" in scraper.priority_config
+        assert isinstance(scraper.priority_companies, list)
+        assert len(scraper.priority_companies) == 10
+
+        # Verify expected companies
+        assert "Boston Dynamics" in scraper.priority_companies
+        assert "Figure" in scraper.priority_companies
+        assert "Skydio" in scraper.priority_companies
+
+    def test_load_priority_companies_config_fields(self):
+        """Test all required config fields are present"""
+        scraper = RoboticsDeeptechScraper()
+
+        config = scraper.priority_config
+        assert "rate_limit_seconds" in config
+        assert "max_companies_per_run" in config
+        assert "failure_threshold_percent" in config
+        assert "markdown_cache_enabled" in config
+        assert "markdown_cache_dir" in config
+        assert "credit_budget_weekly" in config
+        assert "credit_budget_monthly" in config
+
+    def test_load_priority_companies_missing_file(self):
+        """Test graceful handling when config file is missing"""
+        with patch("builtins.open", side_effect=FileNotFoundError):
+            scraper = RoboticsDeeptechScraper()
+
+            # Should return default config
+            assert scraper.priority_config == {"priority_companies": []}
+            assert scraper.priority_companies == []
+
+    def test_load_priority_companies_invalid_json(self):
+        """Test graceful handling of invalid JSON"""
+        from unittest.mock import mock_open
+
+        invalid_json = "{ invalid json content"
+
+        with patch("builtins.open", mock_open(read_data=invalid_json)):
+            scraper = RoboticsDeeptechScraper()
+
+            # Should return default config
+            assert scraper.priority_config == {"priority_companies": []}
+            assert scraper.priority_companies == []
+
+    def test_scrape_with_firecrawl_fallback_returns_tuple(self):
+        """Test scrape_with_firecrawl_fallback returns (sheet_jobs, generic_pages)"""
+        scraper = RoboticsDeeptechScraper()
+
+        csv_data = """Job_Title,Company,Description,Department,Experience_Level,City,Country,Job_Url,Status
+Valid Job,Good Company,Desc,,,,,https://example.com/job/123,NEW"""
+
+        mock_response = Mock()
+        mock_response.text = csv_data
+        mock_response.raise_for_status = Mock()
+
+        with patch(
+            "src.scrapers.robotics_deeptech_scraper.requests.get", return_value=mock_response
+        ):
+            sheet_jobs, generic_pages = scraper.scrape_with_firecrawl_fallback()
+
+            # Should return tuple
+            assert isinstance(sheet_jobs, list)
+            assert isinstance(generic_pages, dict)
+
+    def test_scrape_with_firecrawl_fallback_identifies_generic_pages(self):
+        """Test identifies generic career pages from priority companies"""
+        scraper = RoboticsDeeptechScraper()
+
+        # Mix of valid jobs and generic pages from priority companies
+        csv_data = """Job_Title,Company,Description,Department,Experience_Level,City,Country,Job_Url,Status
+Valid Job,Good Company,Desc,,,,,https://example.com/job/123,NEW
+Generic Page,Boston Dynamics,Desc,,,,,https://bostondynamics.wd1.myworkdayjobs.com/Boston_Dynamics,NEW
+Another Valid,Other Co,Desc,,,,,https://jobs.lever.co/company/jobs/abc,NEW
+Generic Page,Skydio,Desc,,,,,https://skydio.com/careers,NEW"""
+
+        mock_response = Mock()
+        mock_response.text = csv_data
+        mock_response.raise_for_status = Mock()
+
+        with patch(
+            "src.scrapers.robotics_deeptech_scraper.requests.get", return_value=mock_response
+        ):
+            sheet_jobs, generic_pages = scraper.scrape_with_firecrawl_fallback()
+
+            # Should get 2 direct jobs (non-generic URLs)
+            assert len(sheet_jobs) == 2
+
+            # Should identify 2 generic pages from priority companies
+            assert len(generic_pages) == 2
+            assert "Boston Dynamics" in generic_pages
+            assert "Skydio" in generic_pages
+
+            # Verify structure of generic_pages dict
+            assert generic_pages["Boston Dynamics"]["url"] == (
+                "https://bostondynamics.wd1.myworkdayjobs.com/Boston_Dynamics"
+            )
+            assert generic_pages["Boston Dynamics"]["company"] == "Boston Dynamics"
+
+    def test_scrape_with_firecrawl_fallback_ignores_non_priority_companies(self):
+        """Test only includes generic pages from priority companies"""
+        scraper = RoboticsDeeptechScraper()
+
+        # Generic pages from both priority and non-priority companies
+        csv_data = """Job_Title,Company,Description,Department,Experience_Level,City,Country,Job_Url,Status
+Generic,Boston Dynamics,Desc,,,,,https://bostondynamics.wd1.myworkdayjobs.com/Boston_Dynamics,NEW
+Generic,Non Priority Company,Desc,,,,,https://example.com/careers,NEW
+Generic,Skydio,Desc,,,,,https://skydio.com/careers/,NEW"""
+
+        mock_response = Mock()
+        mock_response.text = csv_data
+        mock_response.raise_for_status = Mock()
+
+        with patch(
+            "src.scrapers.robotics_deeptech_scraper.requests.get", return_value=mock_response
+        ):
+            sheet_jobs, generic_pages = scraper.scrape_with_firecrawl_fallback()
+
+            # Should only include priority companies
+            assert len(generic_pages) == 2
+            assert "Boston Dynamics" in generic_pages
+            assert "Skydio" in generic_pages
+            assert "Non Priority Company" not in generic_pages
+
+    def test_scrape_with_firecrawl_fallback_deduplicates_by_company(self):
+        """Test only stores one generic page per company"""
+        scraper = RoboticsDeeptechScraper()
+
+        # Multiple rows with same company and generic URL
+        csv_data = """Job_Title,Company,Description,Department,Experience_Level,City,Country,Job_Url,Status
+Job1,Boston Dynamics,Desc,,,,,https://bostondynamics.wd1.myworkdayjobs.com/Boston_Dynamics,NEW
+Job2,Boston Dynamics,Desc,,,,,https://bostondynamics.wd1.myworkdayjobs.com/Boston_Dynamics,NEW
+Job3,Boston Dynamics,Desc,,,,,https://bostondynamics.wd1.myworkdayjobs.com/Boston_Dynamics,NEW"""
+
+        mock_response = Mock()
+        mock_response.text = csv_data
+        mock_response.raise_for_status = Mock()
+
+        with patch(
+            "src.scrapers.robotics_deeptech_scraper.requests.get", return_value=mock_response
+        ):
+            sheet_jobs, generic_pages = scraper.scrape_with_firecrawl_fallback()
+
+            # Should only have one entry for Boston Dynamics
+            assert len(generic_pages) == 1
+            assert "Boston Dynamics" in generic_pages
+
+    def test_scrape_with_firecrawl_fallback_handles_http_error(self):
+        """Test gracefully handles HTTP errors during generic page detection"""
+        scraper = RoboticsDeeptechScraper()
+
+        # First call succeeds (sheet_jobs), second call fails (generic pages)
+        responses = [
+            Mock(
+                text="Job_Title,Company,Description,Department,Experience_Level,City,Country,Job_Url,Status\nJob,Co,Desc,,,,,https://example.com/1,NEW",
+                raise_for_status=Mock(),
+            ),
+            Mock(raise_for_status=Mock(side_effect=requests.exceptions.HTTPError("404"))),
+        ]
+
+        with patch("src.scrapers.robotics_deeptech_scraper.requests.get", side_effect=responses):
+            sheet_jobs, generic_pages = scraper.scrape_with_firecrawl_fallback()
+
+            # Should still return sheet_jobs, but empty generic_pages
+            assert len(sheet_jobs) == 1
+            assert generic_pages == {}
+
+    def test_scrape_with_firecrawl_fallback_no_generic_pages_found(self):
+        """Test when no generic pages exist from priority companies"""
+        scraper = RoboticsDeeptechScraper()
+
+        # All valid job URLs (no generic pages)
+        csv_data = """Job_Title,Company,Description,Department,Experience_Level,City,Country,Job_Url,Status
+Job1,Boston Dynamics,Desc,,,,,https://bostondynamics.wd1.myworkdayjobs.com/Boston_Dynamics/job/123,NEW
+Job2,Skydio,Desc,,,,,https://boards.greenhouse.io/skydio/jobs/456,NEW"""
+
+        mock_response = Mock()
+        mock_response.text = csv_data
+        mock_response.raise_for_status = Mock()
+
+        with patch(
+            "src.scrapers.robotics_deeptech_scraper.requests.get", return_value=mock_response
+        ):
+            sheet_jobs, generic_pages = scraper.scrape_with_firecrawl_fallback()
+
+            # Should get both jobs
+            assert len(sheet_jobs) == 2
+
+            # Should have no generic pages
+            assert generic_pages == {}
+
+
 class TestEdgeCases:
     """Test edge cases and boundary conditions"""
 

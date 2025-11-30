@@ -63,6 +63,9 @@ Thumbs.db
 # Generated files
 jobs.html
 
+# Firecrawl cache (keep .gitkeep but not cached markdown)
+data/firecrawl_cache/*.md
+
 # Temporary files (but not test files in tests/ directory)
 temp_*
 debug_*
