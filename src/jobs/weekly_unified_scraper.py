@@ -24,15 +24,18 @@ class WeeklyUnifiedScraper:
     3. Company monitoring (Wes's 26+ companies)
     """
 
-    def __init__(self):
+    def __init__(self, profile: str | None = None):
+        # Store profile for logging and sub-components
+        self.profile = profile
+
         # Email processor (handles all email parsers)
-        self.email_processor = JobProcessorV2()
+        self.email_processor = JobProcessorV2(profile=profile)
 
         # Robotics sheet scraper
-        self.robotics_checker = WeeklyRoboticsJobChecker()
+        self.robotics_checker = WeeklyRoboticsJobChecker(profile=profile)
 
         # Company monitoring scraper
-        self.company_scraper = CompanyScraper()
+        self.company_scraper = CompanyScraper(profile=profile)
 
     def run_all(
         self,
