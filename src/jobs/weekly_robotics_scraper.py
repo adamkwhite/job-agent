@@ -56,7 +56,7 @@ Firecrawl scraping has failed {failure_count} consecutive times for {company}.
 **URL**: {url}
 **Latest Error**: {error_msg}
 **Failure Count**: {failure_count}
-**Last Attempt**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+**Last Attempt**: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 
 ## Investigation Steps
 1. Verify URL is still valid and accessible
@@ -68,7 +68,7 @@ Firecrawl scraping has failed {failure_count} consecutive times for {company}.
 ## Related Files
 - `src/jobs/weekly_robotics_scraper.py:process_firecrawl_markdown()`
 - `config/robotics_priority_companies.json`
-- Markdown cache: `data/firecrawl_cache/{company.lower().replace(' ', '_')}_*.md`
+- Markdown cache: `data/firecrawl_cache/{company.lower().replace(" ", "_")}_*.md`
 
 ## Acceptance Criteria
 - [ ] Root cause identified
