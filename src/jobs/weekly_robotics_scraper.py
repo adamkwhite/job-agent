@@ -19,6 +19,7 @@ from job_filter import JobFilter
 from models import OpportunityData
 from notifier import JobNotifier
 from scrapers.robotics_deeptech_scraper import RoboticsDeeptechScraper
+from utils.multi_scorer import get_multi_scorer
 
 
 class WeeklyRoboticsJobChecker:
@@ -527,6 +528,17 @@ Related: #65 (Firecrawl generic career pages)
                     job_dict["fit_grade"],
                     job_dict["score_breakdown"],
                 )
+
+                # Also score for all profiles (multi-person support)
+                try:
+                    multi_scorer = get_multi_scorer()
+                    profile_scores = multi_scorer.score_job_for_all(job_dict, job_id)
+                    profile_summary = ", ".join(
+                        f"{pid}:{s}/{g}" for pid, (s, g) in profile_scores.items()
+                    )
+                    print(f"    ✓ Multi-profile scores: {profile_summary}")
+                except Exception as mp_error:
+                    print(f"    ⚠ Multi-profile scoring failed: {mp_error}")
 
                 print(f"\n  ✓ New Job: {job_dict['title']}")
                 print(f"    Company: {job_dict['company']}")
