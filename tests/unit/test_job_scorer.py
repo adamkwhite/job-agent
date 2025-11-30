@@ -97,6 +97,54 @@ class TestSeniorityScoring:
             score = scorer._score_seniority(title.lower())
             assert score == 0, f"Failed for: {title}"
 
+    def test_vp_with_punctuation_scores_30(self):
+        """Test VP titles with commas, dashes, and other punctuation score 30 points
+
+        This test specifically addresses the bug where "VP, Robotics Software"
+        was scoring 0 because the old code checked for "vp " (with trailing space)
+        which didn't match "vp," (with comma).
+        """
+        scorer = JobScorer()
+
+        titles = [
+            "VP, Robotics Software",  # Bug case: comma after VP
+            "VP - Engineering",  # Dash after VP
+            "VP: Product Management",  # Colon after VP
+            "VP. Operations",  # Period after VP (unusual but possible)
+        ]
+
+        for title in titles:
+            score = scorer._score_seniority(title.lower())
+            assert score == 30, f"Failed for: {title} (got {score})"
+
+    def test_false_positive_prevention(self):
+        """Test that word boundary checking prevents false positive matches
+
+        Without word boundaries:
+        - "supervisor" would match "vp" ❌
+        - "mischief" would match "chief" ❌
+        - "managerial" would match "manager" ❌
+
+        With word boundaries (correct):
+        - These should NOT match ✅
+        """
+        scorer = JobScorer()
+
+        # Supervisor should score 0 (not match "vp")
+        assert scorer._score_seniority("supervisor") == 0, "Supervisor incorrectly matched 'vp'"
+
+        # Mischief should score 0 (not match "chief")
+        assert (
+            scorer._score_seniority("mischief coordinator") == 0
+        ), "Mischief incorrectly matched 'chief'"
+
+        # Managerial should match "manager" and score 10
+        # Note: This is expected to match because "managerial" is a valid management-related term
+        score = scorer._score_seniority("managerial analyst")
+        # Actually "managerial" won't match "manager" with word boundaries, so should be 0
+        # This is correct behavior - we want exact word matches
+        assert score == 0, f"Managerial analyst got {score}, expected 0"
+
 
 class TestDomainScoring:
     """Test domain scoring (0-25 points)"""
@@ -377,6 +425,27 @@ class TestTechnicalKeywordsScoring:
         assert score > 0
         assert score <= 10
 
+    def test_ai_ml_keywords_use_word_boundaries(self):
+        """Test ai/ml keywords use word boundaries to avoid false matches
+
+        This test specifically addresses the bug where "ai" matched "email"
+        and "ml" matched "html" due to substring matching.
+        """
+        scorer = JobScorer()
+
+        # "ai" should NOT match these words
+        assert scorer._score_technical_keywords("email marketing", "detail oriented") == 0
+        assert scorer._score_technical_keywords("domain knowledge", "gmail support") == 0
+
+        # "ml" should NOT match these words
+        assert scorer._score_technical_keywords("html developer", "xml parsing") == 0
+
+        # But "ai" and "ml" should match when they're actual standalone words
+        assert scorer._score_technical_keywords("ai engineer", "") > 0
+        assert scorer._score_technical_keywords("ml specialist", "") > 0
+        # Note: "artificial intelligence" and "machine learning" don't contain "ai"/"ml" as standalone words
+        # They would need to be added as separate keywords if we want to match them
+
 
 class TestFullJobScoring:
     """Test complete job scoring"""
@@ -558,6 +627,52 @@ class TestJobScorerEdgeCases:
         # Manufacturing
         score = scorer._score_technical_keywords("manufacturing and production", "Factory Inc")
         assert score >= 0
+
+
+class TestIsLeadershipCheck:
+    """Test is_leadership check uses word boundaries"""
+
+    def test_is_leadership_prevents_false_positives(self):
+        """Test is_leadership check doesn't match substrings
+
+        This addresses the bug where "supervisor" matched "vp" and
+        "mischief coordinator" matched "chief" due to substring matching.
+        """
+        scorer = JobScorer()
+
+        # These should NOT score as leadership roles
+        non_leadership_titles = [
+            "Supervisor",  # Contains "vp" but not leadership
+            "Mischief Coordinator",  # Contains "chief" but not leadership
+            "Headway Engineer",  # Contains "head" but not leadership
+            "Executive Assistant",  # Contains "executive" but support role
+        ]
+
+        for title in non_leadership_titles:
+            score = scorer._score_role_type(title.lower())
+            # Should score 0 or very low (not leadership bonus)
+            assert score <= 5, f"{title} should not score as leadership, got {score}"
+
+    def test_is_leadership_matches_actual_leadership(self):
+        """Test is_leadership correctly identifies real leadership titles"""
+        scorer = JobScorer()
+
+        # These SHOULD score as leadership roles with category matches
+        leadership_titles_with_categories = [
+            ("VP of Engineering", 15),  # Engineering leadership
+            ("Director of Product", 15),  # Product leadership
+            ("Head of Operations", 12),  # Operations category
+        ]
+
+        for title, min_score in leadership_titles_with_categories:
+            score = scorer._score_role_type(title.lower())
+            # Should score high (leadership bonus)
+            assert score >= min_score, f"{title} should score >= {min_score}, got {score}"
+
+        # CTO and Executive Director are detected as leadership but have no category match
+        # This is expected behavior - seniority scoring will give them 30 points
+        assert scorer._score_role_type("chief technology officer") == 0
+        assert scorer._score_role_type("executive director") == 0
 
 
 class TestSevenCategoryRoleScoring:

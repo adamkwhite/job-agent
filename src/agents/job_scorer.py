@@ -3,9 +3,10 @@ Job Scoring Agent
 Evaluates job opportunities against candidate profile
 
 ⚠️ IMPORTANT: When updating scoring criteria in this file:
-1. Update the email template in src/send_digest_to_wes.py (lines 222-238)
-2. Update CLAUDE.md documentation if categories/ranges change
-3. Consider running src/rescore_all_jobs.py to re-evaluate historical data
+1. Update the email template in src/send_profile_digest.py (scoring explanation in email footer)
+2. Update profile JSON files (profiles/wes.json, profiles/adam.json) if scoring weights change
+3. Update CLAUDE.md documentation if categories/ranges change
+4. Consider running src/rescore_all_jobs.py to re-evaluate historical data
 """
 
 import json
@@ -122,25 +123,46 @@ class JobScorer:
 
         return total_score, grade, breakdown
 
+    def _has_keyword(self, text: str, keyword: str) -> bool:
+        """
+        Check if keyword exists in text at word boundaries.
+        Handles special cases like "VP," "VP-" "VP " etc.
+
+        Args:
+            text: Lowercase text to search in
+            keyword: Lowercase keyword to search for
+
+        Returns:
+            True if keyword found at word boundary
+        """
+        import re
+
+        # Use word boundary regex: \b ensures we match whole words
+        # This prevents "vp" from matching "supervisor" and "chief" from matching "mischief"
+        pattern = r"\b" + re.escape(keyword) + r"\b"
+        return bool(re.search(pattern, text))
+
+    def _has_any_keyword(self, text: str, keywords: list[str]) -> bool:
+        """Check if any keyword from list exists in text at word boundaries"""
+        return any(self._has_keyword(text, keyword) for keyword in keywords)
+
     def _score_seniority(self, title: str) -> int:
         """Score based on seniority level (0-30)"""
         # VP/C-level: 30 points
-        if any(
-            keyword in title
-            for keyword in ["vp ", "vice president", "chief", "cto", "cpo", "head of"]
-        ):
+        # Note: Using word boundaries to avoid false matches (e.g., "vp" in "supervisor")
+        if self._has_any_keyword(title, ["vp", "vice president", "chief", "cto", "cpo", "head of"]):
             return 30
 
         # Director/Executive: 25 points
-        if any(keyword in title for keyword in ["director", "executive director"]):
+        if self._has_any_keyword(title, ["director", "executive director"]):
             return 25
 
         # Senior Manager/Principal: 15 points
-        if any(keyword in title for keyword in ["senior manager", "principal", "staff"]):
+        if self._has_any_keyword(title, ["senior manager", "principal", "staff"]):
             return 15
 
         # Manager/Lead: 10 points
-        if any(keyword in title for keyword in ["manager", "lead", "leadership"]):
+        if self._has_any_keyword(title, ["manager", "lead", "leadership"]):
             return 10
 
         # IC roles: 0 points
@@ -199,7 +221,9 @@ class JobScorer:
         Bonus: +2 points per keyword match (must_keywords + nice_keywords)
         Penalty: -5 for pure software engineering leadership
         """
-        is_leadership = any(kw in title for kw in ["vp", "director", "head", "chief", "executive"])
+        is_leadership = any(
+            self._has_keyword(title, kw) for kw in ["vp", "director", "head", "chief", "executive"]
+        )
         title_lower = title.lower()
 
         base_score = 0
@@ -214,7 +238,10 @@ class JobScorer:
         # Category 1: Product Leadership (15-20 base)
         elif "product" in title_lower and is_leadership:
             # Higher score for product + hardware/technical
-            if any(kw in title_lower for kw in ["hardware", "technical", "iot", "platform"]):
+            if any(
+                self._has_keyword(title_lower, kw)
+                for kw in ["hardware", "technical", "iot", "platform"]
+            ):
                 base_score = 20
             elif "engineering" in title_lower:  # Product Engineering dual role
                 base_score = 18
@@ -226,10 +253,13 @@ class JobScorer:
         elif is_leadership and "engineering" in title_lower:
             # Check for pure software penalty
             if any(
-                kw in title_lower for kw in ["software", "backend", "frontend", "web", "mobile"]
+                self._has_keyword(title_lower, kw)
+                for kw in ["software", "backend", "frontend", "web", "mobile"]
             ):
                 base_score = -5  # Penalty for pure software
-            elif any(kw in title_lower for kw in ["hardware", "mechatronics", "systems"]):
+            elif any(
+                self._has_keyword(title_lower, kw) for kw in ["hardware", "mechatronics", "systems"]
+            ):
                 base_score = 20  # Hardware-focused engineering
                 matched_category = "engineering_leadership"
             else:
@@ -242,12 +272,17 @@ class JobScorer:
             matched_category = "engineering_leadership"
 
         # Category 3: Technical Program Management (12-18 base)
-        elif is_leadership and any(kw in title_lower for kw in ["program", "pmo", "delivery"]):
+        elif is_leadership and any(
+            self._has_keyword(title_lower, kw) for kw in ["program", "pmo", "delivery"]
+        ):
             base_score = 15
             matched_category = "technical_program_management"
 
         # Category 4: Manufacturing/NPI/Operations (12-18 base)
-        elif any(kw in title_lower for kw in ["manufacturing", "npi", "operations", "production"]):
+        elif any(
+            self._has_keyword(title_lower, kw)
+            for kw in ["manufacturing", "npi", "operations", "production"]
+        ):
             base_score = 18 if is_leadership else 12
             matched_category = "manufacturing_npi_operations"
 
@@ -257,13 +292,19 @@ class JobScorer:
             matched_category = "product_development_rnd"
 
         # Category 6: Platform/Integrations/Systems (15-18 base)
-        elif any(kw in title_lower for kw in ["platform", "integration", "systems"]):
+        elif any(
+            self._has_keyword(title_lower, kw) for kw in ["platform", "integration", "systems"]
+        ):
             base_score = 18 if is_leadership else 15
             matched_category = "platform_integrations_systems"
 
         # Category 7: Robotics/Automation Engineering (10-15 base)
-        elif any(kw in title_lower for kw in ["robotics", "automation", "mechatronics"]):
-            if is_leadership or any(kw in title_lower for kw in ["senior", "lead", "principal"]):
+        elif any(
+            self._has_keyword(title_lower, kw) for kw in ["robotics", "automation", "mechatronics"]
+        ):
+            if is_leadership or any(
+                self._has_keyword(title_lower, kw) for kw in ["senior", "lead", "principal"]
+            ):
                 base_score = 15
             else:
                 base_score = 10
@@ -356,7 +397,7 @@ class JobScorer:
         ]
 
         for keyword in tech_keywords:
-            if keyword in text:
+            if self._has_keyword(text, keyword):
                 score += 2
                 if score >= 10:
                     break
