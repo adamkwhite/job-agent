@@ -171,13 +171,40 @@ Related: #65 (Firecrawl generic career pages)
                             else f"https://{company.lower().replace(' ', '')}.com/careers"
                         )
 
+                        # Extract location from lines after heading
+                        location = ""
+                        lines_after = nearby_content.split("\n")
+                        if len(lines_after) > 1:
+                            # Look for location in next few lines
+                            for line in lines_after[1:4]:  # Check next 3 lines
+                                line = line.strip()
+                                if line and not line.startswith(("[", "#", "**", "http")):
+                                    # Check if it looks like a location (contains common location keywords)
+                                    location_keywords = [
+                                        "remote",
+                                        "hybrid",
+                                        "ca",
+                                        "ny",
+                                        "ma",
+                                        "area",
+                                        "city",
+                                        "on-site",
+                                        "onsite",
+                                    ]
+                                    if (
+                                        any(kw in line.lower() for kw in location_keywords)
+                                        or "," in line
+                                    ):
+                                        location = line
+                                        break
+
                         job = OpportunityData(
                             source="robotics_deeptech_sheet",
                             source_email="",
                             type="direct_job",
                             company=company,
                             title=heading.strip(),
-                            location="",
+                            location=location,
                             link=job_url,
                             description=f"Discovered via Firecrawl scraping of {company} career page",
                             job_type="",
@@ -210,13 +237,38 @@ Related: #65 (Firecrawl generic career pages)
                             else f"https://{company.lower().replace(' ', '')}.com/careers"
                         )
 
+                        # Extract location from lines after list item
+                        location = ""
+                        lines_after = nearby_content.split("\n")
+                        if len(lines_after) > 1:
+                            for line in lines_after[1:4]:
+                                line = line.strip()
+                                if line and not line.startswith(("[", "#", "**", "http", "*", "-")):
+                                    location_keywords = [
+                                        "remote",
+                                        "hybrid",
+                                        "ca",
+                                        "ny",
+                                        "ma",
+                                        "area",
+                                        "city",
+                                        "on-site",
+                                        "onsite",
+                                    ]
+                                    if (
+                                        any(kw in line.lower() for kw in location_keywords)
+                                        or "," in line
+                                    ):
+                                        location = line
+                                        break
+
                         job = OpportunityData(
                             source="robotics_deeptech_sheet",
                             source_email="",
                             type="direct_job",
                             company=company,
                             title=item.strip(),
-                            location="",
+                            location=location,
                             link=job_url,
                             description=f"Discovered via Firecrawl scraping of {company} career page",
                             job_type="",
@@ -224,6 +276,50 @@ Related: #65 (Firecrawl generic career pages)
                             research_notes=f"Scraped from generic career page on {datetime.now().strftime('%Y-%m-%d')}",
                         )
                         jobs.append(job)
+
+            # Pattern 4: Look for markdown links with job titles
+            # Match patterns like "[Director of Engineering](https://...)"
+            markdown_link_pattern = r"\[([^\]]+)\]\((https?://[^\)]+)\)"
+            markdown_links = re.findall(markdown_link_pattern, content)
+
+            for title, url in markdown_links:
+                if any(kw in title.lower() for kw in leadership_keywords):
+                    # Skip if we already have this title
+                    if any(job.title.lower() == title.lower() for job in jobs):
+                        continue
+
+                    # Extract location from the line after the markdown link
+                    # Pattern: [Title](URL)\nLocation
+                    location = ""
+                    link_pos = content.find(f"[{title}]({url})")
+                    if link_pos != -1:
+                        # Get next 200 chars after link
+                        after_link = content[link_pos + len(f"[{title}]({url})") : link_pos + 200]
+                        # Location is typically on the next line
+                        lines_after = after_link.split("\n")
+                        if len(lines_after) > 1:
+                            # Second element (index 1) is first line after the link
+                            potential_location = lines_after[1].strip()
+                            # Validate it looks like a location (not another markdown link or heading)
+                            if potential_location and not potential_location.startswith(
+                                ("[", "#", "**")
+                            ):
+                                location = potential_location
+
+                    job = OpportunityData(
+                        source="robotics_deeptech_sheet",
+                        source_email="",
+                        type="direct_job",
+                        company=company,
+                        title=title.strip(),
+                        location=location,
+                        link=url,
+                        description=f"Discovered via Firecrawl scraping of {company} career page",
+                        job_type="",
+                        needs_research=False,
+                        research_notes=f"Scraped from generic career page on {datetime.now().strftime('%Y-%m-%d')}",
+                    )
+                    jobs.append(job)
 
             print(f"  ✓ Extracted {len(jobs)} leadership jobs from {company} markdown")
             return jobs

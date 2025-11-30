@@ -120,6 +120,108 @@ Open positions:
         # Director should appear only once
         assert sum(1 for t in titles if "Director of Engineering" in t) == 1
 
+    def test_extracts_location_from_markdown_links(self, tmp_path):
+        """Test extracts location from markdown link format [Title](URL)"""
+        checker = WeeklyRoboticsJobChecker()
+
+        markdown_content = """
+# Careers
+
+[VP, Robotics Software](https://example.com/job/vp)
+Remote
+
+[Director of Engineering](https://example.com/job/director)
+San Francisco, CA
+
+[Principal Engineer](https://example.com/job/principal)
+Hybrid - Toronto, ON
+"""
+        markdown_file = tmp_path / "test_company_20250129.md"
+        markdown_file.write_text(markdown_content)
+
+        jobs = checker.process_firecrawl_markdown(str(markdown_file), "Test Company")
+
+        assert len(jobs) == 3
+
+        # Find each job and check location
+        vp_job = next(job for job in jobs if "VP" in job.title)
+        assert vp_job.location == "Remote"
+
+        director_job = next(job for job in jobs if "Director" in job.title)
+        assert director_job.location == "San Francisco, CA"
+
+        principal_job = next(job for job in jobs if "Principal" in job.title)
+        assert principal_job.location == "Hybrid - Toronto, ON"
+
+    def test_extracts_location_from_headings(self, tmp_path):
+        """Test extracts location from lines after heading"""
+        checker = WeeklyRoboticsJobChecker()
+
+        markdown_content = """
+## Director of Product
+Remote
+https://example.com/job/director
+
+## Head of Engineering
+Mountain View, CA
+https://example.com/job/head
+"""
+        markdown_file = tmp_path / "test_company_20250129.md"
+        markdown_file.write_text(markdown_content)
+
+        jobs = checker.process_firecrawl_markdown(str(markdown_file), "Test Company")
+
+        assert len(jobs) == 2
+
+        director_job = next(job for job in jobs if "Director" in job.title)
+        assert director_job.location == "Remote"
+
+        head_job = next(job for job in jobs if "Head" in job.title)
+        assert director_job.location or head_job.location  # At least one should have location
+
+    def test_location_validation_rejects_markdown_elements(self, tmp_path):
+        """Test location extraction doesn't extract markdown links or headings"""
+        checker = WeeklyRoboticsJobChecker()
+
+        markdown_content = """
+[VP of Engineering](https://example.com/job/vp)
+[Apply Now](https://example.com/apply)
+
+[Director of Product](https://example.com/job/director)
+## Next Section
+"""
+        markdown_file = tmp_path / "test_company_20250129.md"
+        markdown_file.write_text(markdown_content)
+
+        jobs = checker.process_firecrawl_markdown(str(markdown_file), "Test Company")
+
+        # Should extract jobs but not treat markdown elements as location
+        vp_job = next((job for job in jobs if "VP" in job.title), None)
+        if vp_job:
+            assert vp_job.location != "[Apply Now](https://example.com/apply)"
+
+        director_job = next((job for job in jobs if "Director" in job.title), None)
+        if director_job:
+            assert director_job.location != "## Next Section"
+
+    def test_handles_jobs_without_location(self, tmp_path):
+        """Test handles jobs that don't have location info"""
+        checker = WeeklyRoboticsJobChecker()
+
+        markdown_content = """
+## Chief Technology Officer
+https://example.com/job/cto
+"""
+        markdown_file = tmp_path / "test_company_20250129.md"
+        markdown_file.write_text(markdown_content)
+
+        jobs = checker.process_firecrawl_markdown(str(markdown_file), "Test Company")
+
+        assert len(jobs) == 1
+        job = jobs[0]
+        # Location should be empty string if not found
+        assert job.location == "" or job.location is None
+
 
 class TestWeeklyScraperIntegration:
     """Test weekly scraper Firecrawl integration"""

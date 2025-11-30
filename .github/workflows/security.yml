@@ -11,8 +11,8 @@ on:
   workflow_dispatch:  # Allow manual triggers
 
 jobs:
-  sonarcloud:
-    name: SonarCloud Analysis
+  sonarcloud-submission:
+    name: Run Tests & Submit to SonarCloud
     runs-on: ubuntu-latest
     permissions:
       contents: read
