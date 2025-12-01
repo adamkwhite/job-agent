@@ -53,7 +53,7 @@ def select_profile() -> str | None:
 
     console.print(table)
     console.print(
-        "\n[dim]Note: Scraper currently uses Wes's email inbox. Profile selection affects digest delivery.[/dim]"
+        "\n[dim]Note: Profile selection determines which email inbox to check and where digests are sent.[/dim]"
     )
 
     choice = Prompt.ask("\n[bold]Select profile[/bold]", choices=["1", "2", "q"], default="1")
@@ -266,7 +266,35 @@ def select_action() -> str | None:
     return choice_map.get(choice, "both")
 
 
-def confirm_execution(profile: str, sources: list[str], action: str) -> bool:
+def select_digest_options() -> dict:
+    """Select digest options (dry-run, force-resend)"""
+    console.print("\n[bold yellow]Step 4:[/bold yellow] Digest Options\n")
+
+    table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+    table.add_column("Option", style="cyan", width=8)
+    table.add_column("Mode", style="green", width=20)
+    table.add_column("Sends Email?", style="white", width=14)
+    table.add_column("Marks Sent?", style="white", width=14)
+    table.add_column("Use Case", style="yellow")
+
+    table.add_row("1", "Production", "✅ Yes", "✅ Yes", "Real digest (default)")
+    table.add_row("2", "Dry Run", "❌ No", "❌ No", "Testing/preview")
+    table.add_row("3", "Force Resend", "✅ Yes", "❌ No", "Re-send previous jobs")
+
+    console.print(table)
+    console.print("\n[dim]Note: Use 'Dry Run' during testing to avoid marking jobs as sent.[/dim]")
+
+    choice = Prompt.ask("\n[bold]Select digest mode[/bold]", choices=["1", "2", "3"], default="2")
+
+    return {
+        "dry_run": choice == "2",
+        "force_resend": choice == "3",
+    }
+
+
+def confirm_execution(
+    profile: str, sources: list[str], action: str, digest_options: dict | None = None
+) -> bool:
     """Show summary and confirm execution"""
     console.print("\n[bold yellow]Summary:[/bold yellow]\n")
 
@@ -281,10 +309,25 @@ def confirm_execution(profile: str, sources: list[str], action: str) -> bool:
     }
     action_text = action_display.get(action, action.title())
 
-    summary = Panel(
+    # Build summary text
+    summary_text = (
         f"[bold]Profile:[/bold] {profile_name} ({profile_email})\n"
         f"[bold]Sources:[/bold] {', '.join(sources).title()}\n"
-        f"[bold]Action:[/bold] {action_text}",
+        f"[bold]Action:[/bold] {action_text}"
+    )
+
+    # Add digest mode if applicable
+    if digest_options and action in ["digest", "both"]:
+        if digest_options.get("dry_run"):
+            digest_mode = "Dry Run (testing)"
+        elif digest_options.get("force_resend"):
+            digest_mode = "Force Resend (re-send previous jobs)"
+        else:
+            digest_mode = "Production (real digest)"
+        summary_text += f"\n[bold]Digest Mode:[/bold] {digest_mode}"
+
+    summary = Panel(
+        summary_text,
         title="[bold cyan]Execution Plan[/bold cyan]",
         border_style="cyan",
     )
@@ -324,12 +367,18 @@ def run_scraper(profile: str, sources: list[str]) -> int:
     return result.returncode
 
 
-def send_digest(profile: str) -> int:
+def send_digest(profile: str, dry_run: bool = False, force_resend: bool = False) -> int:
     """Send email digest"""
-    console.print("\n[bold green]Sending Email Digest...[/bold green]\n")
+    mode = "DRY RUN" if dry_run else "FORCE RESEND" if force_resend else "PRODUCTION"
+    console.print(f"\n[bold green]Sending Email Digest ({mode})...[/bold green]\n")
 
     # Build command
     cmd = ["job-agent-venv/bin/python", "src/send_profile_digest.py", "--profile", profile]
+
+    if dry_run:
+        cmd.append("--dry-run")
+    if force_resend:
+        cmd.append("--force-resend")
 
     console.print(f"[dim]Command: {' '.join(cmd)}[/dim]\n")
 
@@ -370,8 +419,13 @@ def main():
                 show_criteria()
                 continue
 
-            # Step 4: Confirm and execute
-            if not confirm_execution(profile, sources, action):
+            # Step 4: Select digest options (if sending digest)
+            digest_options = {}
+            if action in ["digest", "both"]:
+                digest_options = select_digest_options()
+
+            # Step 5: Confirm and execute
+            if not confirm_execution(profile, sources, action, digest_options):
                 console.print("\n[yellow]Cancelled. Returning to menu...[/yellow]\n")
                 input("Press Enter to continue...")
                 continue
@@ -388,7 +442,11 @@ def main():
                     console.print("\n[green]✓ Scraper completed successfully![/green]")
 
             if action in ["digest", "both"] and success:
-                returncode = send_digest(profile)
+                returncode = send_digest(
+                    profile,
+                    dry_run=digest_options.get("dry_run", False),
+                    force_resend=digest_options.get("force_resend", False),
+                )
                 if returncode != 0:
                     console.print("\n[red]✗ Digest send failed![/red]")
                     success = False

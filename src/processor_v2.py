@@ -45,7 +45,7 @@ class JobProcessorV2:
         self.database = JobDatabase(profile=profile)
         self.notifier = JobNotifier()
         self.scorer = JobScorer()
-        self.imap_client = IMAPEmailClient()
+        self.imap_client = IMAPEmailClient(profile=profile)
 
         # Register parsers
         self._register_parsers()
