@@ -16,13 +16,35 @@ from dotenv import load_dotenv
 class IMAPEmailClient:
     """Client for connecting to IMAP server and fetching emails"""
 
-    def __init__(self):
+    def __init__(self, profile: str | None = None):
         load_dotenv()
 
         self.imap_server = "imap.gmail.com"
         self.imap_port = 993
-        self.username = os.getenv("GMAIL_USERNAME")
-        self.password = os.getenv("GMAIL_APP_PASSWORD")
+
+        # Try to get profile-specific credentials first
+        if profile:
+            from utils.profile_manager import get_profile_manager
+
+            manager = get_profile_manager()
+            profile_obj = manager.get_profile(profile)
+
+            if profile_obj and profile_obj.email_username:
+                self.username = profile_obj.email_username
+                # Use profile-specific app password if set, otherwise fall back to .env
+                self.password = profile_obj.email_app_password or os.getenv("GMAIL_APP_PASSWORD")
+                print(f"Using profile-specific email: {self.username}")
+            else:
+                # Fall back to .env credentials
+                self.username = os.getenv("GMAIL_USERNAME")
+                self.password = os.getenv("GMAIL_APP_PASSWORD")
+                print(
+                    f"Profile '{profile}' not found or no email configured, using .env credentials"
+                )
+        else:
+            # No profile specified, use .env credentials
+            self.username = os.getenv("GMAIL_USERNAME")
+            self.password = os.getenv("GMAIL_APP_PASSWORD")
 
         if not self.username or not self.password:
             raise ValueError(
@@ -33,6 +55,9 @@ class IMAPEmailClient:
         """Connect to IMAP server"""
         print(f"Connecting to {self.imap_server}...")
         mail = imaplib.IMAP4_SSL(self.imap_server, self.imap_port)
+        # Type assertion: username and password are guaranteed to be str by __init__ validation
+        assert isinstance(self.username, str)
+        assert isinstance(self.password, str)
         mail.login(self.username, self.password)
         return mail
 

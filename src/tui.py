@@ -53,7 +53,7 @@ def select_profile() -> str | None:
 
     console.print(table)
     console.print(
-        "\n[dim]Note: Scraper currently uses Wes's email inbox. Profile selection affects digest delivery.[/dim]"
+        "\n[dim]Note: Profile selection determines which email inbox to check and where digests are sent.[/dim]"
     )
 
     choice = Prompt.ask("\n[bold]Select profile[/bold]", choices=["1", "2", "q"], default="1")
