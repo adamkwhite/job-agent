@@ -38,7 +38,7 @@
   },
   "notifications": {
     "enabled": true,
-    "min_grade": "F",
-    "min_score": 0
+    "min_grade": "B",
+    "min_score": 80
   }
 }
