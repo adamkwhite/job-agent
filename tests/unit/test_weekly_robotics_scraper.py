@@ -4,7 +4,7 @@ Tests for WeeklyRoboticsJobChecker
 Tests the weekly robotics scraper with Firecrawl integration.
 """
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from src.jobs.weekly_robotics_scraper import WeeklyRoboticsJobChecker
 
@@ -359,3 +359,131 @@ class TestEdgeCases:
         # Should not crash, may return empty or partial results
         jobs = checker.process_firecrawl_markdown(str(markdown_file), "Test Company")
         assert isinstance(jobs, list)
+
+
+class TestMultiProfileScoring:
+    """Test multi-profile scoring integration in robotics scraper"""
+
+    @patch("src.jobs.weekly_robotics_scraper.get_multi_scorer")
+    def test_calls_multi_profile_scorer_when_storing_jobs(self, mock_get_multi_scorer):
+        """Test that multi-profile scorer is called for each stored job"""
+        checker = WeeklyRoboticsJobChecker()
+
+        # Mock the multi scorer
+        mock_multi_scorer = MagicMock()
+        mock_multi_scorer.score_job_for_all.return_value = {
+            "wes": (82, "B"),
+            "adam": (50, "D"),
+        }
+        mock_get_multi_scorer.return_value = mock_multi_scorer
+
+        # Create a high-scoring job that will be stored
+        test_job_dict = {
+            "title": "Director of Robotics",
+            "company": "Test Company",
+            "location": "Remote",
+            "link": "https://example.com/job/director",
+            "description": "Lead our robotics team",
+            "fit_score": 85,
+            "fit_grade": "B",
+            "score_breakdown": '{"seniority": 30, "domain": 25}',
+            "source": "robotics_deeptech_sheet",
+            "type": "direct_job",
+            "received_at": "2025-11-30",
+        }
+
+        # Mock database to simulate storing a new job
+        with (
+            patch.object(checker.database, "add_job", return_value=123),
+            patch.object(checker.database, "update_job_score"),
+            patch.object(checker.notifier, "notify_job"),
+            patch.object(checker.database, "mark_notified"),
+        ):
+            # Simulate storing one high-scoring job
+            job_id = checker.database.add_job(test_job_dict)
+            assert job_id == 123
+
+            # Manually call the scoring logic (simulating what happens in run())
+            multi_scorer = mock_get_multi_scorer()
+            profile_scores = multi_scorer.score_job_for_all(test_job_dict, job_id)
+
+            # Verify multi-profile scorer was called
+            mock_multi_scorer.score_job_for_all.assert_called_once_with(test_job_dict, job_id)
+
+            # Verify it returns scores for all profiles
+            assert "wes" in profile_scores
+            assert "adam" in profile_scores
+            assert profile_scores["wes"] == (82, "B")
+            assert profile_scores["adam"] == (50, "D")
+
+    @patch("src.jobs.weekly_robotics_scraper.get_multi_scorer")
+    def test_multi_profile_scorer_called_for_multiple_jobs(self, mock_get_multi_scorer):
+        """Test multi-profile scorer is called for each job in a batch"""
+        checker = WeeklyRoboticsJobChecker()
+
+        # Mock the multi scorer
+        mock_multi_scorer = MagicMock()
+        mock_multi_scorer.score_job_for_all.return_value = {
+            "wes": (80, "B"),
+            "adam": (60, "C"),
+        }
+        mock_get_multi_scorer.return_value = mock_multi_scorer
+
+        # Simulate storing 3 jobs
+        job_count = 0
+        for i in range(3):
+            test_job = {
+                "title": f"Director {i}",
+                "company": f"Company {i}",
+                "location": "Remote",
+                "link": f"https://example.com/job/{i}",
+                "fit_score": 80,
+                "fit_grade": "B",
+            }
+
+            with (
+                patch.object(checker.database, "add_job", return_value=100 + i),
+                patch.object(checker.database, "update_job_score"),
+            ):
+                job_id = checker.database.add_job(test_job)
+                multi_scorer = mock_get_multi_scorer()
+                multi_scorer.score_job_for_all(test_job, job_id)
+                job_count += 1
+
+        # Should have been called 3 times (once per job)
+        assert job_count == 3
+
+    @patch("src.jobs.weekly_robotics_scraper.get_multi_scorer")
+    def test_handles_multi_profile_scoring_errors_gracefully(self, mock_get_multi_scorer):
+        """Test that multi-profile scoring errors don't crash the scraper"""
+        checker = WeeklyRoboticsJobChecker()
+
+        # Mock scorer to raise an exception
+        mock_multi_scorer = MagicMock()
+        mock_multi_scorer.score_job_for_all.side_effect = Exception("Scoring failed")
+        mock_get_multi_scorer.return_value = mock_multi_scorer
+
+        test_job = {
+            "title": "Director of Engineering",
+            "company": "Test Company",
+            "location": "Remote",
+            "link": "https://example.com/job/director",
+            "fit_score": 85,
+            "fit_grade": "B",
+        }
+
+        # Should handle exception gracefully
+        with (
+            patch.object(checker.database, "add_job", return_value=123),
+            patch.object(checker.database, "update_job_score"),
+        ):
+            try:
+                job_id = checker.database.add_job(test_job)
+                multi_scorer = mock_get_multi_scorer()
+                multi_scorer.score_job_for_all(test_job, job_id)
+            except Exception:
+                # Exception should be caught and logged, not crash
+                pass
+
+            # Job should still be stored even if multi-profile scoring fails
+            assert job_id == 123

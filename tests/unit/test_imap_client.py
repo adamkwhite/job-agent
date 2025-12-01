@@ -8,6 +8,127 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from imap_client import IMAPEmailClient
+from utils.profile_manager import Profile
+
+
+class TestIMAPEmailClientProfileInit:
+    """Test IMAPEmailClient initialization with profile-specific credentials"""
+
+    @patch("utils.profile_manager.get_profile_manager")
+    @patch("imap_client.os.getenv")
+    def test_init_with_wes_profile(self, mock_getenv, mock_get_manager):
+        """Test initialization with Wes profile uses profile-specific email"""
+        mock_getenv.return_value = "fallback_password"
+
+        # Mock profile manager
+        mock_profile = MagicMock(spec=Profile)
+        mock_profile.email_username = "Wes.jobalerts@gmail.com"
+        mock_profile.email_app_password = None  # Will fall back to .env
+
+        mock_manager = MagicMock()
+        mock_manager.get_profile.return_value = mock_profile
+        mock_get_manager.return_value = mock_manager
+
+        client = IMAPEmailClient(profile="wes")
+
+        assert client.username == "Wes.jobalerts@gmail.com"
+        assert client.password == "fallback_password"
+        mock_manager.get_profile.assert_called_once_with("wes")
+
+    @patch("utils.profile_manager.get_profile_manager")
+    @patch("imap_client.os.getenv")
+    def test_init_with_adam_profile(self, mock_getenv, mock_get_manager):
+        """Test initialization with Adam profile uses profile-specific email"""
+        mock_getenv.return_value = "fallback_password"
+
+        # Mock profile manager
+        mock_profile = MagicMock(spec=Profile)
+        mock_profile.email_username = "adamwhite.jobalerts@gmail.com"
+        mock_profile.email_app_password = None
+
+        mock_manager = MagicMock()
+        mock_manager.get_profile.return_value = mock_profile
+        mock_get_manager.return_value = mock_manager
+
+        client = IMAPEmailClient(profile="adam")
+
+        assert client.username == "adamwhite.jobalerts@gmail.com"
+        assert client.password == "fallback_password"
+        mock_manager.get_profile.assert_called_once_with("adam")
+
+    @patch("utils.profile_manager.get_profile_manager")
+    @patch("imap_client.os.getenv")
+    def test_init_with_profile_specific_password(self, mock_getenv, mock_get_manager):
+        """Test that profile-specific password is used when available"""
+        mock_getenv.return_value = "env_password"
+
+        # Mock profile with its own password
+        mock_profile = MagicMock(spec=Profile)
+        mock_profile.email_username = "Wes.jobalerts@gmail.com"
+        mock_profile.email_app_password = "profile_specific_password"
+
+        mock_manager = MagicMock()
+        mock_manager.get_profile.return_value = mock_profile
+        mock_get_manager.return_value = mock_manager
+
+        client = IMAPEmailClient(profile="wes")
+
+        assert client.username == "Wes.jobalerts@gmail.com"
+        assert client.password == "profile_specific_password"
+
+    @patch("utils.profile_manager.get_profile_manager")
+    @patch("imap_client.os.getenv")
+    def test_init_with_nonexistent_profile_falls_back_to_env(self, mock_getenv, mock_get_manager):
+        """Test that nonexistent profile falls back to .env credentials"""
+        mock_getenv.side_effect = lambda key: {
+            "GMAIL_USERNAME": "default@example.com",
+            "GMAIL_APP_PASSWORD": "default_password",
+        }.get(key)
+
+        # Mock profile manager returns None for nonexistent profile
+        mock_manager = MagicMock()
+        mock_manager.get_profile.return_value = None
+        mock_get_manager.return_value = mock_manager
+
+        client = IMAPEmailClient(profile="nonexistent")
+
+        assert client.username == "default@example.com"
+        assert client.password == "default_password"
+
+    @patch("utils.profile_manager.get_profile_manager")
+    @patch("imap_client.os.getenv")
+    def test_init_with_profile_no_email_username_falls_back(self, mock_getenv, mock_get_manager):
+        """Test that profile without email_username falls back to .env"""
+        mock_getenv.side_effect = lambda key: {
+            "GMAIL_USERNAME": "default@example.com",
+            "GMAIL_APP_PASSWORD": "default_password",
+        }.get(key)
+
+        # Mock profile without email_username
+        mock_profile = MagicMock(spec=Profile)
+        mock_profile.email_username = None
+
+        mock_manager = MagicMock()
+        mock_manager.get_profile.return_value = mock_profile
+        mock_get_manager.return_value = mock_manager
+
+        client = IMAPEmailClient(profile="wes")
+
+        assert client.username == "default@example.com"
+        assert client.password == "default_password"
+
+    @patch("imap_client.os.getenv")
+    def test_init_without_profile_uses_env(self, mock_getenv):
+        """Test that initialization without profile uses .env credentials"""
+        mock_getenv.side_effect = lambda key: {
+            "GMAIL_USERNAME": "env@example.com",
+            "GMAIL_APP_PASSWORD": "env_password",
+        }.get(key)
+
+        client = IMAPEmailClient(profile=None)
+
+        assert client.username == "env@example.com"
+        assert client.password == "env_password"
 
 
 class TestIMAPEmailClientInit:
