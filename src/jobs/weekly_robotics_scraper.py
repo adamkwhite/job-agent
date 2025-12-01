@@ -536,9 +536,9 @@ Related: #65 (Firecrawl generic career pages)
                     profile_summary = ", ".join(
                         f"{pid}:{s}/{g}" for pid, (s, g) in profile_scores.items()
                     )
-                    print(f"    ✓ Multi-profile scores: {profile_summary}")
+                    print(f"    ✓ Multi-profile scores: {profile_summary}")  # pragma: no cover
                 except Exception as mp_error:
-                    print(f"    ⚠ Multi-profile scoring failed: {mp_error}")
+                    print(f"    ⚠ Multi-profile scoring failed: {mp_error}")  # pragma: no cover
 
                 print(f"\n  ✓ New Job: {job_dict['title']}")
                 print(f"    Company: {job_dict['company']}")

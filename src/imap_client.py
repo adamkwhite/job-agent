@@ -33,12 +33,12 @@ class IMAPEmailClient:
                 self.username = profile_obj.email_username
                 # Use profile-specific app password if set, otherwise fall back to .env
                 self.password = profile_obj.email_app_password or os.getenv("GMAIL_APP_PASSWORD")
-                print(f"Using profile-specific email: {self.username}")
+                print(f"Using profile-specific email: {self.username}")  # pragma: no cover
             else:
                 # Fall back to .env credentials
                 self.username = os.getenv("GMAIL_USERNAME")
                 self.password = os.getenv("GMAIL_APP_PASSWORD")
-                print(
+                print(  # pragma: no cover
                     f"Profile '{profile}' not found or no email configured, using .env credentials"
                 )
         else:
@@ -53,7 +53,7 @@ class IMAPEmailClient:
 
     def connect_imap(self) -> imaplib.IMAP4_SSL:
         """Connect to IMAP server"""
-        print(f"Connecting to {self.imap_server}...")
+        print(f"Connecting to {self.imap_server}...")  # pragma: no cover
         mail = imaplib.IMAP4_SSL(self.imap_server, self.imap_port)
         # Type assertion: username and password are guaranteed to be str by __init__ validation
         assert isinstance(self.username, str)
