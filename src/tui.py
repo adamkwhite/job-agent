@@ -10,7 +10,6 @@ import sys
 from pathlib import Path
 
 from rich import box
-from rich.columns import Columns
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
@@ -165,9 +164,9 @@ def select_sources(profile: str) -> list[str]:
         width=38,
     )
 
-    # Display in 2 columns side by side
-    # Don't expand so panels only take space they need
-    console.print(Columns([sources_panel, criteria_panel], padding=(0, 1)))
+    # Display panels stacked vertically
+    console.print(sources_panel)
+    console.print(criteria_panel)
 
     console.print("\n[dim]Enter comma-separated options (e.g., 'email,robotics' or 'all')[/dim]")
     choice = Prompt.ask("\n[bold]Select sources[/bold]", default="all").lower().strip()
