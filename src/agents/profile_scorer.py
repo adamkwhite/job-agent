@@ -89,8 +89,8 @@ class ProfileScorer:
         # VP/C-level keywords
         vp_keywords = ["vp ", "vice president", "chief", "cto", "cpo", "head of"]
         director_keywords = ["director", "executive director"]
-        senior_keywords = ["senior manager", "principal", "staff"]
-        mid_keywords = ["manager", "lead", "leadership", "senior"]
+        senior_keywords = ["senior manager", "principal", "staff", "senior"]
+        mid_keywords = ["manager", "lead", "leadership"]
 
         # Check for VP/C-level matches (30 points)
         if any(kw in title for kw in vp_keywords) and any(
