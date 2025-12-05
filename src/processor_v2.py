@@ -7,6 +7,7 @@ import email
 import json
 import sys
 from datetime import datetime
+from email.header import decode_header
 from pathlib import Path
 from typing import cast
 
@@ -30,6 +31,35 @@ from parsers.supra_parser import SupraParser
 from parsers.workintech_wrapper import WorkInTechParser
 from utils.multi_scorer import get_multi_scorer
 from utils.profile_manager import get_profile_manager
+
+
+def decode_email_subject(subject: str) -> str:
+    """
+    Decode MIME encoded email subject to readable text.
+
+    Handles RFC 2047 encoded-word syntax for non-ASCII characters:
+    - =?UTF-8?B?...?= (Base64 encoding)
+    - =?UTF-8?Q?...?= (Quoted-printable encoding)
+
+    Args:
+        subject: Raw email subject (may contain encoded words)
+
+    Returns:
+        Decoded, human-readable subject line
+
+    Example:
+        >>> decode_email_subject("=?UTF-8?B?VGVjaOKAmXM=?=")
+        "Tech's"
+    """
+    try:
+        decoded_parts = decode_header(subject)
+        return "".join(
+            part.decode(encoding or "utf-8") if isinstance(part, bytes) else part
+            for part, encoding in decoded_parts
+        )
+    except Exception:
+        # If decoding fails, return original
+        return subject
 
 
 class JobProcessorV2:
@@ -107,8 +137,9 @@ class JobProcessorV2:
         """Process a single email through parse -> enrich -> filter -> store pipeline"""
         try:
             subject = email_message.get("Subject", "No Subject")
+            decoded_subject = decode_email_subject(subject)
             print(f"\n{'=' * 70}")
-            print(f"Email: {subject}")
+            print(f"Email: {decoded_subject}")
             print(f"{'=' * 70}")
 
             # Step 1: Parse email
