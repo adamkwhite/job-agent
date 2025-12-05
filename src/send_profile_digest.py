@@ -59,6 +59,54 @@ def _generate_job_table_rows(jobs: list[dict]) -> str:
     return rows
 
 
+def _format_seniority_list(profile: Profile, max_items: int = 7) -> str:
+    """Format seniority list: 'VP, Director, Head of...'"""
+    items = profile.get_target_seniority()[:max_items]
+    formatted = [item.title() for item in items]
+    result = ", ".join(formatted)
+    if len(profile.get_target_seniority()) > max_items:
+        result += "..."
+    return result
+
+
+def _format_domain_list(profile: Profile, max_items: int = 10) -> str:
+    """Format domain keywords: 'Robotics, Automation, IoT...'"""
+    items = profile.get_domain_keywords()[:max_items]
+    formatted = [item.title() for item in items]
+    result = ", ".join(formatted)
+    if len(profile.get_domain_keywords()) > max_items:
+        result += "..."
+    return result
+
+
+def _format_role_types(profile: Profile) -> str:
+    """Format role types: 'Engineering leadership > Product leadership'"""
+    role_types = profile.scoring.get("role_types", {})
+    type_names = [name.replace("_", " ").title() for name in role_types]
+    return " > ".join(type_names) if type_names else "Not specified"
+
+
+def _format_location_prefs(profile: Profile) -> str:
+    """Format location: 'Remote (Toronto, Ontario), Hybrid'"""
+    loc = profile.scoring.get("location_preferences", {})
+    parts = []
+
+    cities = loc.get("preferred_cities", [])[:3]
+    regions = loc.get("preferred_regions", [])[:2]
+
+    if loc.get("remote_keywords"):
+        location_str = ", ".join([c.title() for c in cities + regions])
+        if location_str:
+            parts.append(f"Remote ({location_str})")
+        else:
+            parts.append("Remote")
+
+    if loc.get("hybrid_keywords"):
+        parts.append("Hybrid")
+
+    return ", ".join(parts) if parts else "Not specified"
+
+
 def generate_email_html(jobs: list[dict], profile: Profile) -> str:
     """Generate HTML email with top jobs for a specific profile"""
 
@@ -232,12 +280,12 @@ def generate_email_html(jobs: list[dict], profile: Profile) -> str:
 
     html += f"""
         <div class="footer">
-            <p><strong>How scoring works:</strong></p>
+            <p><strong>How scoring works for {profile.name}:</strong></p>
             <ul>
-                <li><strong>Seniority (0-30):</strong> Matches your target seniority levels</li>
-                <li><strong>Domain (0-25):</strong> Matches your domain keywords</li>
-                <li><strong>Role Type (0-20):</strong> Matches your preferred role types</li>
-                <li><strong>Location (0-15):</strong> Remote (15), Preferred cities (12), Preferred regions (8)</li>
+                <li><strong>Seniority (0-30):</strong> {_format_seniority_list(profile)}</li>
+                <li><strong>Domain (0-25):</strong> {_format_domain_list(profile)}</li>
+                <li><strong>Role Type (0-20):</strong> {_format_role_types(profile)}</li>
+                <li><strong>Location (0-15):</strong> {_format_location_prefs(profile)}</li>
                 <li><strong>Technical (0-10):</strong> Technical keyword matches</li>
             </ul>
 
