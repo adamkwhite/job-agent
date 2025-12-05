@@ -127,7 +127,7 @@ def select_sources(profile: str) -> list[str]:
     if profile_obj:
         seniority_display = "/".join(profile_obj.get_target_seniority()[:3])
         domain_display = "/".join(profile_obj.get_domain_keywords()[:3])
-        location_prefs = profile_obj.config.get("scoring", {}).get("location_preferences", {})
+        location_prefs = profile_obj.scoring.get("location_preferences", {})
         location_display = "Remote" if location_prefs.get("remote_keywords") else "N/A"
         if location_prefs.get("preferred_cities"):
             location_display += f"/{location_prefs['preferred_cities'][0].title()}"
