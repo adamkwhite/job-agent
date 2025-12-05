@@ -90,8 +90,18 @@ class RoboticsDeeptechScraper:
         if ("greenhouse.io" in url_lower or "grnh.se" in url_lower) and "/jobs/" not in url_lower:
             return True
 
-        # Lever ATS - must have /jobs/ in path
-        return "lever.co" in url_lower and "/jobs/" not in url_lower
+        # Lever ATS - URL should have UUID after company name
+        # Generic: jobs.lever.co/company
+        # Specific: jobs.lever.co/company/uuid
+        if "lever.co/" in url_lower:
+            path_after = url_lower.split("lever.co/")[1]
+            # Count path segments (company/uuid should have 2+)
+            segments = [s for s in path_after.split("/") if s and s != "#" and "?" not in s]
+            # Generic if only company name (1 segment) or ends with /jobs
+            if len(segments) <= 1 or path_after.rstrip("/").endswith("/jobs"):
+                return True
+
+        return False
 
     def scrape(self) -> list[OpportunityData]:
         """Scrape jobs from Google Sheets"""

@@ -869,20 +869,29 @@ class TestGenericCareerPageDetection:
             is False
         )
 
-    def test_rejects_lever_without_jobs_path(self):
-        """Should reject Lever URLs without /jobs/ in path"""
+    def test_rejects_lever_without_job_id(self):
+        """Should reject Lever URLs without job UUID (generic career page)"""
         scraper = RoboticsDeeptechScraper()
 
-        # Generic Lever career page
+        # Generic Lever career pages (company only, no UUID)
         assert scraper.is_generic_career_page("https://jobs.lever.co/company") is True
+        assert scraper.is_generic_career_page("https://jobs.lever.co/company/") is True
 
-    def test_accepts_lever_with_jobs_path(self):
-        """Should accept Lever URLs with /jobs/ in path"""
+    def test_accepts_lever_with_job_id(self):
+        """Should accept Lever URLs with job UUID (specific job posting)"""
         scraper = RoboticsDeeptechScraper()
 
-        # Valid Lever job posting
+        # Valid Lever job postings with UUIDs
         assert (
-            scraper.is_generic_career_page("https://jobs.lever.co/company/jobs/abc-123-def")
+            scraper.is_generic_career_page(
+                "https://jobs.lever.co/NimbleAI/32fed95d-6209-4215-a120-a6ebcb396467"
+            )
+            is False
+        )
+        assert (
+            scraper.is_generic_career_page(
+                "https://jobs.lever.co/dexterity/c09a7805-2a30-4f94-aaf4-4547fb619047"
+            )
             is False
         )
 
