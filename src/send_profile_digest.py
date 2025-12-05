@@ -278,9 +278,9 @@ def send_digest_to_profile(
         print(f"Profile {profile_id} is disabled, skipping")
         return False
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Generating digest for: {profile.name} ({profile.id})")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     db = JobDatabase()
 
