@@ -21,8 +21,9 @@ class TestProcessorV2HelperMethods:
             patch("src.processor_v2.JobDatabase"),
             patch("src.processor_v2.JobFilter"),
             patch("src.processor_v2.JobNotifier"),
-            patch("src.processor_v2.JobScorer"),
+            patch("src.processor_v2.ProfileScorer"),
             patch("src.processor_v2.EnrichmentPipeline"),
+            patch("src.processor_v2.get_profile_manager"),
         ):
             processor = JobProcessorV2()
             return processor
