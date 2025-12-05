@@ -112,7 +112,7 @@ def select_sources(profile: str) -> list[str]:
 
     sources_table.add_row("Email", f"{email_inbox}\n(LinkedIn, etc.)", "~50-100")
     sources_table.add_row("Robotics", "Sheet\n(1,092 jobs)", "~10-20")
-    sources_table.add_row("Companies", "26+ pages", "~5-15")
+    sources_table.add_row("Companies", "68 pages\n(15 robotics)", "~20-40")
 
     sources_panel = Panel(
         sources_table,
@@ -233,7 +233,7 @@ def show_criteria():
 
     source_table.add_row("Email newsletters", "All", "High signal newsletters")
     source_table.add_row("Robotics sheet", "70+ (B)", "1,092 jobs need quality filter")
-    source_table.add_row("Company monitoring", "50+ (D)", "Wes's curated companies")
+    source_table.add_row("Company monitoring", "50+ (D)", "68 companies (15 robotics)")
 
     console.print(source_table)
 
@@ -395,26 +395,28 @@ def run_scraper(profile: str, sources: list[str]) -> int:
 
 
 def prompt_firecrawl_scraping() -> bool:
-    """Ask user if they want to run Firecrawl scraping for career pages"""
-    console.print("\n[bold yellow]Firecrawl Career Page Scraping[/bold yellow]\n")
+    """Ask user if they want to run Firecrawl scraping for career pages (DEPRECATED - now automatic)"""
+    console.print("\n[bold yellow]Note: Robotics Companies Integrated[/bold yellow]\n")
 
-    info_text = """[cyan]The robotics scraper found generic career pages that need Firecrawl processing.[/cyan]
+    info_text = """[cyan]✓ 15 priority robotics companies have been added to the database![/cyan]
 
-[yellow]What this does:[/yellow]
-  • Scrapes 20 priority robotics companies' career pages
-  • Uses Firecrawl MCP to handle JavaScript-heavy pages
+[yellow]What happens now:[/yellow]
+  • Robotics companies are automatically scraped when you select "Companies" source
+  • Uses Firecrawl to handle JavaScript-heavy pages
   • Extracts job listings, scores, and stores in database
-  • Estimated cost: ~20 Firecrawl credits
+  • No separate manual step needed!
 
-[yellow]Companies include:[/yellow]
-  • Boston Dynamics, Figure, Agility Robotics, Skydio
-  • Sanctuary AI, Nuro, Covariant, and 13 more
+[yellow]Robotics companies in database:[/yellow]
+  • Humanoid: Figure, Sanctuary AI, 1X Technologies, Apptronik
+  • Warehouse: Robust AI, Dexterity, Veo, Covariant, RightHand, Nimble
+  • Specialized: Chef Robotics, Gecko Robotics, Machina Labs, Nuro, Skild AI
 
-[dim]Note: Firecrawl runs via Claude Code (requires returning to chat)[/dim]"""
+[green]Everything is now automated via the "Companies" source![/green]"""
 
-    console.print(Panel(info_text, border_style="yellow"))
+    console.print(Panel(info_text, border_style="green"))
 
-    return Confirm.ask("\n[bold]Run Firecrawl scraping?[/bold]", default=True)
+    input("\n[dim]Press Enter to continue...[/dim]")
+    return False  # Don't show Firecrawl instructions anymore
 
 
 def show_firecrawl_instructions():
