@@ -255,6 +255,12 @@ def main():
 
     parser = argparse.ArgumentParser(description="Company monitoring scraper")
     parser.add_argument(
+        "--profile",
+        type=str,
+        choices=["wes", "adam", "eli"],
+        help="Profile to use for scoring (wes, adam, eli)",
+    )
+    parser.add_argument(
         "--min-score",
         type=int,
         default=50,
@@ -263,12 +269,12 @@ def main():
     parser.add_argument(
         "--filter",
         type=str,
-        help="Filter companies by notes (e.g., 'From Wes')",
+        help="Filter companies by notes (e.g., 'From Wes', 'Priority robotics')",
     )
 
     args = parser.parse_args()
 
-    scraper = CompanyScraper()
+    scraper = CompanyScraper(profile=args.profile)
     stats = scraper.scrape_all_companies(min_score=args.min_score, company_filter=args.filter)
 
     print("\n" + "=" * 80)
