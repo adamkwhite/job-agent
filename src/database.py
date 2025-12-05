@@ -388,7 +388,7 @@ class JobDatabase:
         return dict(row) if row else None
 
     def get_jobs_for_profile_digest(
-        self, profile_id: str, min_grade: str = "C", limit: int = 100, max_age_days: int = 14
+        self, profile_id: str, min_grade: str = "C", limit: int = 100, max_age_days: int = 7
     ) -> list[dict]:
         """Get jobs for digest that haven't been sent to this profile
 
@@ -396,7 +396,7 @@ class JobDatabase:
             profile_id: Profile to get jobs for
             min_grade: Minimum grade to include (A, B, C, D, F)
             limit: Max jobs to return
-            max_age_days: Only include jobs from last N days (default 14)
+            max_age_days: Only include jobs from last N days (default 7, reduced from 14 to improve quality)
         """
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row

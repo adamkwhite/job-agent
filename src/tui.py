@@ -367,6 +367,59 @@ def run_scraper(profile: str, sources: list[str]) -> int:
     return result.returncode
 
 
+def prompt_firecrawl_scraping() -> bool:
+    """Ask user if they want to run Firecrawl scraping for career pages"""
+    console.print("\n[bold yellow]Firecrawl Career Page Scraping[/bold yellow]\n")
+
+    info_text = """[cyan]The robotics scraper found generic career pages that need Firecrawl processing.[/cyan]
+
+[yellow]What this does:[/yellow]
+  • Scrapes 20 priority robotics companies' career pages
+  • Uses Firecrawl MCP to handle JavaScript-heavy pages
+  • Extracts job listings, scores, and stores in database
+  • Estimated cost: ~20 Firecrawl credits
+
+[yellow]Companies include:[/yellow]
+  • Boston Dynamics, Figure, Agility Robotics, Skydio
+  • Sanctuary AI, Nuro, Covariant, and 13 more
+
+[dim]Note: Firecrawl runs via Claude Code (requires returning to chat)[/dim]"""
+
+    console.print(Panel(info_text, border_style="yellow"))
+
+    return Confirm.ask("\n[bold]Run Firecrawl scraping?[/bold]", default=True)
+
+
+def show_firecrawl_instructions():
+    """Display instructions for running Firecrawl via Claude Code"""
+    console.print("\n[bold green]Firecrawl Scraping Queued[/bold green]\n")
+
+    instructions = """[bold yellow]📋 Next Steps:[/bold yellow]
+
+[cyan]1. Return to your Claude Code conversation[/cyan]
+
+[cyan]2. Ask Claude:[/cyan]
+   [white]"Run Firecrawl scraping for the 20 robotics career pages"[/white]
+
+[cyan]3. Claude will:[/cyan]
+   • Execute Firecrawl MCP commands for 20 companies
+   • Save markdown outputs to data/firecrawl_cache/
+   • Process markdown to extract job listings
+   • Score and store jobs in database
+   • Send notifications for A/B grade jobs
+
+[yellow]After Firecrawl completes, you can return to TUI to send digest[/yellow]
+
+[dim]Press Enter to continue with current workflow...[/dim]"""
+
+    console.print(
+        Panel(
+            instructions, title="[bold cyan]Firecrawl Instructions[/bold cyan]", border_style="cyan"
+        )
+    )
+    input()
+
+
 def send_digest(profile: str, dry_run: bool = False, force_resend: bool = False) -> int:
     """Send email digest"""
     mode = "DRY RUN" if dry_run else "FORCE RESEND" if force_resend else "PRODUCTION"
@@ -440,6 +493,10 @@ def main():
                     success = False
                 else:
                     console.print("\n[green]✓ Scraper completed successfully![/green]")
+
+                    # Prompt for Firecrawl scraping if robotics source was used
+                    if success and "robotics" in sources and prompt_firecrawl_scraping():
+                        show_firecrawl_instructions()
 
             if action in ["digest", "both"] and success:
                 returncode = send_digest(
