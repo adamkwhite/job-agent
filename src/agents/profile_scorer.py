@@ -47,17 +47,20 @@ class ProfileScorer:
 
         breakdown = {}
 
-        # 1. Seniority Match (0-30 points)
-        seniority_score = self._score_seniority(title)
-        breakdown["seniority"] = seniority_score
-
-        # 2. Domain Match (0-25 points)
-        domain_score = self._score_domain(title, company)
-        breakdown["domain"] = domain_score
-
-        # 3. Role Type Match (0-20 points)
+        # 1. Role Type Match (0-20 points) - MUST MATCH FIRST
+        # Check role type before seniority to prevent "Marketing Director" from scoring
         role_score = self._score_role_type(title)
         breakdown["role_type"] = role_score
+
+        # 2. Seniority Match (0-30 points) - ONLY if role type matches
+        # This prevents "Director of Marketing" from scoring 30 points
+        # while "Director of Engineering" gets full points
+        seniority_score = self._score_seniority(title) if role_score > 0 else 0
+        breakdown["seniority"] = seniority_score
+
+        # 3. Domain Match (0-25 points)
+        domain_score = self._score_domain(title, company)
+        breakdown["domain"] = domain_score
 
         # 4. Location Match (0-15 points)
         location_score = self._score_location(location)

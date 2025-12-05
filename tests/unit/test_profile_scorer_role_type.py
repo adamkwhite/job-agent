@@ -77,7 +77,7 @@ class TestRoleTypeWordBoundaries:
     """Test word boundary matching prevents false positives"""
 
     def test_marketing_director_not_matching_cto(self, engineering_profile):
-        """Marketing Director should NOT match 'cto' keyword"""
+        """Marketing Director should NOT match 'cto' keyword and get NO seniority points"""
         scorer = ProfileScorer(engineering_profile)
         job = {
             "title": "Performance Marketing Director",
@@ -90,7 +90,12 @@ class TestRoleTypeWordBoundaries:
         # Should NOT get role_type points (was 20, should be 0)
         assert breakdown["role_type"] == 0, "Marketing Director should not match 'cto' keyword"
 
-        # Total score should be low (no role_type points)
+        # Should NOT get seniority points (NEW: dependency on role_type)
+        assert (
+            breakdown["seniority"] == 0
+        ), "Marketing Director should get 0 seniority (no role match)"
+
+        # Total score should be very low (no role_type OR seniority points)
         assert score < 63, f"Marketing role scored too high: {score}/115"
         assert grade in ["D", "F"], f"Marketing role should be D or F grade, got {grade}"
 
@@ -163,6 +168,47 @@ class TestRoleTypeWordBoundaries:
 
         # Should NOT match 'product' (production != product)
         assert breakdown["role_type"] == 0, "Production Engineer should not match 'product'"
+
+
+class TestSeniorityDependency:
+    """Test that seniority points are only awarded when role type matches"""
+
+    def test_marketing_director_no_seniority_points(self, engineering_profile):
+        """Marketing Director should get 0 seniority AND 0 role_type points"""
+        scorer = ProfileScorer(engineering_profile)
+        job = {
+            "title": "Director of Marketing Operations",
+            "company": "Marketing Co",
+            "location": "Remote",
+        }
+
+        score, grade, breakdown = scorer.score_job(job)
+
+        # Should get 0 role_type points (no engineering keywords)
+        assert breakdown["role_type"] == 0, "Marketing Director should get 0 role_type points"
+
+        # Should get 0 seniority points (dependency on role_type)
+        assert breakdown["seniority"] == 0, "Marketing Director should get 0 seniority points"
+
+    def test_engineering_director_gets_both_points(self, engineering_profile):
+        """Engineering Director should get BOTH seniority AND role_type points"""
+        scorer = ProfileScorer(engineering_profile)
+        job = {
+            "title": "Director of Engineering",
+            "company": "Tech Company",
+            "location": "Remote",
+        }
+
+        score, grade, breakdown = scorer.score_job(job)
+
+        # Should get role_type points (engineering keyword)
+        assert breakdown["role_type"] == 20, "Engineering Director should get 20 role_type points"
+
+        # Should get seniority points (director + role type match)
+        assert breakdown["seniority"] in [
+            25,
+            30,
+        ], "Engineering Director should get seniority points"
 
 
 class TestNoFallbackPoints:
