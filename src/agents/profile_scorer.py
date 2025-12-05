@@ -7,6 +7,7 @@ instead of hardcoded Wesley preferences.
 """
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -137,7 +138,12 @@ class ProfileScorer:
         return sum(1 for kw in keywords if kw.lower() in text_lower)
 
     def _score_role_type(self, title: str) -> int:
-        """Score based on role type (0-20)"""
+        """Score based on role type (0-20)
+
+        Uses word boundary matching to prevent false positives like:
+        - "cto" matching "director"
+        - "product" matching "production"
+        """
         title_lower = title.lower()
         scoring = self.profile.scoring
         role_types = scoring.get("role_types", {})
@@ -146,17 +152,22 @@ class ProfileScorer:
             kw in title_lower for kw in ["vp", "director", "head", "chief", "executive"]
         )
 
-        # Check each role type category
+        # Check each role type category with word boundary matching
         for _role_type, keywords in role_types.items():
-            if any(kw in title_lower for kw in keywords):
-                if is_leadership:
-                    return 20
-                return 15
+            # Use word boundaries to prevent substring false positives
+            # e.g., "cto" should not match "director"
+            for kw in keywords:
+                # Create regex pattern with word boundaries
+                # \b matches word boundary (start/end of word)
+                pattern = rf"\b{re.escape(kw)}\b"
+                if re.search(pattern, title_lower):
+                    if is_leadership:
+                        return 20
+                    return 15
 
-        # Generic fallback
-        if is_leadership:
-            return 10
-        return 5
+        # No fallback points - only award points for explicit role type matches
+        # This prevents "Performance Marketing Director" from scoring 10 points
+        return 0
 
     def _score_company_stage(self, _company: str) -> int:
         """Score based on company stage (0-15)"""
