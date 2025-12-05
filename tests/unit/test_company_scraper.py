@@ -142,7 +142,9 @@ class TestProcessScrapedJobs:
         ]
 
         company_scraper.job_filter.is_leadership_role = MagicMock(side_effect=[True, False])
-        company_scraper.scorer.score_job = MagicMock(return_value=(75, "B", "{}"))
+        company_scraper.scorer.score_job = MagicMock(
+            return_value=(75, "B", {"seniority": 25, "domain": 20, "role_type": 15})
+        )
         company_scraper.database.job_exists = MagicMock(return_value=False)
         company_scraper.database.add_job = MagicMock()
         company_scraper.notifier.notify = MagicMock()
@@ -169,7 +171,7 @@ class TestProcessScrapedJobs:
 
         company_scraper.job_filter.is_leadership_role = MagicMock(return_value=True)
         company_scraper.scorer.score_job = MagicMock(
-            return_value=(45, "F", "{}")
+            return_value=(45, "F", {"seniority": 15, "domain": 10, "role_type": 10})
         )  # Below threshold
         company_scraper.database.job_exists = MagicMock(return_value=False)
 
@@ -194,7 +196,9 @@ class TestProcessScrapedJobs:
         ]
 
         company_scraper.job_filter.is_leadership_role = MagicMock(return_value=True)
-        company_scraper.scorer.score_job = MagicMock(return_value=(75, "B", "{}"))
+        company_scraper.scorer.score_job = MagicMock(
+            return_value=(75, "B", {"seniority": 25, "domain": 20, "role_type": 15})
+        )
         company_scraper.database.job_exists = MagicMock(return_value=False)
         company_scraper.database.add_job = MagicMock(return_value=1)
         company_scraper.database.update_job_score = MagicMock()
@@ -224,7 +228,9 @@ class TestProcessScrapedJobs:
         ]
 
         company_scraper.job_filter.is_leadership_role = MagicMock(return_value=True)
-        company_scraper.scorer.score_job = MagicMock(return_value=(85, "A", "{}"))
+        company_scraper.scorer.score_job = MagicMock(
+            return_value=(85, "A", {"seniority": 30, "domain": 25, "role_type": 20})
+        )
         company_scraper.database.add_job = MagicMock(return_value=1)
         company_scraper.database.update_job_score = MagicMock()
         company_scraper.database.mark_notified = MagicMock()
@@ -253,7 +259,9 @@ class TestProcessScrapedJobs:
         ]
 
         company_scraper.job_filter.is_leadership_role = MagicMock(return_value=True)
-        company_scraper.scorer.score_job = MagicMock(return_value=(85, "A", "{}"))
+        company_scraper.scorer.score_job = MagicMock(
+            return_value=(85, "A", {"seniority": 30, "domain": 25, "role_type": 20})
+        )
         company_scraper.database.add_job = MagicMock(return_value=1)
         company_scraper.database.update_job_score = MagicMock()
         company_scraper.notifier.notify_job = MagicMock(
@@ -282,7 +290,9 @@ class TestProcessScrapedJobs:
         ]
 
         company_scraper.job_filter.is_leadership_role = MagicMock(return_value=True)
-        company_scraper.scorer.score_job = MagicMock(return_value=(75, "B", "{}"))
+        company_scraper.scorer.score_job = MagicMock(
+            return_value=(75, "B", {"seniority": 25, "domain": 20, "role_type": 15})
+        )
         company_scraper.database.add_job = MagicMock(return_value=None)  # None means duplicate
 
         stats = company_scraper.process_scraped_jobs(
@@ -318,7 +328,9 @@ class TestProcessScrapedJobs:
         company_scraper.firecrawl_scraper.scrape_jobs = MagicMock(return_value=jobs)
         company_scraper.company_service.update_last_checked = MagicMock()
         company_scraper.job_filter.is_leadership_role = MagicMock(return_value=True)
-        company_scraper.scorer.score_job = MagicMock(return_value=(75, "B", "{}"))
+        company_scraper.scorer.score_job = MagicMock(
+            return_value=(75, "B", {"seniority": 25, "domain": 20, "role_type": 15})
+        )
         company_scraper.database.add_job = MagicMock(return_value=1)
         company_scraper.database.update_job_score = MagicMock()
         company_scraper.notifier.notify_job = MagicMock()
