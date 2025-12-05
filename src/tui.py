@@ -295,8 +295,8 @@ def select_digest_options() -> dict:
     table.add_column("Marks Sent?", style="white", width=14)
     table.add_column("Use Case", style="yellow")
 
-    table.add_row("1", "Production", "✅ Yes", "✅ Yes", "Real digest (default)")
-    table.add_row("2", "Dry Run", "❌ No", "❌ No", "Testing/preview")
+    table.add_row("1", "Production", "✅ Yes", "✅ Yes", "Real digest")
+    table.add_row("2", "Dry Run", "❌ No", "❌ No", "Testing/preview (default)")
     table.add_row("3", "Force Resend", "✅ Yes", "❌ No", "Re-send previous jobs")
 
     console.print(table)
