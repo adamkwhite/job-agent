@@ -100,26 +100,26 @@ def select_sources(profile: str) -> list[str]:
 
     # Column 1: Sources table (compact for side-by-side layout)
     sources_table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
-    sources_table.add_column("Source", style="cyan", width=10)
-    sources_table.add_column("Description", style="white", width=20)
-    sources_table.add_column("Vol", style="green", width=8)
+    sources_table.add_column("Source", style="cyan", width=12)
+    sources_table.add_column("Description", style="white", width=35)
+    sources_table.add_column("Vol", style="green", width=10)
 
     # Profile-specific email source (only show if profile has email credentials)
     if profile_obj and hasattr(profile_obj, "email_username") and profile_obj.email_username:
-        email_inbox = profile_obj.email_username.replace("@", "@\n")
+        email_inbox = profile_obj.email_username
     else:
-        email_inbox = "No inbox\nconfigured"
+        email_inbox = "No inbox configured"
 
-    sources_table.add_row("Email", f"{email_inbox}\n(LinkedIn, etc.)", "~50-100")
-    sources_table.add_row("Robotics", "Sheet\n(1,092 jobs)", "~10-20")
-    sources_table.add_row("Companies", "68 pages\n(15 robotics)", "~20-40")
+    sources_table.add_row("Email", f"{email_inbox} (LinkedIn, etc.)", "~50-100")
+    sources_table.add_row("Robotics", "Sheet (1,092 jobs)", "~10-20")
+    sources_table.add_row("Companies", "68 pages (15 robotics)", "~20-40")
 
     sources_panel = Panel(
         sources_table,
         title="[bold magenta]Job Sources[/bold magenta]",
         border_style="magenta",
         expand=False,
-        width=52,
+        width=65,
     )
 
     # Column 2: Scoring criteria summary (dynamically from profile)
@@ -161,7 +161,7 @@ def select_sources(profile: str) -> list[str]:
         border_style="cyan",
         padding=(0, 1),
         expand=False,
-        width=38,
+        width=50,
     )
 
     # Display panels stacked vertically
