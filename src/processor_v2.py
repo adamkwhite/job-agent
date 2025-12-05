@@ -12,7 +12,7 @@ from typing import cast
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from agents.job_scorer import JobScorer
+from agents.profile_scorer import ProfileScorer
 from database import JobDatabase
 from enrichment.enrichment_pipeline import EnrichmentPipeline
 from imap_client import IMAPEmailClient
@@ -29,14 +29,15 @@ from parsers.recruiter_wrapper import RecruiterParser
 from parsers.supra_parser import SupraParser
 from parsers.workintech_wrapper import WorkInTechParser
 from utils.multi_scorer import get_multi_scorer
+from utils.profile_manager import get_profile_manager
 
 
 class JobProcessorV2:
     """Main orchestrator for job alert processing with pluggable parsers"""
 
     def __init__(self, profile: str | None = None):
-        # Store profile for multi-profile support
-        self.profile = profile
+        # Store profile for multi-profile support (defaults to 'wes' for backwards compatibility)
+        self.profile = profile or "wes"
 
         # Initialize components
         self.parser_registry = ParserRegistry()
@@ -44,7 +45,12 @@ class JobProcessorV2:
         self.filter = JobFilter()
         self.database = JobDatabase(profile=profile)
         self.notifier = JobNotifier()
-        self.scorer = JobScorer()
+
+        # Use ProfileScorer for the selected profile
+        pm = get_profile_manager()
+        profile_obj = pm.get_profile(self.profile)
+        self.scorer = ProfileScorer(profile_obj)
+
         self.imap_client = IMAPEmailClient(profile=profile)
 
         # Register parsers
@@ -180,9 +186,9 @@ class JobProcessorV2:
     def _score_and_update_job(
         self, job_id: int, job_dict: dict, stats: dict[str, int | list[str]]
     ) -> tuple[int | None, str | None]:
-        """Score a job and update database (for Wes - primary user)"""
+        """Score a job and update database for the selected profile"""
         try:
-            # Score for primary user (Wes - legacy behavior)
+            # Score for the selected profile
             score, grade, breakdown = self.scorer.score_job(job_dict)
             self.database.update_job_score(job_id, score, grade, json.dumps(breakdown))
 
