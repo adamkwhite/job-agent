@@ -16,6 +16,11 @@ from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
+# Add to path for imports
+sys.path.insert(0, str(Path(__file__).parent))
+
+from utils.profile_manager import get_profile_manager
+
 console = Console()
 
 
@@ -36,8 +41,16 @@ def show_header():
 
 
 def select_profile() -> str | None:
-    """Select user profile (Wes or Adam)"""
+    """Select user profile dynamically from enabled profiles"""
     console.print("\n[bold yellow]Step 1:[/bold yellow] Select Profile\n")
+
+    # Load profiles from profile manager
+    pm = get_profile_manager()
+    enabled_profiles = pm.get_enabled_profiles()
+
+    if not enabled_profiles:
+        console.print("[bold red]No enabled profiles found![/bold red]")
+        return None
 
     table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
     table.add_column("Option", style="cyan", width=8)
@@ -45,10 +58,23 @@ def select_profile() -> str | None:
     table.add_column("Email", style="blue", width=30)
     table.add_column("Focus", style="yellow")
 
-    table.add_row(
-        "1", "Wesley van Ooyen", "wesvanooyen@gmail.com", "Robotics/Hardware (VP/Director)"
-    )
-    table.add_row("2", "Adam White", "adamkwhite@gmail.com", "Software/Product (Senior/Staff)")
+    # Build profile focus descriptions
+    focus_map = {
+        "wes": "Robotics/Hardware (VP/Director)",
+        "adam": "Software/Product (Senior/Staff)",
+        "eli": "Fintech/Healthtech (Director/VP/CTO)",
+    }
+
+    # Add profile rows
+    profile_map = {}
+    for i, profile in enumerate(enabled_profiles, 1):
+        focus = focus_map.get(
+            profile.id,
+            f"{', '.join(profile.get_domain_keywords()[:2])} ({', '.join(profile.get_target_seniority()[:2])})",
+        )
+        table.add_row(str(i), profile.name, profile.email, focus)
+        profile_map[str(i)] = profile.id
+
     table.add_row("q", "Quit", "", "")
 
     console.print(table)
@@ -56,19 +82,22 @@ def select_profile() -> str | None:
         "\n[dim]Note: Profile selection determines which email inbox to check and where digests are sent.[/dim]"
     )
 
-    choice = Prompt.ask("\n[bold]Select profile[/bold]", choices=["1", "2", "q"], default="1")
+    choices = list(profile_map.keys()) + ["q"]
+    choice = Prompt.ask("\n[bold]Select profile[/bold]", choices=choices, default="1")
 
     if choice == "q":
         return None
-    elif choice == "1":
-        return "wes"
     else:
-        return "adam"
+        return profile_map[choice]
 
 
 def select_sources(profile: str) -> list[str]:
     """Select job sources to scrape"""
     console.print("\n[bold yellow]Step 2:[/bold yellow] Select Sources\n")
+
+    # Get profile object
+    pm = get_profile_manager()
+    profile_obj = pm.get_profile(profile)
 
     # Column 1: Sources table (compact for side-by-side layout)
     sources_table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
@@ -76,10 +105,11 @@ def select_sources(profile: str) -> list[str]:
     sources_table.add_column("Description", style="white", width=20)
     sources_table.add_column("Vol", style="green", width=8)
 
-    # Profile-specific email source
-    email_inbox = (
-        "Wes.jobalerts@\ngmail.com" if profile == "wes" else "adamwhite.\njobalerts@\ngmail.com"
-    )
+    # Profile-specific email source (only show if profile has email credentials)
+    if profile_obj and hasattr(profile_obj, "email_username") and profile_obj.email_username:
+        email_inbox = profile_obj.email_username.replace("@", "@\n")
+    else:
+        email_inbox = "No inbox\nconfigured"
 
     sources_table.add_row("Email", f"{email_inbox}\n(LinkedIn, etc.)", "~50-100")
     sources_table.add_row("Robotics", "Sheet\n(1,092 jobs)", "~10-20")
@@ -93,38 +123,24 @@ def select_sources(profile: str) -> list[str]:
         width=52,
     )
 
-    # Column 2: Scoring criteria summary (profile-specific)
-    if profile == "wes":
-        criteria_content = """[bold yellow]📊 Scoring (0-115 pts)[/bold yellow]
+    # Column 2: Scoring criteria summary (dynamically from profile)
+    if profile_obj:
+        seniority_display = "/".join(profile_obj.get_target_seniority()[:3])
+        domain_display = "/".join(profile_obj.get_domain_keywords()[:3])
+        location_prefs = profile_obj.config.get("scoring", {}).get("location_preferences", {})
+        location_display = "Remote" if location_prefs.get("remote_keywords") else "N/A"
+        if location_prefs.get("preferred_cities"):
+            location_display += f"/{location_prefs['preferred_cities'][0].title()}"
 
-[cyan]Seniority (30):[/cyan] VP/Director
+        criteria_content = f"""[bold yellow]📊 Scoring (0-115 pts)[/bold yellow]
 
-[cyan]Domain (25):[/cyan] Robotics/IoT
+[cyan]Seniority (30):[/cyan] {seniority_display}
 
-[cyan]Role (20):[/cyan] Engineering>Product
+[cyan]Domain (25):[/cyan] {domain_display}
 
-[cyan]Location (15):[/cyan] Remote/Ontario
+[cyan]Role (20):[/cyan] Engineering
 
-[bold yellow]🎓 Grades[/bold yellow]
-[green]A (98+)[/green] Notify + Digest
-[green]B (80+)[/green] Notify + Digest
-[yellow]C (63+)[/yellow] Digest only
-[dim]D/F[/dim] Stored/Filtered
-
-[bold yellow]📧 Sent to:[/bold yellow]
-wesvanooyen@gmail.com
-[dim]CC:[/dim] adamkwhite@gmail.com"""
-        panel_title = "[bold cyan]Wes's Scoring Criteria[/bold cyan]"
-    else:  # adam
-        criteria_content = """[bold yellow]📊 Scoring (0-115 pts)[/bold yellow]
-
-[cyan]Seniority (30):[/cyan] Senior/Staff/Lead
-
-[cyan]Domain (25):[/cyan] Software/Cloud/Data
-
-[cyan]Role (20):[/cyan] Engineering>Product
-
-[cyan]Location (15):[/cyan] Remote/Ontario
+[cyan]Location (15):[/cyan] {location_display}
 
 [bold yellow]🎓 Grades[/bold yellow]
 [green]A (98+)[/green] Notify + Digest
@@ -133,9 +149,12 @@ wesvanooyen@gmail.com
 [dim]D/F[/dim] Stored/Filtered
 
 [bold yellow]📧 Sent to:[/bold yellow]
-adamkwhite@gmail.com
+{profile_obj.email}
 [dim]CC:[/dim] adamkwhite@gmail.com"""
-        panel_title = "[bold cyan]Adam's Scoring Criteria[/bold cyan]"
+        panel_title = f"[bold cyan]{profile_obj.name}'s Scoring[/bold cyan]"
+    else:
+        criteria_content = "[red]Profile not found[/red]"
+        panel_title = "[red]Error[/red]"
 
     criteria_panel = Panel(
         criteria_content,
@@ -298,8 +317,11 @@ def confirm_execution(
     """Show summary and confirm execution"""
     console.print("\n[bold yellow]Summary:[/bold yellow]\n")
 
-    profile_name = "Wesley van Ooyen" if profile == "wes" else "Adam White"
-    profile_email = "wesvanooyen@gmail.com" if profile == "wes" else "adamkwhite@gmail.com"
+    # Get profile object
+    pm = get_profile_manager()
+    profile_obj = pm.get_profile(profile)
+    profile_name = profile_obj.name if profile_obj else profile.title()
+    profile_email = profile_obj.email if profile_obj else "unknown"
 
     # Map action codes to display names
     action_display = {
@@ -354,7 +376,13 @@ def run_scraper(profile: str, sources: list[str]) -> int:
             cmd.append("--companies-only")
 
     # Profile-specific email inbox
-    email_inbox = "Wes.jobalerts@gmail.com" if profile == "wes" else "adamwhite.jobalerts@gmail.com"
+    pm = get_profile_manager()
+    profile_obj = pm.get_profile(profile)
+    email_inbox = (
+        profile_obj.email_username
+        if (profile_obj and hasattr(profile_obj, "email_username") and profile_obj.email_username)
+        else "No inbox configured"
+    )
 
     console.print(f"[dim]Command: {' '.join(cmd)}[/dim]\n")
     console.print(f"[dim]Note: Using {email_inbox} (profile: {profile})[/dim]\n")
