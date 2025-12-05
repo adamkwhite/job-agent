@@ -13,7 +13,8 @@
       "software", "fullstack", "backend", "frontend", "web", "cloud",
       "devops", "data", "machine learning", "ai", "python",
       "product management", "product", "leadership", "coaching",
-      "consulting", "agile", "strategy", "saas", "technology"
+      "consulting", "agile", "strategy", "saas", "technology",
+      "anthropic", "claude", "developer tools", "ide"
     ],
     "role_types": {
       "engineering": ["software engineer", "developer", "architect", "engineering"],
