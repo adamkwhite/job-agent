@@ -16,10 +16,10 @@
       "consulting", "agile", "strategy", "saas", "technology"
     ],
     "role_types": {
-      "engineering": ["software engineer", "developer", "architect"],
+      "engineering": ["software engineer", "developer", "architect", "engineering"],
       "data": ["data engineer", "data scientist", "ml engineer"],
       "devops": ["devops", "sre", "platform engineer"],
-      "product": ["product manager", "product owner", "product lead"]
+      "product": ["product manager", "product owner", "product lead", "product management", "product"]
     },
     "company_stage": ["startup", "series a", "series b", "tech"],
     "avoid_keywords": ["junior", "intern", "coordinator", "sales"],
