@@ -15,9 +15,10 @@
       "manufacturing", "supply chain", "dfm", "dfa", "industrial"
     ],
     "role_types": {
-      "engineering_leadership": ["engineering", "r&d", "technical", "hardware"],
+      "engineering_leadership": ["engineering", "r&d", "technical", "hardware", "robotics", "automation", "mechatronics"],
       "product_leadership": ["product", "cpo", "chief product"],
-      "dual_role": ["product engineering", "technical product", "hardware product"]
+      "dual_role": ["product engineering", "technical product", "hardware product"],
+      "operations_leadership": ["manufacturing", "operations", "supply chain"]
     },
     "company_stage": ["series a", "series b", "series c", "growth", "scale-up", "funded"],
     "avoid_keywords": ["junior", "associate", "intern", "coordinator"],

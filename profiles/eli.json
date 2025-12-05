@@ -12,7 +12,7 @@
       "education", "small business"
     ],
     "role_types": {
-      "engineering_leadership": ["engineering", "technical", "cto", "vp engineering", "director engineering"]
+      "engineering_leadership": ["engineering", "technical", "cto", "vp engineering", "director engineering", "fintech", "healthtech", "saas"]
     },
     "company_stage": ["startup", "series a", "series b", "series c", "growth", "scale-up"],
     "avoid_keywords": ["junior", "associate", "intern", "coordinator"],
