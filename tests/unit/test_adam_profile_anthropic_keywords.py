@@ -153,9 +153,9 @@ class TestDeveloperToolsScoring:
         score, grade, breakdown = scorer.score_job(job)
 
         # Should recognize "developer tools" keyword
-        assert breakdown["domain"] >= 20, (
-            f"Developer tools job should score at least 20 in domain, " f"got {breakdown['domain']}"
-        )
+        assert (
+            breakdown["domain"] >= 20
+        ), f"Developer tools job should score at least 20 in domain, got {breakdown['domain']}"
 
     def test_ide_in_title_boosts_score(self, adam_profile):
         """IDE keyword in title should boost domain score"""
@@ -169,9 +169,9 @@ class TestDeveloperToolsScoring:
         score, grade, breakdown = scorer.score_job(job)
 
         # Should recognize "ide" keyword
-        assert breakdown["domain"] >= 15, (
-            f"IDE platform job should score at least 15 in domain, " f"got {breakdown['domain']}"
-        )
+        assert (
+            breakdown["domain"] >= 15
+        ), f"IDE platform job should score at least 15 in domain, got {breakdown['domain']}"
 
 
 class TestRegressionPrevention:
