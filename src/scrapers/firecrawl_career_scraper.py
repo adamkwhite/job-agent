@@ -64,6 +64,14 @@ class FirecrawlCareerScraper:
             jobs = self._extract_jobs_from_markdown(markdown, careers_url, company_name)
 
             print(f"  ✓ Found {len(jobs)} job listings")
+
+            # Show job titles and links for user visibility
+            if jobs:
+                for i, job in enumerate(jobs, 1):
+                    print(f"    {i}. {job.title}")
+                    if job.link:
+                        print(f"       Link: {job.link}")
+
             return jobs
 
         except Exception as e:
