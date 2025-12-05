@@ -307,4 +307,104 @@ class TestJobValidator:
         assert invalid_jobs[0]["validation_reason"] == "404_not_found"
         assert flagged_jobs[0]["company"] == "Company D"
         assert flagged_jobs[0]["validation_reason"] == "generic_career_page"
-        assert flagged_jobs[0]["needs_review"] is True
+
+    # Rate Limiting (429) Retry Tests
+    @patch("requests.Session.head")
+    @patch("time.sleep")
+    def test_429_retry_eventually_succeeds(self, mock_sleep, mock_head, validator):
+        """Test 429 rate limit with successful retry"""
+        # First call returns 429, second call returns 200
+        mock_response_429 = Mock()
+        mock_response_429.status_code = 429
+        mock_response_429.url = "https://linkedin.com/jobs/12345"
+
+        mock_response_200 = Mock()
+        mock_response_200.status_code = 200
+        mock_response_200.url = "https://linkedin.com/jobs/12345"
+
+        mock_head.side_effect = [mock_response_429, mock_response_200]
+
+        is_valid, reason, needs_review = validator.validate_url("https://linkedin.com/jobs/12345")
+
+        # Should retry and succeed
+        assert is_valid is True
+        assert reason == "valid"
+        assert needs_review is False
+        assert mock_head.call_count == 2
+        assert mock_sleep.call_count == 1
+        mock_sleep.assert_called_with(2.0)  # First retry delay: 2^0 * 2.0 = 2.0s
+
+    @patch("requests.Session.head")
+    @patch("time.sleep")
+    def test_429_retry_exhausts_attempts(self, mock_sleep, mock_head):
+        """Test 429 rate limit exhausts all retry attempts"""
+        validator = JobValidator(timeout=5, max_retries=3, base_backoff=2.0)
+
+        # All attempts return 429
+        mock_response_429 = Mock()
+        mock_response_429.status_code = 429
+        mock_response_429.url = "https://linkedin.com/jobs/12345"
+        mock_head.return_value = mock_response_429
+
+        is_valid, reason, needs_review = validator.validate_url("https://linkedin.com/jobs/12345")
+
+        # Should exhaust retries and flag for review
+        assert is_valid is True
+        assert reason == "rate_limited_assumed_valid"
+        assert needs_review is True
+        assert mock_head.call_count == 4  # Initial + 3 retries
+        assert mock_sleep.call_count == 3  # Sleep before each retry
+
+        # Verify exponential backoff: 2s, 4s, 8s
+        expected_delays = [2.0, 4.0, 8.0]
+        actual_delays = [call[0][0] for call in mock_sleep.call_args_list]
+        assert actual_delays == expected_delays
+
+    @patch("requests.Session.head")
+    @patch("time.sleep")
+    def test_429_retry_with_custom_backoff(self, mock_sleep, mock_head):
+        """Test 429 retry with custom backoff settings"""
+        validator = JobValidator(timeout=5, max_retries=2, base_backoff=1.0)
+
+        mock_response_429 = Mock()
+        mock_response_429.status_code = 429
+        mock_response_429.url = "https://linkedin.com/jobs/12345"
+        mock_head.return_value = mock_response_429
+
+        is_valid, reason, needs_review = validator.validate_url("https://linkedin.com/jobs/12345")
+
+        # Should exhaust retries with custom backoff
+        assert is_valid is True
+        assert reason == "rate_limited_assumed_valid"
+        assert needs_review is True
+        assert mock_head.call_count == 3  # Initial + 2 retries
+        assert mock_sleep.call_count == 2
+
+        # Verify custom backoff: 1s, 2s
+        expected_delays = [1.0, 2.0]
+        actual_delays = [call[0][0] for call in mock_sleep.call_args_list]
+        assert actual_delays == expected_delays
+
+    @patch("requests.Session.head")
+    @patch("time.sleep")
+    def test_429_then_404(self, mock_sleep, mock_head, validator):
+        """Test 429 followed by 404 on retry"""
+        # First call returns 429, second call returns 404
+        mock_response_429 = Mock()
+        mock_response_429.status_code = 429
+        mock_response_429.url = "https://linkedin.com/jobs/12345"
+
+        mock_response_404 = Mock()
+        mock_response_404.status_code = 404
+        mock_response_404.url = "https://linkedin.com/jobs/12345"
+
+        mock_head.side_effect = [mock_response_429, mock_response_404]
+
+        is_valid, reason, needs_review = validator.validate_url("https://linkedin.com/jobs/12345")
+
+        # Should detect 404 after retry
+        assert is_valid is False
+        assert reason == "404_not_found"
+        assert needs_review is False
+        assert mock_head.call_count == 2
+        assert mock_sleep.call_count == 1
