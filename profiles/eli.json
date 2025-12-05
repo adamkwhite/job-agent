@@ -1,0 +1,40 @@
+{
+  "id": "eli",
+  "name": "Eli Juni",
+  "email": "eliyahu.juni@gmail.com",
+  "enabled": true,
+  "scoring": {
+    "target_seniority": ["director", "vp", "cto", "chief technology officer", "head of"],
+    "domain_keywords": [
+      "fintech", "healthtech", "proptech", "observability", "hrtech",
+      "salestech", "edtech", "smb", "saas", "financial services",
+      "healthcare", "real estate", "recruiting", "sales enablement",
+      "education", "small business"
+    ],
+    "role_types": {
+      "engineering_leadership": ["engineering", "technical", "cto", "vp engineering", "director engineering"]
+    },
+    "company_stage": ["startup", "series a", "series b", "series c", "growth", "scale-up"],
+    "avoid_keywords": ["junior", "associate", "intern", "coordinator"],
+    "location_preferences": {
+      "remote_keywords": ["remote", "work from home", "wfh", "anywhere", "distributed"],
+      "hybrid_keywords": ["hybrid"],
+      "preferred_cities": [
+        "toronto", "vaughan", "woodbridge", "markham", "mississauga",
+        "richmond hill", "thornhill"
+      ],
+      "preferred_regions": ["ontario", "canada", "greater toronto area", "gta"]
+    }
+  },
+  "digest": {
+    "min_grade": "C",
+    "min_score": 63,
+    "include_grades": ["A", "B", "C"],
+    "send_frequency": "weekly"
+  },
+  "notifications": {
+    "enabled": false,
+    "min_grade": "B",
+    "min_score": 80
+  }
+}
