@@ -173,7 +173,8 @@ class CompanyScraper:
             score, grade, breakdown = self.scorer.score_job(job_dict)
 
             if score < min_score:
-                print(f"  - {job.title}: {score}/115 ({grade}) - Below threshold")
+                print(f"  ⊘ Skipped (below threshold): {job.title}")
+                print(f"    Score: {grade} ({score}/115) - Min: {min_score}")
                 continue
 
             stats["jobs_above_threshold"] += 1
@@ -201,9 +202,28 @@ class CompanyScraper:
                 # Update score
                 self.database.update_job_score(job_id, score, grade, json.dumps(breakdown))
 
-                print(f"  ✓ {job.title}")
-                print(f"    Score: {grade} ({score}/115)")
-                print(f"    Location: {job.location}")
+                # Format breakdown for display
+                breakdown_str = f"Seniority={breakdown.get('seniority', 0)}, Domain={breakdown.get('domain', 0)}, Role={breakdown.get('role_type', 0)}"
+
+                print("\n✓ New Job Stored:")
+                print(f"  Title: {job.title}")
+                print(f"  Company: {job.company}")
+                print(f"  Location: {job.location or 'N/A'}")
+                print(f"  Link: {job.link}")
+                print(f"  ✓ Scored: {grade} ({score}/115)")
+                print(f"    Breakdown: {breakdown_str}")
+
+                # Multi-profile scoring
+                try:
+                    from agents.multi_profile_scorer import get_multi_scorer
+
+                    multi_scorer = get_multi_scorer()
+                    profile_scores = multi_scorer.score_job_for_all(job_dict, job_id)
+                    print("  ✓ Multi-profile scores:")
+                    for pid, (s, g) in profile_scores.items():
+                        print(f"    {pid}: {s}/{g}")
+                except Exception as mp_error:
+                    print(f"  ⚠ Multi-profile scoring failed: {mp_error}")
 
                 # Send notification if above threshold
                 if score >= notify_threshold:
@@ -216,13 +236,15 @@ class CompanyScraper:
                         if notification_results.get("email") or notification_results.get("sms"):
                             stats["notifications_sent"] += 1
                             self.database.mark_notified(job_id)
-                            print("    ✓ Notification sent")
+                            print("  ✓ Notification sent")
 
                     except Exception as e:
-                        print(f"    ✗ Notification failed: {e}")
+                        print(f"  ✗ Notification failed: {e}")
+                else:
+                    print(f"  ⊘ Notification skipped: Low score ({grade} {score}/115)")
             else:
                 stats["duplicates_skipped"] += 1
-                print(f"  - Duplicate: {job.title}")
+                print(f"\n- Duplicate: {job.title} at {job.company}")
 
         return stats
 
