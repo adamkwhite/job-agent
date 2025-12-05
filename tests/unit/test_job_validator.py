@@ -24,15 +24,17 @@ class TestJobValidator:
     # Basic Validation Tests
     def test_empty_url(self, validator):
         """Test empty URL returns invalid"""
-        is_valid, reason = validator.validate_url("")
+        is_valid, reason, needs_review = validator.validate_url("")
         assert is_valid is False
         assert reason == "empty_url"
+        assert needs_review is False
 
     def test_none_url(self, validator):
         """Test None URL returns invalid"""
-        is_valid, reason = validator.validate_url(None)
+        is_valid, reason, needs_review = validator.validate_url(None)
         assert is_valid is False
         assert reason == "empty_url"
+        assert needs_review is False
 
     # 404 Detection Tests
     @patch("requests.Session.head")
@@ -42,7 +44,9 @@ class TestJobValidator:
         mock_response.status_code = 404
         mock_head.return_value = mock_response
 
-        is_valid, reason = validator.validate_url("https://jobs.lever.co/company/fake-job")
+        is_valid, reason, needs_review = validator.validate_url(
+            "https://jobs.lever.co/company/fake-job"
+        )
         assert is_valid is False
         assert reason == "404_not_found"
 
@@ -55,7 +59,9 @@ class TestJobValidator:
         mock_response.url = "https://www.linkedin.com/login?fromSignIn=true"
         mock_head.return_value = mock_response
 
-        is_valid, reason = validator.validate_url("https://www.linkedin.com/jobs/view/12345")
+        is_valid, reason, needs_review = validator.validate_url(
+            "https://www.linkedin.com/jobs/view/12345"
+        )
         assert is_valid is True  # LinkedIn jobs assumed valid (can't verify)
         assert reason == "linkedin_unverifiable"
 
@@ -67,13 +73,15 @@ class TestJobValidator:
         mock_response.url = "https://www.linkedin.com/authwall?trk=..."
         mock_head.return_value = mock_response
 
-        is_valid, reason = validator.validate_url("https://www.linkedin.com/jobs/view/12345")
+        is_valid, reason, needs_review = validator.validate_url(
+            "https://www.linkedin.com/jobs/view/12345"
+        )
         assert is_valid is True
         assert reason == "linkedin_unverifiable"
 
     # Generic Career Page Detection Tests
     def test_ashby_generic_url(self, validator):
-        """Test Ashby generic career page URL is invalid"""
+        """Test Ashby generic career page URL is flagged for review"""
         # This URL has no job ID, just the company page
         url = "https://jobs.ashbyhq.com/graymatter-robotics"
         # Mock the HTTP request to return 200
@@ -83,8 +91,8 @@ class TestJobValidator:
             mock_response.url = url
             mock_head.return_value = mock_response
 
-            is_valid, reason = validator.validate_url(url)
-            assert is_valid is False
+            is_valid, reason, needs_review = validator.validate_url(url)
+            assert is_valid is True  # Valid but needs review
             assert reason == "generic_career_page"
 
     def test_ashby_specific_job_url(self, validator):
@@ -96,12 +104,12 @@ class TestJobValidator:
             mock_response.url = url
             mock_head.return_value = mock_response
 
-            is_valid, reason = validator.validate_url(url)
+            is_valid, reason, needs_review = validator.validate_url(url)
             assert is_valid is True
             assert reason == "valid"
 
     def test_lever_generic_url(self, validator):
-        """Test Lever generic career page URL is invalid"""
+        """Test Lever generic career page URL is flagged for review"""
         url = "https://jobs.lever.co/company"
         with patch("requests.Session.head") as mock_head:
             mock_response = Mock()
@@ -109,8 +117,8 @@ class TestJobValidator:
             mock_response.url = url
             mock_head.return_value = mock_response
 
-            is_valid, reason = validator.validate_url(url)
-            assert is_valid is False
+            is_valid, reason, needs_review = validator.validate_url(url)
+            assert is_valid is True  # Valid but needs review
             assert reason == "generic_career_page"
 
     def test_lever_specific_job_url(self, validator):
@@ -122,12 +130,12 @@ class TestJobValidator:
             mock_response.url = url
             mock_head.return_value = mock_response
 
-            is_valid, reason = validator.validate_url(url)
+            is_valid, reason, needs_review = validator.validate_url(url)
             assert is_valid is True
             assert reason == "valid"
 
     def test_greenhouse_generic_url(self, validator):
-        """Test Greenhouse generic career page URL is invalid"""
+        """Test Greenhouse generic career page URL is flagged for review"""
         url = "https://job-boards.greenhouse.io/company"
         with patch("requests.Session.head") as mock_head:
             mock_response = Mock()
@@ -135,8 +143,8 @@ class TestJobValidator:
             mock_response.url = url
             mock_head.return_value = mock_response
 
-            is_valid, reason = validator.validate_url(url)
-            assert is_valid is False
+            is_valid, reason, needs_review = validator.validate_url(url)
+            assert is_valid is True  # Valid but needs review
             assert reason == "generic_career_page"
 
     def test_greenhouse_specific_job_url(self, validator):
@@ -148,7 +156,7 @@ class TestJobValidator:
             mock_response.url = url
             mock_head.return_value = mock_response
 
-            is_valid, reason = validator.validate_url(url)
+            is_valid, reason, needs_review = validator.validate_url(url)
             assert is_valid is True
             assert reason == "valid"
 
@@ -161,7 +169,7 @@ class TestJobValidator:
         mock_response.url = "https://example.com/jobs/12345"
         mock_head.return_value = mock_response
 
-        is_valid, reason = validator.validate_url("https://example.com/jobs/12345")
+        is_valid, reason, needs_review = validator.validate_url("https://example.com/jobs/12345")
         assert is_valid is True
         assert reason == "valid"
 
@@ -173,7 +181,9 @@ class TestJobValidator:
         mock_response.url = "https://example.com/careers/new-url"
         mock_head.return_value = mock_response
 
-        is_valid, reason = validator.validate_url("https://example.com/careers/old-url")
+        is_valid, reason, needs_review = validator.validate_url(
+            "https://example.com/careers/old-url"
+        )
         assert is_valid is True
         assert reason == "valid"
 
@@ -185,7 +195,7 @@ class TestJobValidator:
         mock_response.url = "https://different-domain.com/jobs/12345"
         mock_head.return_value = mock_response
 
-        is_valid, reason = validator.validate_url("https://example.com/jobs/12345")
+        is_valid, reason, needs_review = validator.validate_url("https://example.com/jobs/12345")
         assert is_valid is False
         assert reason == "invalid_redirect"
 
@@ -197,7 +207,7 @@ class TestJobValidator:
         mock_response.url = "https://example.com/jobs/12345"
         mock_head.return_value = mock_response
 
-        is_valid, reason = validator.validate_url("https://example.com/jobs/12345")
+        is_valid, reason, needs_review = validator.validate_url("https://example.com/jobs/12345")
         assert is_valid is False
         assert reason == "invalid_response"
 
@@ -207,7 +217,7 @@ class TestJobValidator:
         """Test timeout error handling"""
         mock_head.side_effect = requests.Timeout()
 
-        is_valid, reason = validator.validate_url("https://example.com/jobs/12345")
+        is_valid, reason, needs_review = validator.validate_url("https://example.com/jobs/12345")
         assert is_valid is False
         assert reason == "timeout"
 
@@ -216,7 +226,7 @@ class TestJobValidator:
         """Test connection error handling"""
         mock_head.side_effect = requests.ConnectionError()
 
-        is_valid, reason = validator.validate_url("https://example.com/jobs/12345")
+        is_valid, reason, needs_review = validator.validate_url("https://example.com/jobs/12345")
         assert is_valid is False
         assert reason == "connection_error"
 
@@ -225,7 +235,7 @@ class TestJobValidator:
         """Test generic exception handling"""
         mock_head.side_effect = Exception("Unexpected error")
 
-        is_valid, reason = validator.validate_url("https://example.com/jobs/12345")
+        is_valid, reason, needs_review = validator.validate_url("https://example.com/jobs/12345")
         assert is_valid is False
         assert reason == "validation_error"
 
@@ -254,8 +264,8 @@ class TestJobValidator:
         results = validator.validate_batch(urls)
 
         assert len(results) == 2
-        assert results["https://example.com/jobs/valid"] == (True, "valid")
-        assert results["https://example.com/jobs/404"] == (False, "404_not_found")
+        assert results["https://example.com/jobs/valid"] == (True, "valid", False)
+        assert results["https://example.com/jobs/404"] == (False, "404_not_found", False)
 
     # Filter Valid Jobs Tests
     @patch("requests.Session.head")
@@ -266,6 +276,10 @@ class TestJobValidator:
             mock_response = Mock()
             if "invalid" in url:
                 mock_response.status_code = 404
+            elif "generic" in url:
+                # Simulate a generic career page URL
+                mock_response.status_code = 200
+                mock_response.url = url
             else:
                 mock_response.status_code = 200
                 mock_response.url = url
@@ -277,11 +291,20 @@ class TestJobValidator:
             {"company": "Company A", "title": "Job 1", "link": "https://example.com/jobs/valid1"},
             {"company": "Company B", "title": "Job 2", "link": "https://example.com/jobs/invalid"},
             {"company": "Company C", "title": "Job 3", "link": "https://example.com/jobs/valid2"},
+            {
+                "company": "Company D",
+                "title": "Job 4",
+                "link": "https://jobs.ashbyhq.com/generic",
+            },  # Generic URL
         ]
 
-        valid_jobs, invalid_jobs = validator.filter_valid_jobs(jobs)
+        valid_jobs, flagged_jobs, invalid_jobs = validator.filter_valid_jobs(jobs)
 
         assert len(valid_jobs) == 2
+        assert len(flagged_jobs) == 1
         assert len(invalid_jobs) == 1
         assert invalid_jobs[0]["company"] == "Company B"
         assert invalid_jobs[0]["validation_reason"] == "404_not_found"
+        assert flagged_jobs[0]["company"] == "Company D"
+        assert flagged_jobs[0]["validation_reason"] == "generic_career_page"
+        assert flagged_jobs[0]["needs_review"] is True

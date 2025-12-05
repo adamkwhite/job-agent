@@ -303,18 +303,27 @@ def send_digest_to_profile(
     # Validate job URLs before sending
     print("\n🔍 Validating job URLs...")
     validator = JobValidator(timeout=5)
-    valid_jobs, invalid_jobs = validator.filter_valid_jobs(jobs)
+    valid_jobs, flagged_jobs, invalid_jobs = validator.filter_valid_jobs(jobs)
+
+    if flagged_jobs:
+        print(f"  📋 {len(flagged_jobs)} jobs flagged for review (included in digest):")
+        for job in flagged_jobs:
+            reason = job.get("validation_reason", "unknown")
+            print(f"    - {job['company']} - {job['title'][:50]}... ({reason})")
+            print(f"      URL: {job.get('link', 'N/A')}")
 
     if invalid_jobs:
-        print(f"  ⚠️  Filtered out {len(invalid_jobs)} invalid jobs:")
+        print(f"  ⛔ Filtered out {len(invalid_jobs)} invalid jobs:")
         for job in invalid_jobs:
             reason = job.get("validation_reason", "unknown")
             print(f"    - {job['company']} - {job['title'][:50]}... ({reason})")
             print(f"      URL: {job.get('link', 'N/A')}")
 
-    # Use only valid jobs
-    jobs = valid_jobs
-    print(f"  ✓ {len(jobs)} valid jobs remaining")
+    # Include both valid and flagged jobs in digest
+    jobs = valid_jobs + flagged_jobs
+    print(
+        f"  ✓ {len(valid_jobs)} verified jobs + {len(flagged_jobs)} flagged for review = {len(jobs)} total"
+    )
 
     if len(jobs) == 0:
         print("\n⏸  No valid jobs to send after filtering")
