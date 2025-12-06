@@ -334,20 +334,7 @@ def send_digest_to_profile(
 
     # Get jobs for this profile's digest
     if force_resend:
-        print("\n" + "=" * 80)
-        print("⚠️  WARNING: FORCE RESEND MODE ACTIVE")
-        print("=" * 80)
-        print("This will send ALL jobs including:")
-        print("  • Previously sent jobs (digest_sent_at will be updated)")
-        print("  • F-grade jobs (even if profile min_grade is higher)")
-        print("  • Low-scoring jobs that don't meet profile criteria")
-        print("\nThis mode should only be used for:")
-        print("  ✓ Testing digest templates")
-        print("  ✓ Debugging scoring issues")
-        print("  ✓ Manual review of all available jobs")
-        print("\n⚠️  Recipients will receive ALL jobs, not just relevant ones!")
-        print("=" * 80 + "\n")
-
+        print("⚠️  Force resend mode - including previously sent jobs")
         # Get all jobs with scores for this profile
         jobs = db.get_jobs_for_profile_digest(profile_id=profile_id, min_grade="F", limit=100)
     else:
@@ -530,7 +517,7 @@ def main():
     parser.add_argument(
         "--force-resend",
         action="store_true",
-        help="⚠️  WARNING: Send ALL jobs including F-grade and previously sent (for testing only)",
+        help="Include previously sent jobs",
     )
     parser.add_argument(
         "--dry-run",
