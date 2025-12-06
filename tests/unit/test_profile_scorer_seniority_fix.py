@@ -37,6 +37,7 @@ def profile_with_senior_target():
         },
         digest_min_grade="C",
         digest_min_score=63,
+        digest_min_location_score=0,
         digest_include_grades=["A", "B", "C"],
         digest_frequency="weekly",
         notifications_enabled=False,
