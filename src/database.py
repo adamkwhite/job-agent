@@ -388,13 +388,19 @@ class JobDatabase:
         return dict(row) if row else None
 
     def get_jobs_for_profile_digest(
-        self, profile_id: str, min_grade: str = "C", limit: int = 100, max_age_days: int = 7
+        self,
+        profile_id: str,
+        min_grade: str = "C",
+        min_location_score: int = 0,
+        limit: int = 100,
+        max_age_days: int = 7,
     ) -> list[dict]:
         """Get jobs for digest that haven't been sent to this profile
 
         Args:
             profile_id: Profile to get jobs for
             min_grade: Minimum grade to include (A, B, C, D, F)
+            min_location_score: Minimum location score (0-15, default 0 = no filtering)
             limit: Max jobs to return
             max_age_days: Only include jobs from last N days (default 7, reduced from 14 to improve quality)
         """
@@ -426,6 +432,7 @@ class JobDatabase:
                   (js.fit_grade = 'D' AND ? >= 4) OR
                   (js.fit_grade = 'F' AND ? >= 5)
               )
+              AND COALESCE(CAST(json_extract(js.score_breakdown, '$.location') AS INTEGER), 0) >= ?
             ORDER BY js.fit_score DESC, j.received_at DESC
             LIMIT ?
         """,
@@ -437,6 +444,7 @@ class JobDatabase:
                 min_grade_num,
                 min_grade_num,
                 min_grade_num,
+                min_location_score,
                 limit,
             ),
         )

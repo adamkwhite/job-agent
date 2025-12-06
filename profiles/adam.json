@@ -34,6 +34,7 @@
   "digest": {
     "min_grade": "C",
     "min_score": 63,
+    "min_location_score": 8,
     "include_grades": ["A", "B", "C"],
     "send_frequency": "weekly"
   },

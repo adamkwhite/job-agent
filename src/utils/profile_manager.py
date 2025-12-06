@@ -36,6 +36,7 @@ class Profile:
     # Digest settings
     digest_min_grade: str
     digest_min_score: int
+    digest_min_location_score: int
     digest_include_grades: list[str]
     digest_frequency: str
 
@@ -108,6 +109,7 @@ class ProfileManager:
             scoring=data.get("scoring", {}),
             digest_min_grade=digest.get("min_grade", "C"),
             digest_min_score=digest.get("min_score", 63),
+            digest_min_location_score=digest.get("min_location_score", 0),
             digest_include_grades=digest.get("include_grades", ["A", "B", "C"]),
             digest_frequency=digest.get("send_frequency", "weekly"),
             notifications_enabled=notifications.get("enabled", False),

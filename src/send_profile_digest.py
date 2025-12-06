@@ -336,10 +336,18 @@ def send_digest_to_profile(
     if force_resend:
         print("⚠️  Force resend mode - including previously sent jobs")
         # Get all jobs with scores for this profile
-        jobs = db.get_jobs_for_profile_digest(profile_id=profile_id, min_grade="F", limit=100)
+        jobs = db.get_jobs_for_profile_digest(
+            profile_id=profile_id,
+            min_grade="F",
+            min_location_score=0,  # No location filtering in force-resend
+            limit=100,
+        )
     else:
         jobs = db.get_jobs_for_profile_digest(
-            profile_id=profile_id, min_grade=profile.digest_min_grade, limit=100
+            profile_id=profile_id,
+            min_grade=profile.digest_min_grade,
+            min_location_score=profile.digest_min_location_score,
+            limit=100,
         )
 
     print(f"✓ Found {len(jobs)} unsent jobs for {profile.name}")
