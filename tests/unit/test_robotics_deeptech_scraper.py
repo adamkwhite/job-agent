@@ -88,6 +88,87 @@ Job4,Company4,Desc,,,,,https://example.com/4,NEW"""
             assert opportunities[2].location == "USA"
             assert opportunities[3].location == ""
 
+    def test_scrape_deduplicates_identical_city_and_country(self):
+        """Test location deduplication when City and Country are identical (Issue #30)"""
+        scraper = RoboticsDeeptechScraper()
+
+        # Real-world data from Google Sheets where City=Country
+        csv_data = """Job_Title,Company,Description,Department,Experience_Level,City,Country,Job_Url,Status
+Job1,Company1,Desc,,,Waltham,Waltham,https://example.com/1,NEW
+Job2,Company2,Desc,,,Remote,Remote,https://example.com/2,NEW
+Job3,Company3,Desc,,,"Washington, D.C.","Washington, D.C.",https://example.com/3,NEW
+Job4,Company4,Desc,,,New York City,New York City,https://example.com/4,NEW
+Job5,Company5,Desc,,,Multiple Locations,Multiple Locations,https://example.com/5,NEW"""
+
+        mock_response = Mock()
+        mock_response.text = csv_data
+        mock_response.raise_for_status = Mock()
+
+        with patch(
+            "src.scrapers.robotics_deeptech_scraper.requests.get", return_value=mock_response
+        ):
+            opportunities = scraper.scrape()
+
+            assert len(opportunities) == 5
+            # Should NOT duplicate when City == Country
+            assert opportunities[0].location == "Waltham"  # Not "Waltham, Waltham"
+            assert opportunities[1].location == "Remote"  # Not "Remote, Remote"
+            assert (
+                opportunities[2].location == "Washington, D.C."
+            )  # Not "Washington, D.C., Washington, D.C."
+            assert (
+                opportunities[3].location == "New York City"
+            )  # Not "New York City, New York City"
+            assert opportunities[4].location == "Multiple Locations"  # Not duplicated
+
+    def test_scrape_preserves_different_city_and_country(self):
+        """Test location keeps both when City and Country are different"""
+        scraper = RoboticsDeeptechScraper()
+
+        # Cases where City and Country are actually different
+        csv_data = """Job_Title,Company,Description,Department,Experience_Level,City,Country,Job_Url,Status
+Job1,Company1,Desc,,,United States,USA,https://example.com/1,NEW
+Job2,Company2,Desc,,,Not specified,Not found,https://example.com/2,NEW"""
+
+        mock_response = Mock()
+        mock_response.text = csv_data
+        mock_response.raise_for_status = Mock()
+
+        with patch(
+            "src.scrapers.robotics_deeptech_scraper.requests.get", return_value=mock_response
+        ):
+            opportunities = scraper.scrape()
+
+            assert len(opportunities) == 2
+            # Should keep both when different
+            assert opportunities[0].location == "United States, USA"
+            assert opportunities[1].location == "Not specified, Not found"
+
+    def test_scrape_handles_whitespace_in_location_comparison(self):
+        """Test location deduplication trims whitespace before comparing (Issue #30)"""
+        scraper = RoboticsDeeptechScraper()
+
+        # City and Country with extra whitespace
+        csv_data = """Job_Title,Company,Description,Department,Experience_Level,City,Country,Job_Url,Status
+Job1,Company1,Desc,,,  Boston  ,Boston,https://example.com/1,NEW
+Job2,Company2,Desc,,,Seattle,  Seattle  ,https://example.com/2,NEW
+Job3,Company3,Desc,,,  Portland  ,  Portland  ,https://example.com/3,NEW"""
+
+        mock_response = Mock()
+        mock_response.text = csv_data
+        mock_response.raise_for_status = Mock()
+
+        with patch(
+            "src.scrapers.robotics_deeptech_scraper.requests.get", return_value=mock_response
+        ):
+            opportunities = scraper.scrape()
+
+            assert len(opportunities) == 3
+            # Should strip whitespace and avoid duplication
+            assert opportunities[0].location == "Boston"
+            assert opportunities[1].location == "Seattle"
+            assert opportunities[2].location == "Portland"
+
     def test_scrape_builds_enhanced_description(self):
         """Test enhanced description includes metadata"""
         scraper = RoboticsDeeptechScraper()

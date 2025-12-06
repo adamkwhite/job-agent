@@ -408,3 +408,119 @@ class TestJobValidator:
         assert needs_review is False
         assert mock_head.call_count == 2
         assert mock_sleep.call_count == 1
+
+    # Staleness Detection Tests
+    @patch("requests.Session.get")
+    @patch("requests.Session.head")
+    def test_stale_job_no_longer_accepting(self, mock_head, mock_get, validator):
+        """Test job marked as stale when page shows 'no longer accepting applications'"""
+        # HEAD request succeeds (200)
+        mock_head_response = Mock()
+        mock_head_response.status_code = 200
+        mock_head_response.url = "https://example.com/jobs/12345"
+        mock_head.return_value = mock_head_response
+
+        # GET request returns page with staleness indicator
+        mock_get_response = Mock()
+        mock_get_response.status_code = 200
+        mock_get_response.text = """
+        <html>
+            <body>
+                <h1>Senior Engineer</h1>
+                <p>We are no longer accepting applications for this position.</p>
+            </body>
+        </html>
+        """
+        mock_get.return_value = mock_get_response
+
+        is_valid, reason, needs_review = validator.validate_url("https://example.com/jobs/12345")
+        assert is_valid is False
+        assert "stale_no_longer_accepting" in reason
+        assert needs_review is False
+
+    @patch("requests.Session.get")
+    @patch("requests.Session.head")
+    def test_stale_job_position_filled(self, mock_head, mock_get, validator):
+        """Test job marked as stale when page shows 'position has been filled'"""
+        mock_head_response = Mock()
+        mock_head_response.status_code = 200
+        mock_head_response.url = "https://example.com/jobs/12345"
+        mock_head.return_value = mock_head_response
+
+        mock_get_response = Mock()
+        mock_get_response.status_code = 200
+        mock_get_response.text = """
+        <html>
+            <body>
+                <div>This position has been filled. Thank you for your interest.</div>
+            </body>
+        </html>
+        """
+        mock_get.return_value = mock_get_response
+
+        is_valid, reason, needs_review = validator.validate_url("https://example.com/jobs/12345")
+        assert is_valid is False
+        assert "stale_position_has_been_filled" in reason
+
+    @patch("requests.Session.get")
+    @patch("requests.Session.head")
+    def test_not_stale_job_active(self, mock_head, mock_get, validator):
+        """Test active job not marked as stale"""
+        mock_head_response = Mock()
+        mock_head_response.status_code = 200
+        mock_head_response.url = "https://example.com/jobs/12345"
+        mock_head.return_value = mock_head_response
+
+        mock_get_response = Mock()
+        mock_get_response.status_code = 200
+        mock_get_response.text = """
+        <html>
+            <body>
+                <h1>Senior Engineer</h1>
+                <p>We're excited to review your application!</p>
+                <button>Apply Now</button>
+            </body>
+        </html>
+        """
+        mock_get.return_value = mock_get_response
+
+        is_valid, reason, needs_review = validator.validate_url("https://example.com/jobs/12345")
+        assert is_valid is True
+        assert reason == "valid"
+
+    @patch("requests.Session.head")
+    def test_staleness_check_disabled(self, mock_head):
+        """Test that staleness check can be disabled"""
+        # Create validator with check_content=False
+        validator_no_content = JobValidator(timeout=5, check_content=False)
+
+        mock_head_response = Mock()
+        mock_head_response.status_code = 200
+        mock_head_response.url = "https://example.com/jobs/12345"
+        mock_head.return_value = mock_head_response
+
+        # Should not call GET request, return valid immediately
+        is_valid, reason, needs_review = validator_no_content.validate_url(
+            "https://example.com/jobs/12345"
+        )
+        assert is_valid is True
+        assert reason == "valid"
+        # Verify GET was not called
+        assert mock_head.call_count == 1
+
+    @patch("requests.Session.get")
+    @patch("requests.Session.head")
+    def test_staleness_check_get_error(self, mock_head, mock_get, validator):
+        """Test that GET errors don't prevent validation"""
+        mock_head_response = Mock()
+        mock_head_response.status_code = 200
+        mock_head_response.url = "https://example.com/jobs/12345"
+        mock_head.return_value = mock_head_response
+
+        # GET request fails
+        mock_get.side_effect = requests.Timeout()
+
+        # Should still mark as valid (assumes not stale if can't verify)
+        is_valid, reason, needs_review = validator.validate_url("https://example.com/jobs/12345")
+        assert is_valid is True
+        assert reason == "valid"
