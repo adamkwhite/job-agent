@@ -5,6 +5,7 @@ Checks:
 - HTTP status code (404 detection)
 - Generic career page detection (Ashby, Lever)
 - LinkedIn redirect detection (unverifiable but flagged)
+- Content-based staleness detection (closure messages)
 - 429 rate limit handling with exponential backoff retry
 """
 
@@ -12,6 +13,7 @@ import logging
 import time
 
 import requests
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
@@ -19,20 +21,75 @@ logger = logging.getLogger(__name__)
 class JobValidator:
     """Validate job posting URLs"""
 
-    def __init__(self, timeout: int = 5, max_retries: int = 3, base_backoff: float = 2.0):
+    # Phrases that indicate a job posting is no longer accepting applications
+    STALENESS_INDICATORS = [
+        "no longer accepting applications",
+        "no longer accepting",
+        "applications are closed",
+        "this job is closed",
+        "position has been filled",
+        "this position is no longer available",
+        "job posting expired",
+        "this posting has expired",
+        "posting is no longer active",
+        "this job is no longer available",
+    ]
+
+    def __init__(
+        self,
+        timeout: int = 5,
+        max_retries: int = 3,
+        base_backoff: float = 2.0,
+        check_content: bool = True,
+    ):
         """
         Args:
             timeout: HTTP request timeout in seconds
             max_retries: Maximum number of retry attempts for 429 rate limits
             base_backoff: Base delay in seconds for exponential backoff (2^attempt * base)
+            check_content: Whether to fetch and check page content for staleness (slower)
         """
         self.timeout = timeout
         self.max_retries = max_retries
         self.base_backoff = base_backoff
+        self.check_content = check_content
         self.session = requests.Session()
         self.session.headers.update(
             {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         )
+
+    def _check_content_for_staleness(self, url: str) -> tuple[bool, str | None]:
+        """
+        Fetch page content and check for staleness indicators
+
+        Args:
+            url: Job posting URL
+
+        Returns:
+            (is_stale, matched_phrase) tuple
+        """
+        try:
+            # GET request to fetch full content
+            response = self.session.get(url, allow_redirects=True, timeout=self.timeout)
+
+            if response.status_code != 200:
+                return (False, None)  # Can't determine from content
+
+            # Parse HTML and extract text
+            soup = BeautifulSoup(response.text, "html.parser")
+            page_text = soup.get_text().lower()
+
+            # Check for staleness indicators
+            for indicator in self.STALENESS_INDICATORS:
+                if indicator in page_text:
+                    logger.info(f"Job appears stale ('{indicator}'): {url}")
+                    return (True, indicator)
+
+            return (False, None)
+
+        except Exception as e:
+            logger.debug(f"Could not check content for staleness ({url}): {e}")
+            return (False, None)  # Assume not stale if can't verify
 
     def validate_url(self, url: str) -> tuple[bool, str, bool]:
         """
@@ -47,6 +104,7 @@ class JobValidator:
         Validation States:
             - (True, "valid", False) - URL is accessible and valid
             - (False, "404_not_found", False) - URL returns 404, reject
+            - (False, "stale_*", False) - Job no longer accepting applications, reject
             - (False, "timeout", False) - Request timed out, reject
             - (True, "generic_career_page", True) - Career page URL, flag for review
             - (True, "linkedin_unverifiable", True) - LinkedIn requires login, flag for review
@@ -132,6 +190,13 @@ class JobValidator:
 
         # Check for successful response
         if response.status_code == 200:
+            # Check page content for staleness indicators (if enabled)
+            if self.check_content:
+                is_stale, matched_phrase = self._check_content_for_staleness(url)
+                if is_stale and matched_phrase:
+                    logger.warning(f"Job appears stale: {url} (matched: '{matched_phrase}')")
+                    return (False, f"stale_{matched_phrase.replace(' ', '_')}", False)
+
             return (True, "valid", False)
 
         # Check for redirects that might indicate moved/deleted jobs

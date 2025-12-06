@@ -154,11 +154,25 @@ class RoboticsDeeptechScraper:
                 #     continue
 
                 # Build location string
+                # Fix Issue #30: Google Sheet duplicates city in both City and Country columns
+                # If they're identical, only use one. Otherwise use both.
                 location_parts = []
-                if city:
-                    location_parts.append(city)
-                if country:
-                    location_parts.append(country)
+                if city and country:
+                    # Both present - check if duplicated
+                    if city.strip() == country.strip():
+                        # Duplicate - only use city
+                        location_parts.append(city.strip())
+                    else:
+                        # Different values - use both
+                        location_parts.append(city.strip())
+                        location_parts.append(country.strip())
+                elif city:
+                    # Only city present
+                    location_parts.append(city.strip())
+                elif country:
+                    # Only country present
+                    location_parts.append(country.strip())
+
                 location = ", ".join(location_parts) if location_parts else ""
 
                 # Build enhanced description with metadata
