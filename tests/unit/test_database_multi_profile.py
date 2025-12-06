@@ -223,3 +223,68 @@ class TestJobScoresMethods:
 
         assert stats["total_scored"] == 0
         assert stats["unsent_digest"] == 0
+
+    def test_get_jobs_for_profile_digest_location_filtering(self, db_with_job):
+        """Test location score filtering in digest query"""
+        db, db_path = db_with_job
+
+        # Add job with high location score (remote = 15 points)
+        db.upsert_job_score(
+            job_id=1,
+            profile_id="wes",
+            score=85,
+            grade="B",
+            breakdown='{"location": 15, "seniority": 30, "role_type": 20}',
+        )
+
+        # Add another job with location score 0 (on-site outside target area)
+        # First add the job to jobs table
+        import hashlib
+        from datetime import datetime
+
+        now = datetime.now().isoformat()
+        job_hash = hashlib.sha256(b"Company 2|Job 2|http://example.com/2").hexdigest()
+
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO jobs (job_hash, title, company, location, link, source, received_at, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+            (
+                job_hash,
+                "Job 2",
+                "Company 2",
+                "Austin, TX",
+                "http://example.com/2",
+                "test",
+                now,
+                now,
+                now,
+            ),
+        )
+        job_id_2 = cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+        db.upsert_job_score(
+            job_id=job_id_2,
+            profile_id="wes",
+            score=70,
+            grade="C",
+            breakdown='{"location": 0, "seniority": 30, "role_type": 20}',
+        )
+
+        # Without location filtering - should return both jobs
+        jobs_no_filter = db.get_jobs_for_profile_digest(
+            "wes", min_grade="C", min_location_score=0, limit=10
+        )
+        assert len(jobs_no_filter) == 2
+
+        # With location filtering (min_location_score=8) - should return only first job
+        jobs_filtered = db.get_jobs_for_profile_digest(
+            "wes", min_grade="C", min_location_score=8, limit=10
+        )
+        assert len(jobs_filtered) == 1
+        assert jobs_filtered[0]["id"] == 1  # Only the remote job
