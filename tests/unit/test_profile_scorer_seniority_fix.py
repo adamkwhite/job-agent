@@ -37,6 +37,7 @@ def profile_with_senior_target():
         },
         digest_min_grade="C",
         digest_min_score=63,
+        digest_min_location_score=0,
         digest_include_grades=["A", "B", "C"],
         digest_frequency="weekly",
         notifications_enabled=False,
@@ -76,9 +77,9 @@ class TestSeniorKeywordCategorization:
 
         score, grade, breakdown = scorer.score_job(job)
 
-        assert breakdown["seniority"] == 15, (
-            f"Senior Software Engineer should get 15 points, got {breakdown['seniority']}"
-        )
+        assert (
+            breakdown["seniority"] == 15
+        ), f"Senior Software Engineer should get 15 points, got {breakdown['seniority']}"
 
     def test_product_manager_without_senior_gets_mid_points(self, profile_with_senior_target):
         """Product Manager (without Senior) should get 10 seniority points"""
@@ -108,9 +109,9 @@ class TestSeniorKeywordCategorization:
 
         score, grade, breakdown = scorer.score_job(job)
 
-        assert breakdown["seniority"] == 15, (
-            f"Staff Product Manager should get 15 points, got {breakdown['seniority']}"
-        )
+        assert (
+            breakdown["seniority"] == 15
+        ), f"Staff Product Manager should get 15 points, got {breakdown['seniority']}"
 
     def test_principal_software_engineer_gets_senior_points(self, profile_with_senior_target):
         """Principal Software Engineer should get 15 seniority points"""
@@ -125,9 +126,9 @@ class TestSeniorKeywordCategorization:
 
         # Should match role_type (engineering) AND get senior seniority points
         assert breakdown["role_type"] > 0, "Should match engineering role type"
-        assert breakdown["seniority"] == 15, (
-            f"Principal Software Engineer should get 15 points, got {breakdown['seniority']}"
-        )
+        assert (
+            breakdown["seniority"] == 15
+        ), f"Principal Software Engineer should get 15 points, got {breakdown['seniority']}"
 
 
 class TestSeniorityPointsProgression:
@@ -194,6 +195,6 @@ class TestRegressionPrevention:
         score, grade, breakdown = scorer.score_job(job)
 
         # "Lead" is in mid_keywords and should get 10 points
-        assert breakdown["seniority"] == 10, (
-            f"Product Lead should get 10 points (mid-level), got {breakdown['seniority']}"
-        )
+        assert (
+            breakdown["seniority"] == 10
+        ), f"Product Lead should get 10 points (mid-level), got {breakdown['seniority']}"

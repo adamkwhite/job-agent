@@ -39,6 +39,7 @@ def engineering_profile():
         },
         digest_min_grade="C",
         digest_min_score=63,
+        digest_min_location_score=0,
         digest_include_grades=["A", "B", "C"],
         digest_frequency="weekly",
         notifications_enabled=False,
@@ -65,6 +66,7 @@ def product_profile():
         },
         digest_min_grade="C",
         digest_min_score=63,
+        digest_min_location_score=0,
         digest_include_grades=["A", "B", "C"],
         digest_frequency="weekly",
         notifications_enabled=False,
@@ -91,9 +93,9 @@ class TestRoleTypeWordBoundaries:
         assert breakdown["role_type"] == 0, "Marketing Director should not match 'cto' keyword"
 
         # Should NOT get seniority points (NEW: dependency on role_type)
-        assert breakdown["seniority"] == 0, (
-            "Marketing Director should get 0 seniority (no role match)"
-        )
+        assert (
+            breakdown["seniority"] == 0
+        ), "Marketing Director should get 0 seniority (no role match)"
 
         # Total score should be very low (no role_type OR seniority points)
         assert score < 63, f"Marketing role scored too high: {score}/115"
