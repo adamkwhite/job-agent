@@ -9,6 +9,7 @@ Tests markdown job extraction from career pages scraped by Firecrawl:
 
 import pytest
 
+from src.models import OpportunityData
 from src.scrapers.firecrawl_career_scraper import FirecrawlCareerScraper
 
 
@@ -297,8 +298,11 @@ Toronto, ON](https://jobs.company.com/123)
         jobs = scraper.scrape_jobs("https://company.com/careers", "TestCo")
 
         assert len(jobs) == 1
-        assert jobs[0].title == "Senior Engineer"
-        assert jobs[0].company == "TestCo"
+        # Unpack tuple (OpportunityData, extraction_method)
+        job, method = jobs[0]
+        assert job.title == "Senior Engineer"
+        assert job.company == "TestCo"
+        assert method == "regex"  # Verify extraction method
 
     def test_scrape_jobs_handles_exceptions(self, mocker):
         """Test that scrape_jobs handles exceptions gracefully"""
@@ -494,3 +498,192 @@ Toronto, ON](https://jobs.company.com/123)
 
         # Both will be extracted (deduplication happens in database layer)
         assert len(jobs) == 2
+
+
+class TestLLMExtractionIntegration:
+    """Test LLM extraction integration in FirecrawlCareerScraper"""
+
+    def test_init_with_llm_extraction_disabled(self):
+        """Test scraper initializes without LLM extraction by default"""
+        scraper = FirecrawlCareerScraper()
+        assert not scraper.enable_llm_extraction
+        assert scraper.llm_extractor is None
+
+    def test_init_with_llm_extraction_enabled(self, mocker):
+        """Test scraper initializes with LLM extraction when enabled"""
+        # Mock the LLMExtractor import
+        mock_llm_extractor_class = mocker.patch("extractors.llm_extractor.LLMExtractor")
+        mock_extractor = mocker.Mock()
+        mock_llm_extractor_class.return_value = mock_extractor
+
+        scraper = FirecrawlCareerScraper(enable_llm_extraction=True)
+
+        assert scraper.enable_llm_extraction
+        assert scraper.llm_extractor == mock_extractor
+        mock_llm_extractor_class.assert_called_once()
+
+    def test_init_llm_extraction_import_failure(self, mocker, capsys):
+        """Test scraper handles LLM extractor import failure gracefully"""
+        # Mock import to raise exception
+        mocker.patch(
+            "extractors.llm_extractor.LLMExtractor",
+            side_effect=ImportError("No module named 'extractors'"),
+        )
+
+        scraper = FirecrawlCareerScraper(enable_llm_extraction=True)
+
+        # Should disable LLM extraction and continue
+        assert not scraper.enable_llm_extraction
+        assert scraper.llm_extractor is None
+
+    def test_scrape_jobs_with_llm_extraction_success(self, mocker):
+        """Test successful dual extraction (regex + LLM)"""
+        # Mock LLM extractor
+        mock_llm_extractor_class = mocker.patch("extractors.llm_extractor.LLMExtractor")
+        mock_extractor = mocker.Mock()
+        mock_llm_extractor_class.return_value = mock_extractor
+
+        # Mock budget check
+        mock_extractor.budget_available.return_value = True
+
+        # Mock LLM extraction results
+        llm_job = OpportunityData(
+            source="llm_extraction",
+            source_email=None,
+            type="direct_job",
+            company="TestCo",
+            title="VP of Engineering",
+            location="Remote",
+            link="https://test.com/job/vp-eng",
+            description=None,
+            salary=None,
+            job_type=None,
+            posted_date=None,
+            needs_research=False,
+        )
+        mock_extractor.extract_jobs.return_value = [llm_job]
+
+        scraper = FirecrawlCareerScraper(enable_llm_extraction=True)
+
+        # Mock Firecrawl scrape
+        mock_result = {
+            "markdown": """
+[Director of Engineering
+
+Remote](https://test.com/job/director-eng)
+"""
+        }
+        mocker.patch.object(scraper, "_firecrawl_scrape", return_value=mock_result)
+
+        jobs = scraper.scrape_jobs("https://test.com/careers", "TestCo")
+
+        # Should have 1 regex job + 1 LLM job
+        assert len(jobs) == 2
+
+        # First job from regex
+        regex_job, regex_method = jobs[0]
+        assert regex_method == "regex"
+        assert "Director" in regex_job.title
+
+        # Second job from LLM
+        llm_job_result, llm_method = jobs[1]
+        assert llm_method == "llm"
+        assert llm_job_result.title == "VP of Engineering"
+
+        # Verify LLM extractor was called
+        mock_extractor.extract_jobs.assert_called_once()
+
+    def test_scrape_jobs_llm_budget_exceeded(self, mocker, capsys):
+        """Test LLM extraction skipped when budget exceeded"""
+        # Mock LLM extractor
+        mock_llm_extractor_class = mocker.patch("extractors.llm_extractor.LLMExtractor")
+        mock_extractor = mocker.Mock()
+        mock_llm_extractor_class.return_value = mock_extractor
+
+        # Mock budget check - EXCEEDED
+        mock_extractor.budget_available.return_value = False
+
+        scraper = FirecrawlCareerScraper(enable_llm_extraction=True)
+
+        # Mock Firecrawl scrape
+        mock_result = {
+            "markdown": """
+[Senior Engineer
+
+Toronto, ON](https://test.com/job/123)
+"""
+        }
+        mocker.patch.object(scraper, "_firecrawl_scrape", return_value=mock_result)
+
+        jobs = scraper.scrape_jobs("https://test.com/careers", "TestCo")
+
+        # Should only have regex job
+        assert len(jobs) == 1
+        job, method = jobs[0]
+        assert method == "regex"
+
+        # LLM extractor should NOT be called
+        mock_extractor.extract_jobs.assert_not_called()
+
+        # Check warning message
+        captured = capsys.readouterr()
+        assert "budget exceeded" in captured.out.lower()
+
+    def test_scrape_jobs_llm_extraction_failure(self, mocker, capsys):
+        """Test scraper handles LLM extraction failure gracefully"""
+        # Mock LLM extractor
+        mock_llm_extractor_class = mocker.patch("extractors.llm_extractor.LLMExtractor")
+        mock_extractor = mocker.Mock()
+        mock_llm_extractor_class.return_value = mock_extractor
+
+        # Mock budget check
+        mock_extractor.budget_available.return_value = True
+
+        # Mock LLM extraction to raise exception
+        mock_extractor.extract_jobs.side_effect = Exception("LLM API error")
+
+        scraper = FirecrawlCareerScraper(enable_llm_extraction=True)
+
+        # Mock Firecrawl scrape
+        mock_result = {
+            "markdown": """
+[Lead Engineer
+
+Boston, MA](https://test.com/job/456)
+"""
+        }
+        mocker.patch.object(scraper, "_firecrawl_scrape", return_value=mock_result)
+
+        jobs = scraper.scrape_jobs("https://test.com/careers", "TestCo")
+
+        # Should only have regex job (LLM failed)
+        assert len(jobs) == 1
+        job, method = jobs[0]
+        assert method == "regex"
+        assert "Lead Engineer" in job.title
+
+        # Check error message
+        captured = capsys.readouterr()
+        assert "LLM extraction failed" in captured.out
+
+    def test_scrape_jobs_llm_disabled_only_regex(self, mocker):
+        """Test that only regex extraction runs when LLM is disabled"""
+        scraper = FirecrawlCareerScraper(enable_llm_extraction=False)
+
+        # Mock Firecrawl scrape
+        mock_result = {
+            "markdown": """
+[Principal Engineer
+
+Remote](https://test.com/job/789)
+"""
+        }
+        mocker.patch.object(scraper, "_firecrawl_scrape", return_value=mock_result)
+
+        jobs = scraper.scrape_jobs("https://test.com/careers", "TestCo")
+
+        # Should only have regex job
+        assert len(jobs) == 1
+        job, method = jobs[0]
+        assert method == "regex"
+        assert "Principal Engineer" in job.title

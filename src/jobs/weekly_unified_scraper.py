@@ -24,7 +24,7 @@ class WeeklyUnifiedScraper:
     3. Company monitoring (Wes's 26+ companies)
     """
 
-    def __init__(self, profile: str | None = None):
+    def __init__(self, profile: str | None = None, enable_llm_extraction: bool = False):
         # Store profile for logging and sub-components
         self.profile = profile
 
@@ -35,7 +35,9 @@ class WeeklyUnifiedScraper:
         self.robotics_checker = WeeklyRoboticsJobChecker(profile=profile)
 
         # Company monitoring scraper
-        self.company_scraper = CompanyScraper(profile=profile)
+        self.company_scraper = CompanyScraper(
+            profile=profile, enable_llm_extraction=enable_llm_extraction
+        )
 
     def run_all(
         self,
@@ -229,6 +231,11 @@ def main():
         type=str,
         help="Filter companies by notes (e.g., 'From Wes')",
     )
+    parser.add_argument(
+        "--llm-extraction",
+        action="store_true",
+        help="Enable LLM extraction in parallel with regex for company monitoring (requires OpenRouter API key)",
+    )
 
     args = parser.parse_args()
 
@@ -251,7 +258,7 @@ def main():
         run_robotics = True
         run_companies = True
 
-    scraper = WeeklyUnifiedScraper(profile=args.profile)
+    scraper = WeeklyUnifiedScraper(profile=args.profile, enable_llm_extraction=args.llm_extraction)
     stats = scraper.run_all(
         fetch_emails=run_emails,
         email_limit=args.email_limit,

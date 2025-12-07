@@ -14,7 +14,7 @@
     "pause_when_exceeded": true
   },
   "timeout_seconds": 30,
-  "extraction_prompt": "Extract all leadership-level job postings from this {company_name} career page markdown.\n\nLeadership levels include:\n- Executive: VP, Vice President, Chief (CTO, CPO, etc.)\n- Director: Director, Senior Director, Head of, Associate Director\n- Senior IC: Staff, Principal, Distinguished, Senior Staff\n- Senior Manager: Senior Manager, Technical Program Manager, Lead\n\nFor each job, extract:\n- title: Complete job title\n- location: Work location (clean format: \"City, State\" or \"Remote\". Remove prefixes like \"locations\")\n- link: Direct application URL\n\nReturn ONLY a JSON array with this exact structure:\n[\n  {\"title\": \"...\", \"location\": \"...\", \"link\": \"...\"},\n  ...\n]\n\nCareer page markdown:\n{markdown_content}",
+  "extraction_prompt": "Extract all leadership-level job postings from this {company_name} career page markdown.\n\nLeadership levels include:\n- Executive: VP, Vice President, Chief (CTO, CPO, etc.)\n- Director: Director, Senior Director, Head of, Associate Director\n- Senior IC: Staff, Principal, Distinguished, Senior Staff\n- Senior Manager: Senior Manager, Technical Program Manager, Lead\n\nFor each job, extract:\n- title: Complete job title\n- location: Work location (clean format: City, State or Remote. Remove prefixes like locations)\n- link: Direct application URL\n\nReturn ONLY a JSON array. Each object should have title, location, and link fields.\n\nCareer page markdown:\n{markdown_content}",
   "leadership_levels": [
     "Executive: VP, Vice President, Chief",
     "Director: Director, Senior Director, Head of",

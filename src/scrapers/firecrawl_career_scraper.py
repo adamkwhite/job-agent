@@ -3,6 +3,7 @@ Firecrawl-based career page scraper
 Uses Firecrawl API to scrape JavaScript-heavy career pages
 """
 
+import logging
 import os
 import re
 import time
@@ -14,16 +15,19 @@ from models import OpportunityData
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 
 class FirecrawlCareerScraper:
     """Scrape career pages using Firecrawl API with rate limiting"""
 
-    def __init__(self, requests_per_minute: int = 9):
+    def __init__(self, requests_per_minute: int = 9, enable_llm_extraction: bool = False):
         """
         Initialize scraper with rate limiting
 
         Args:
             requests_per_minute: Max requests per minute (default 9 to stay under 10/min limit)
+            enable_llm_extraction: Enable LLM extraction alongside regex (default: False)
         """
         self.name = "firecrawl_career_scraper"
         api_key = os.getenv("FIRECRAWL_API_KEY")
@@ -36,7 +40,23 @@ class FirecrawlCareerScraper:
         self.request_times: list[float] = []  # Track timestamps of recent requests
         self.min_delay = 60.0 / requests_per_minute  # Minimum seconds between requests
 
-    def scrape_jobs(self, careers_url: str, company_name: str) -> list[OpportunityData]:
+        # LLM extraction (optional)
+        self.enable_llm_extraction = enable_llm_extraction
+        self.llm_extractor = None
+
+        if enable_llm_extraction:
+            try:
+                from extractors.llm_extractor import LLMExtractor
+
+                self.llm_extractor = LLMExtractor()
+                logger.info("LLM extraction enabled for FirecrawlCareerScraper")
+            except Exception as e:
+                logger.warning(
+                    f"Failed to initialize LLM extractor: {e}. Continuing with regex only."
+                )
+                self.enable_llm_extraction = False
+
+    def scrape_jobs(self, careers_url: str, company_name: str) -> list[tuple[OpportunityData, str]]:
         """
         Scrape jobs from a career page using Firecrawl
 
@@ -45,7 +65,7 @@ class FirecrawlCareerScraper:
             company_name: Name of the company
 
         Returns:
-            List of OpportunityData objects
+            List of tuples (OpportunityData, extraction_method) where extraction_method is 'regex' or 'llm'
         """
         print(f"\nScraping jobs from: {careers_url}")
         print("Using Firecrawl MCP...")
@@ -60,19 +80,46 @@ class FirecrawlCareerScraper:
 
             markdown = result.get("markdown", "")
 
-            # Extract jobs from markdown
-            jobs = self._extract_jobs_from_markdown(markdown, careers_url, company_name)
+            # Extract jobs from markdown using regex (primary method)
+            regex_jobs = self._extract_jobs_from_markdown(markdown, careers_url, company_name)
+            print(f"  📝 Regex extraction: {len(regex_jobs)} job listings found")
 
-            print(f"  ✓ Found {len(jobs)} job listings")
+            # Store jobs with extraction method
+            jobs_with_method = [(job, "regex") for job in regex_jobs]
+
+            # Run LLM extraction if enabled and budget available
+            if self.enable_llm_extraction and self.llm_extractor:
+                if self.llm_extractor.budget_available():
+                    try:
+                        logger.info(f"Running LLM extraction for {company_name}")
+                        llm_jobs = self.llm_extractor.extract_jobs(markdown, company_name)
+                        print(f"  🤖 LLM extraction: {len(llm_jobs)} job listings found")
+
+                        # Add LLM results for separate storage
+                        jobs_with_method.extend([(job, "llm") for job in llm_jobs])
+                    except Exception as e:
+                        logger.error(f"LLM extraction failed for {company_name}: {e}")
+                        print(f"  ✗ LLM extraction failed: {e}")
+                else:
+                    logger.warning(
+                        f"LLM budget exceeded, skipping LLM extraction for {company_name}"
+                    )
+                    print("  ⚠ LLM budget exceeded, using regex only")
+
+            total_jobs = len(regex_jobs) + sum(
+                1 for _, method in jobs_with_method if method == "llm"
+            )
+            print(f"  ✓ Total: {total_jobs} job listings (regex + LLM)")
 
             # Show job titles and links for user visibility
-            if jobs:
-                for i, job in enumerate(jobs, 1):
-                    print(f"    {i}. {job.title}")
+            if jobs_with_method:
+                for i, (job, method) in enumerate(jobs_with_method, 1):
+                    method_label = "🤖 LLM" if method == "llm" else "📝 Regex"
+                    print(f"    {i}. [{method_label}] {job.title}")
                     if job.link:
                         print(f"       Link: {job.link}")
 
-            return jobs
+            return jobs_with_method
 
         except Exception as e:
             print(f"  ✗ Error scraping page: {e}")

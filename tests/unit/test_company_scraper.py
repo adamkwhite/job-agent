@@ -123,21 +123,27 @@ class TestProcessScrapedJobs:
     def test_process_scraped_jobs_filters_leadership(self, company_scraper):
         """Should filter for leadership roles"""
         jobs = [
-            OpportunityData(
-                type="direct_job",
-                title="Director of Engineering",
-                company="Test Company",
-                location="Remote",
-                link="https://test.com/job1",
-                source="company_monitoring",
+            (
+                OpportunityData(
+                    type="direct_job",
+                    title="Director of Engineering",
+                    company="Test Company",
+                    location="Remote",
+                    link="https://test.com/job1",
+                    source="company_monitoring",
+                ),
+                "regex",
             ),
-            OpportunityData(
-                type="direct_job",
-                title="Software Engineer",
-                company="Test Company",
-                location="Remote",
-                link="https://test.com/job2",
-                source="company_monitoring",
+            (
+                OpportunityData(
+                    type="direct_job",
+                    title="Software Engineer",
+                    company="Test Company",
+                    location="Remote",
+                    link="https://test.com/job2",
+                    source="company_monitoring",
+                ),
+                "regex",
             ),
         ]
 
@@ -159,13 +165,16 @@ class TestProcessScrapedJobs:
     def test_process_scraped_jobs_applies_min_score(self, company_scraper):
         """Should only store jobs above minimum score"""
         jobs = [
-            OpportunityData(
-                type="direct_job",
-                title="Director of Engineering",
-                company="Test Company",
-                location="Remote",
-                link="https://test.com/job",
-                source="company_monitoring",
+            (
+                OpportunityData(
+                    type="direct_job",
+                    title="Director of Engineering",
+                    company="Test Company",
+                    location="Remote",
+                    link="https://test.com/job",
+                    source="company_monitoring",
+                ),
+                "regex",
             )
         ]
 
@@ -185,13 +194,16 @@ class TestProcessScrapedJobs:
     def test_process_scraped_jobs_stores_high_score_job(self, company_scraper):
         """Should store jobs above minimum score"""
         jobs = [
-            OpportunityData(
-                type="direct_job",
-                title="Director of Engineering",
-                company="Test Company",
-                location="Remote",
-                link="https://test.com/job",
-                source="company_monitoring",
+            (
+                OpportunityData(
+                    type="direct_job",
+                    title="Director of Engineering",
+                    company="Test Company",
+                    location="Remote",
+                    link="https://test.com/job",
+                    source="company_monitoring",
+                ),
+                "regex",
             )
         ]
 
@@ -217,13 +229,16 @@ class TestProcessScrapedJobs:
     def test_process_scraped_jobs_sends_notifications_for_high_scores(self, company_scraper):
         """Should send notifications for jobs above notify threshold"""
         jobs = [
-            OpportunityData(
-                type="direct_job",
-                title="VP of Engineering",
-                company="Test Company",
-                location="Remote",
-                link="https://test.com/job",
-                source="company_monitoring",
+            (
+                OpportunityData(
+                    type="direct_job",
+                    title="VP of Engineering",
+                    company="Test Company",
+                    location="Remote",
+                    link="https://test.com/job",
+                    source="company_monitoring",
+                ),
+                "regex",
             )
         ]
 
@@ -248,13 +263,16 @@ class TestProcessScrapedJobs:
     def test_process_scraped_jobs_handles_notification_errors(self, company_scraper):
         """Should handle notification errors gracefully"""
         jobs = [
-            OpportunityData(
-                type="direct_job",
-                title="VP of Engineering",
-                company="Test Company",
-                location="Remote",
-                link="https://test.com/job",
-                source="company_monitoring",
+            (
+                OpportunityData(
+                    type="direct_job",
+                    title="VP of Engineering",
+                    company="Test Company",
+                    location="Remote",
+                    link="https://test.com/job",
+                    source="company_monitoring",
+                ),
+                "regex",
             )
         ]
 
@@ -279,13 +297,16 @@ class TestProcessScrapedJobs:
     def test_process_scraped_jobs_skips_duplicates(self, company_scraper):
         """Should skip duplicate jobs"""
         jobs = [
-            OpportunityData(
-                type="direct_job",
-                title="Director of Engineering",
-                company="Test Company",
-                location="Remote",
-                link="https://test.com/job",
-                source="company_monitoring",
+            (
+                OpportunityData(
+                    type="direct_job",
+                    title="Director of Engineering",
+                    company="Test Company",
+                    location="Remote",
+                    link="https://test.com/job",
+                    source="company_monitoring",
+                ),
+                "regex",
             )
         ]
 
@@ -313,19 +334,22 @@ class TestProcessScrapedJobs:
                 "notes": "Test",
             }
         ]
-        jobs = [
-            OpportunityData(
-                type="direct_job",
-                title="Director of Engineering",
-                company="Test Company",
-                location="Remote",
-                link="https://test.com/job",
-                source="company_monitoring",
+        jobs_with_methods = [
+            (
+                OpportunityData(
+                    type="direct_job",
+                    title="Director of Engineering",
+                    company="Test Company",
+                    location="Remote",
+                    link="https://test.com/job",
+                    source="company_monitoring",
+                ),
+                "regex",
             )
         ]
 
         company_scraper.company_service.get_all_companies = MagicMock(return_value=companies)
-        company_scraper.firecrawl_scraper.scrape_jobs = MagicMock(return_value=jobs)
+        company_scraper.firecrawl_scraper.scrape_jobs = MagicMock(return_value=jobs_with_methods)
         company_scraper.company_service.update_last_checked = MagicMock()
         company_scraper.job_filter.is_leadership_role = MagicMock(return_value=True)
         company_scraper.scorer.score_job = MagicMock(
