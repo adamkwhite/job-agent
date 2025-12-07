@@ -172,7 +172,7 @@ class LLMExtractor:
             # Estimate cost if not provided
             # OpenRouter Claude 3.5 Sonnet pricing (approximate):
             # Input: $3.00 per 1M tokens, Output: $15.00 per 1M tokens
-            if cost_usd == 0.0:
+            if cost_usd < 0.01:  # Treat values < $0.01 as zero to avoid float comparison
                 input_cost = (tokens_in / 1_000_000) * 3.00
                 output_cost = (tokens_out / 1_000_000) * 15.00
                 cost_usd = input_cost + output_cost
