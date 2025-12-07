@@ -82,6 +82,7 @@ exclude = [
 "__init__.py" = ["F401"]  # Allow unused imports in __init__.py
 "src/parsers/*.py" = ["E722"]  # Allow bare except in email parsers (parsing external content)
 "src/scrapers/*.py" = ["E722"]  # Allow bare except in scrapers (parsing external content)
+"tests/**/*.py" = ["ARG002"]  # Allow unused method arguments in tests (pytest fixtures)
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]

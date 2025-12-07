@@ -12,6 +12,7 @@ This is a job discovery and application automation system for Wesley van Ooyen (
 - **Python-based email processors** for LinkedIn, Supra, F6S, Artemis newsletters
 - **Automated web scraping** of robotics/deeptech job boards (1,092 jobs weekly)
 - **Intelligent job scoring** (115-point system) against candidate profile
+- **LLM extraction pipeline** (experimental) - Dual regex+LLM extraction via Claude 3.5 Sonnet
 - **Location-aware filtering** (Remote, Hybrid Ontario, Ontario cities)
 - **SQLite database** with deduplication and scoring history
 - **Multi-channel notifications** for A/B grade jobs only (80+)
@@ -23,8 +24,10 @@ This is a job discovery and application automation system for Wesley van Ooyen (
   - `src/agents/` - Job scoring engine
   - `src/jobs/` - Weekly scraper and automation
   - `src/scrapers/` - Email parsers and web scrapers
+  - `src/extractors/` - LLM extraction and comparison tools
+  - `src/api/` - LLM budget tracking service
   - `src/enrichment/` - Company research pipeline
-- `config/` - Configuration files, keyword lists, templates
+- `config/` - Configuration files, keyword lists, templates, LLM settings
 - `scripts/` - Setup, deployment, and cron scripts
 - `docs/` - Documentation, PRDs, research guides
 - `tests/` - Test fixtures and validation scripts
@@ -109,6 +112,48 @@ PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py
 - Stores D+ grade jobs (50+) to capture more opportunities
 - Tracks last_checked timestamps
 - Sends notifications for A/B grade jobs (80+)
+
+### 7. LLM Extraction Pipeline (`src/extractors/llm_extractor.py`) **EXPERIMENTAL**
+**Status:** IN PROGRESS - Core pipeline complete, validation ongoing
+
+Dual extraction system running regex AND LLM-based job extraction in parallel:
+- **Model:** Claude 3.5 Sonnet via OpenRouter API
+- **Budget:** $5/month limit ($0.01 per company, ~500 companies/month)
+- **Timeout:** 30 seconds per company (NFR1 requirement)
+- **Extraction Method Tagging:** Each job tagged with 'regex' or 'llm' in database
+- **Deduplication:** Database hash prevents duplicate storage across methods
+- **Graceful Degradation:** LLM failures don't break pipeline, regex continues
+
+**Key Features:**
+- Finds jobs regex misses (e.g., Figure AI's `[Title](url)` format)
+- Budget tracking via `logs/llm-budget-YYYY-MM.json`
+- TUI "Advanced Options" step for user-friendly enablement
+- Visual indicators: 📝 Regex vs 🤖 LLM in output
+
+**Configuration:**
+- `config/llm-extraction-settings.json` - Model, prompts, budget, timeout
+- `OPENROUTER_API_KEY` environment variable required
+
+**Usage:**
+```bash
+# Via TUI (recommended)
+./run-tui.sh
+# Select "Companies" source, then enable in Advanced Options
+
+# Via CLI flag
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --profile wes --llm-extraction
+```
+
+**Production Validation (2025-12-07):**
+- ✅ 60 companies processed, $0.60 cost (88% budget remaining)
+- ✅ Found 3 leadership jobs from Figure AI that regex missed
+- ✅ Correctly deduplicated overlapping results
+- ✅ Graceful handling of LLM failures (0 jobs found)
+
+**Related:**
+- PRD: `docs/features/llm-job-extraction-IN_PROGRESS/prd.md`
+- Issues: [#87](https://github.com/adamkwhite/job-agent/issues/87) (DB), [#88](https://github.com/adamkwhite/job-agent/issues/88) (Core), [#89](https://github.com/adamkwhite/job-agent/issues/89) (Budget), [#90](https://github.com/adamkwhite/job-agent/issues/90) (Pipeline)
+- PRs: [#111](https://github.com/adamkwhite/job-agent/pull/111), [#112](https://github.com/adamkwhite/job-agent/pull/112), [#113](https://github.com/adamkwhite/job-agent/pull/113)
 
 ## Testing & Coverage Requirements
 
