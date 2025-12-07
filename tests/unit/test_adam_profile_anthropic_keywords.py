@@ -30,23 +30,23 @@ class TestAnthropicClaudeKeywords:
     def test_anthropic_keyword_in_domain_keywords(self, adam_profile):
         """Verify 'anthropic' is in Adam's domain keywords"""
         domain_keywords = adam_profile.get_domain_keywords()
-        assert "anthropic" in domain_keywords, (
-            "Adam's profile should include 'anthropic' in domain_keywords"
-        )
+        assert (
+            "anthropic" in domain_keywords
+        ), "Adam's profile should include 'anthropic' in domain_keywords"
 
     def test_claude_keyword_in_domain_keywords(self, adam_profile):
         """Verify 'claude' is in Adam's domain keywords"""
         domain_keywords = adam_profile.get_domain_keywords()
-        assert "claude" in domain_keywords, (
-            "Adam's profile should include 'claude' in domain_keywords"
-        )
+        assert (
+            "claude" in domain_keywords
+        ), "Adam's profile should include 'claude' in domain_keywords"
 
     def test_developer_tools_keyword_in_domain_keywords(self, adam_profile):
         """Verify 'developer tools' is in Adam's domain keywords"""
         domain_keywords = adam_profile.get_domain_keywords()
-        assert "developer tools" in domain_keywords, (
-            "Adam's profile should include 'developer tools' in domain_keywords"
-        )
+        assert (
+            "developer tools" in domain_keywords
+        ), "Adam's profile should include 'developer tools' in domain_keywords"
 
     def test_ide_keyword_in_domain_keywords(self, adam_profile):
         """Verify 'ide' is in Adam's domain keywords"""
@@ -133,9 +133,9 @@ class TestAnthropicJobScoring:
         )
 
         # Seniority should be 15 (senior-level)
-        assert breakdown["seniority"] == 15, (
-            f"Senior PM should get 15 seniority points, got {breakdown['seniority']}"
-        )
+        assert (
+            breakdown["seniority"] == 15
+        ), f"Senior PM should get 15 seniority points, got {breakdown['seniority']}"
 
 
 class TestDeveloperToolsScoring:
@@ -153,9 +153,9 @@ class TestDeveloperToolsScoring:
         score, grade, breakdown = scorer.score_job(job)
 
         # Should recognize "developer tools" keyword
-        assert breakdown["domain"] >= 20, (
-            f"Developer tools job should score at least 20 in domain, got {breakdown['domain']}"
-        )
+        assert (
+            breakdown["domain"] >= 20
+        ), f"Developer tools job should score at least 20 in domain, got {breakdown['domain']}"
 
     def test_ide_in_title_boosts_score(self, adam_profile):
         """IDE keyword in title should boost domain score"""
@@ -169,9 +169,9 @@ class TestDeveloperToolsScoring:
         score, grade, breakdown = scorer.score_job(job)
 
         # Should recognize "ide" keyword
-        assert breakdown["domain"] >= 15, (
-            f"IDE platform job should score at least 15 in domain, got {breakdown['domain']}"
-        )
+        assert (
+            breakdown["domain"] >= 15
+        ), f"IDE platform job should score at least 15 in domain, got {breakdown['domain']}"
 
 
 class TestRegressionPrevention:
@@ -203,6 +203,6 @@ class TestRegressionPrevention:
         ]
         missing_keywords = [kw for kw in important_keywords if kw not in domain_keywords]
 
-        assert not missing_keywords, (
-            f"Adam's profile is missing original keywords: {missing_keywords}"
-        )
+        assert (
+            not missing_keywords
+        ), f"Adam's profile is missing original keywords: {missing_keywords}"

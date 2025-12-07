@@ -75,14 +75,14 @@ class TestWesRoboticsKeywords:
         assert breakdown["role_type"] > 0, "Should match robotics role_type"
 
         # Should get seniority points (depends on role_type > 0)
-        assert breakdown["seniority"] >= 25, (
-            f"Head of should get 25+ seniority points, got {breakdown['seniority']}"
-        )
+        assert (
+            breakdown["seniority"] >= 25
+        ), f"Head of should get 25+ seniority points, got {breakdown['seniority']}"
 
         # Should score B grade overall
-        assert score >= 80, (
-            f"Head of Robotics should score at least 80 for Wes, got {score}/115 ({grade})"
-        )
+        assert (
+            score >= 80
+        ), f"Head of Robotics should score at least 80 for Wes, got {score}/115 ({grade})"
         assert grade == "B", f"Expected B grade, got {grade}"
 
     def test_director_of_automation_scores_b_grade(self, wes_profile):
@@ -207,22 +207,22 @@ class TestCrossProfileConsistency:
 
         required_keywords = ["robotics", "automation", "mechatronics"]
         for keyword in required_keywords:
-            assert keyword in eng_leadership, (
-                f"Wes's engineering_leadership should include '{keyword}'"
-            )
+            assert (
+                keyword in eng_leadership
+            ), f"Wes's engineering_leadership should include '{keyword}'"
 
     def test_wes_operations_leadership_exists(self, wes_profile):
         """Wes should have operations_leadership role type"""
         role_types = wes_profile.scoring.get("role_types", {})
 
-        assert "operations_leadership" in role_types, (
-            "Wes's profile should have operations_leadership role type"
-        )
+        assert (
+            "operations_leadership" in role_types
+        ), "Wes's profile should have operations_leadership role type"
 
         ops_leadership = role_types.get("operations_leadership", [])
-        assert "manufacturing" in ops_leadership, (
-            "operations_leadership should include 'manufacturing'"
-        )
+        assert (
+            "manufacturing" in ops_leadership
+        ), "operations_leadership should include 'manufacturing'"
 
     def test_eli_engineering_leadership_keywords(self, eli_profile):
         """Eli's engineering_leadership should include fintech-specific keywords"""
@@ -231,6 +231,6 @@ class TestCrossProfileConsistency:
 
         required_keywords = ["fintech", "healthtech", "saas"]
         for keyword in required_keywords:
-            assert keyword in eng_leadership, (
-                f"Eli's engineering_leadership should include '{keyword}'"
-            )
+            assert (
+                keyword in eng_leadership
+            ), f"Eli's engineering_leadership should include '{keyword}'"

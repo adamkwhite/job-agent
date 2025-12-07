@@ -11,6 +11,7 @@ from typing import Any
 
 from scrapegraphai.graphs import SmartScraperGraph
 
+from src.api.llm_budget_service import LLMBudgetService
 from src.database import JobDatabase
 from src.models import OpportunityData
 
@@ -28,6 +29,12 @@ class LLMExtractor:
         """
         self.config = self._load_config(config_path)
         self.database = JobDatabase()
+
+        # Initialize budget tracking service
+        self.budget_service = LLMBudgetService(
+            monthly_limit=self.config["budget"]["monthly_limit_usd"],
+            alert_threshold=0.8,  # 80% threshold for alerts
+        )
 
         # Get OpenRouter API key from environment
         api_key_env = self.config["llm_config"]["llm"]["api_key_env"]
@@ -80,9 +87,8 @@ class LLMExtractor:
         if not self.config["budget"]["pause_when_exceeded"]:
             return True
 
-        # Get current month's total cost from database
-        # For now, always return True (budget tracking will be implemented in Issue #89)
-        return True
+        # Check budget via budget service
+        return self.budget_service.check_budget_available()
 
     def extract_jobs(self, markdown: str, company_name: str) -> list[OpportunityData]:
         """Extract leadership jobs from markdown using LLM
@@ -100,6 +106,13 @@ class LLMExtractor:
         """
         if not self.config["enabled"]:
             logger.info("LLM extraction disabled in config")
+            return []
+
+        # Check budget before extraction
+        if not self.budget_available():
+            logger.warning(
+                f"LLM extraction skipped for {company_name}: monthly budget limit reached"
+            )
             return []
 
         if not markdown or not markdown.strip():
@@ -144,8 +157,35 @@ class LLMExtractor:
             # Log successful extraction
             logger.info(f"LLM extracted {len(jobs)} jobs from {company_name} in {elapsed:.1f}s")
 
-            # Track cost/tokens (placeholder for now, will be implemented in Issue #89)
-            # TODO: Extract token counts from result and calculate cost
+            # Track cost/tokens
+            # Extract token usage from result if available
+            tokens_in = 0
+            tokens_out = 0
+            cost_usd = 0.0
+
+            # ScrapeGraphAI may include usage info in result
+            if isinstance(result, dict) and "usage" in result:
+                usage = result["usage"]
+                tokens_in = usage.get("prompt_tokens", 0)
+                tokens_out = usage.get("completion_tokens", 0)
+
+            # Estimate cost if not provided
+            # OpenRouter Claude 3.5 Sonnet pricing (approximate):
+            # Input: $3.00 per 1M tokens, Output: $15.00 per 1M tokens
+            if cost_usd == 0.0:
+                input_cost = (tokens_in / 1_000_000) * 3.00
+                output_cost = (tokens_out / 1_000_000) * 15.00
+                cost_usd = input_cost + output_cost
+
+            # Record API call in budget service
+            if cost_usd > 0 or tokens_in > 0 or tokens_out > 0:
+                self.budget_service.record_api_call(
+                    tokens_in=tokens_in,
+                    tokens_out=tokens_out,
+                    cost_usd=cost_usd,
+                    company_name=company_name,
+                    model=self.config["llm_config"]["llm"]["model"],
+                )
 
             return jobs
 
