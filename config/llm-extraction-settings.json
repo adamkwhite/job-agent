@@ -1,0 +1,24 @@
+{
+  "enabled": true,
+  "provider": "scrapegraphai",
+  "llm_config": {
+    "llm": {
+      "api_key_env": "OPENROUTER_API_KEY",
+      "model": "anthropic/claude-3.5-sonnet",
+      "base_url": "https://openrouter.ai/api/v1",
+      "temperature": 0.1
+    }
+  },
+  "budget": {
+    "monthly_limit_usd": 5.0,
+    "pause_when_exceeded": true
+  },
+  "timeout_seconds": 30,
+  "extraction_prompt": "Extract all leadership-level job postings from this {company_name} career page markdown.\n\nLeadership levels include:\n- Executive: VP, Vice President, Chief (CTO, CPO, etc.)\n- Director: Director, Senior Director, Head of, Associate Director\n- Senior IC: Staff, Principal, Distinguished, Senior Staff\n- Senior Manager: Senior Manager, Technical Program Manager, Lead\n\nFor each job, extract:\n- title: Complete job title\n- location: Work location (clean format: \"City, State\" or \"Remote\". Remove prefixes like \"locations\")\n- link: Direct application URL\n\nReturn ONLY a JSON array with this exact structure:\n[\n  {\"title\": \"...\", \"location\": \"...\", \"link\": \"...\"},\n  ...\n]\n\nCareer page markdown:\n{markdown_content}",
+  "leadership_levels": [
+    "Executive: VP, Vice President, Chief",
+    "Director: Director, Senior Director, Head of",
+    "Senior IC: Staff, Principal, Distinguished",
+    "Senior Manager: Senior Manager, Technical Program Manager, Lead"
+  ]
+}
