@@ -9,7 +9,7 @@ Tasks
 - Use the claude memory mcp to store learnings
 - Create a final PR after making these updates
 
- 
+
 <dirStructure>
 $PROJECT_NAME/
 ├── ai_docs/                # AI specific documentation

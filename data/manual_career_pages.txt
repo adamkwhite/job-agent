@@ -48,3 +48,33 @@ Investors: JMI Equity, Technology Crossover Ventures (TCV)
 
 Guessed website: https://clio
 Career page URL (fill this in): ____________________________
+
+======================================================================
+Company: Rencore
+Location: Muenchen, Germany
+Funding: Series A - $15m
+Industries: AI, AI Governance
+Investors: UVC Partners, Hi inov - Dentressangles
+
+Guessed website: https://rencore.com
+Career page URL (fill this in): ____________________________
+
+======================================================================
+Company: Damae Medical France
+Location: Paris, France
+Funding: Series A - €15m
+Industries: Health/Medical, Medical Imaging
+Investors: Kurma Partners, Creadev
+
+Guessed website: https://damaemedicalfrance.com
+Career page URL (fill this in): ____________________________
+
+======================================================================
+Company: Protego Biopharma
+Location: San Diego, US
+Funding: Series A - $130m
+Industries: Biotech, Drug Discovery
+Investors: Novartis Venture Fund, DROIA Ventures
+
+Guessed website: https://protegobiopharma.com
+Career page URL (fill this in): ____________________________
