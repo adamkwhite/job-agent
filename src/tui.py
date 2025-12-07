@@ -168,7 +168,9 @@ def select_sources(profile: str) -> list[str]:
     console.print(sources_panel)
     console.print(criteria_panel)
 
-    console.print("\n[dim]Enter comma-separated options (e.g., 'email,robotics' or 'all')[/dim]")
+    console.print(
+        "\n[dim]Enter comma-separated options (e.g., 'email,robotics,companies' or 'all')[/dim]"
+    )
     choice = Prompt.ask("\n[bold]Select sources[/bold]", default="all").lower().strip()
 
     if choice == "all":
