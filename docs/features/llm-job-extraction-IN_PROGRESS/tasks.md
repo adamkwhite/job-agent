@@ -34,25 +34,25 @@
 
 ## Tasks
 
-- [ ] 1.0 **Database Schema & Migrations** - Create new tables and columns for LLM extraction tracking
-  - [ ] 1.1 Add `extraction_method` (TEXT) and `extraction_cost` (REAL) columns to `jobs` table
-  - [ ] 1.2 Create `llm_extraction_failures` table with columns: id, company_name, careers_url, markdown_path, failure_reason, error_details, occurred_at, reviewed_at, review_action
-  - [ ] 1.3 Create `extraction_metrics` table with columns: id, company_name, scrape_date, regex_jobs_found, regex_leadership_jobs, regex_with_location, llm_jobs_found, llm_leadership_jobs, llm_with_location, llm_api_cost, overlap_count, regex_unique, llm_unique
-  - [ ] 1.4 Add database methods in `src/database.py`: `store_llm_failure()`, `get_llm_failures()`, `store_extraction_metrics()`, `get_extraction_metrics()`
-  - [ ] 1.5 Write migration script to update existing database schema without data loss
-  - [ ] 1.6 Test migrations on development database and verify schema integrity
+- [x] 1.0 **Database Schema & Migrations** - Create new tables and columns for LLM extraction tracking ✅ **Issue #87, PR #111**
+  - [x] 1.1 Add `extraction_method` (TEXT) and `extraction_cost` (REAL) columns to `jobs` table
+  - [x] 1.2 Create `llm_extraction_failures` table with columns: id, company_name, careers_url, markdown_path, failure_reason, error_details, occurred_at, reviewed_at, review_action
+  - [x] 1.3 Create `extraction_metrics` table with columns: id, company_name, scrape_date, regex_jobs_found, regex_leadership_jobs, regex_with_location, llm_jobs_found, llm_leadership_jobs, llm_with_location, llm_api_cost, overlap_count, regex_unique, llm_unique
+  - [x] 1.4 Add database methods in `src/database.py`: `store_llm_failure()`, `get_llm_failures()`, `store_extraction_metrics()`, `get_extraction_metrics()`
+  - [x] 1.5 Write migration script to update existing database schema without data loss
+  - [x] 1.6 Test migrations on development database and verify schema integrity
 
-- [ ] 2.0 **LLM Extractor Core Implementation** - Build ScrapeGraphAI-based extraction engine with budget tracking
-  - [ ] 2.1 Install dependencies: `scrapegraphai>=1.0.0`, `openai>=1.0.0` (update requirements.txt)
-  - [ ] 2.2 Create `config/llm-extraction-settings.json` with model config, budget settings, extraction prompts
-  - [ ] 2.3 Implement `src/extractors/llm_extractor.py` with `LLMExtractor` class
-  - [ ] 2.4 Add method `extract_jobs(markdown: str, company_name: str) -> List[OpportunityData]`
-  - [ ] 2.5 Integrate ScrapeGraphAI SmartScraperGraph with OpenRouter Claude 3.5 Sonnet
-  - [ ] 2.6 Parse LLM JSON response and convert to OpportunityData objects
-  - [ ] 2.7 Add 30-second timeout per extraction (NFR1 requirement)
-  - [ ] 2.8 Log all LLM API calls with token counts, latency, cost estimates
-  - [ ] 2.9 Handle LLM failures gracefully (catch exceptions, log errors, return empty list)
-  - [ ] 2.10 Write unit tests with mocked ScrapeGraphAI calls (≥80% coverage)
+- [x] 2.0 **LLM Extractor Core Implementation** - Build ScrapeGraphAI-based extraction engine with budget tracking ✅ **Issue #88, PR #112**
+  - [x] 2.1 Install dependencies: `scrapegraphai>=1.0.0`, `openai>=1.0.0` (update requirements.txt) - **Note: Commented out to prevent CI timeouts**
+  - [x] 2.2 Create `config/llm-extraction-settings.json` with model config, budget settings, extraction prompts
+  - [x] 2.3 Implement `src/extractors/llm_extractor.py` with `LLMExtractor` class
+  - [x] 2.4 Add method `extract_jobs(markdown: str, company_name: str) -> List[OpportunityData]`
+  - [x] 2.5 Integrate ScrapeGraphAI SmartScraperGraph with OpenRouter Claude 3.5 Sonnet
+  - [x] 2.6 Parse LLM JSON response and convert to OpportunityData objects
+  - [x] 2.7 Add 30-second timeout per extraction (NFR1 requirement)
+  - [x] 2.8 Log all LLM API calls with token counts, latency, cost estimates - **Placeholder for Issue #89**
+  - [x] 2.9 Handle LLM failures gracefully (catch exceptions, log errors, return empty list)
+  - [x] 2.10 Write unit tests with mocked ScrapeGraphAI calls (≥80% coverage) - **91% achieved**
 
 - [ ] 3.0 **Budget Tracking Service** - Enforce $5/month API cost limits
   - [ ] 3.1 Implement `src/api/llm_budget_service.py` with `LLMBudgetService` class

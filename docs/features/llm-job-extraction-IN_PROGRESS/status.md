@@ -1,15 +1,15 @@
-# LLM-Based Job Extraction - 📋 PLANNED
+# LLM-Based Job Extraction - 🚧 IN PROGRESS
 
-**Implementation Status:** PLANNED
-**PR:** Not created
+**Implementation Status:** IN_PROGRESS
+**PR:** [#111](https://github.com/adamkwhite/job-agent/pull/111) (merged), [#112](https://github.com/adamkwhite/job-agent/pull/112) (merged)
 **GitHub Issue:** [#86](https://github.com/adamkwhite/job-agent/issues/86)
-**Last Updated:** 2025-11-30
+**Last Updated:** 2025-12-06
 
 ## Task Completion
 
-- [ ] 1.0 Database Schema & Migrations (6 sub-tasks)
-- [ ] 2.0 LLM Extractor Core Implementation (10 sub-tasks)
-- [ ] 3.0 Budget Tracking Service (9 sub-tasks)
+- [x] 1.0 Database Schema & Migrations (6 sub-tasks) - **Issue #87, PR #111**
+- [x] 2.0 LLM Extractor Core Implementation (10 sub-tasks) - **Issue #88, PR #112**
+- [ ] 3.0 Budget Tracking Service (9 sub-tasks) - **Issue #89 (next)**
 - [ ] 4.0 Dual Extraction Pipeline (9 sub-tasks)
 - [ ] 5.0 Comparison & Metrics Framework (11 sub-tasks)
 - [ ] 6.0 TUI Failure Review Interface (10 sub-tasks)
