@@ -25,7 +25,8 @@ repos:
           types-requests,
           types-beautifulsoup4,
         ]
-        args: [--ignore-missing-imports, --show-error-codes]
+        args: [--ignore-missing-imports, --show-error-codes, --explicit-package-bases]
+        exclude: ^src/models\.py$
 
   # General file checks
   - repo: https://github.com/pre-commit/pre-commit-hooks

@@ -23,7 +23,7 @@ Flask==3.0.0
 # LLM Extraction dependencies (runtime only, not needed for tests/CI)
 langchain-openai>=1.0.0
 langchain-core>=1.0.0
-flask-cors==4.0.2
+flask-cors==6.0.0
 frozenlist==1.8.0
 greenlet==3.2.4
 h11==0.16.0
