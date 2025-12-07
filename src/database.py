@@ -84,6 +84,13 @@ class JobDatabase:
             # Set default profile for existing jobs (assume they're for Wes)
             cursor.execute("UPDATE jobs SET profile = 'wes' WHERE profile IS NULL")
 
+        # Migration: Add LLM extraction tracking columns
+        if "extraction_method" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN extraction_method TEXT")
+
+        if "extraction_cost" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN extraction_cost REAL")
+
         # Create index after column exists
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_fit_score ON jobs(fit_score)
@@ -95,6 +102,58 @@ class JobDatabase:
 
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_profile ON jobs(profile)
+        """)
+
+        # Create LLM extraction failures table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS llm_extraction_failures (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                company_name TEXT NOT NULL,
+                careers_url TEXT,
+                markdown_path TEXT,
+                failure_reason TEXT,
+                error_details TEXT,
+                occurred_at TEXT NOT NULL,
+                reviewed_at TEXT,
+                review_action TEXT,
+                UNIQUE(company_name, occurred_at)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_llm_failures_company ON llm_extraction_failures(company_name)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_llm_failures_reviewed ON llm_extraction_failures(review_action)
+        """)
+
+        # Create extraction metrics comparison table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS extraction_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                company_name TEXT NOT NULL,
+                scrape_date TEXT NOT NULL,
+                regex_jobs_found INTEGER,
+                regex_leadership_jobs INTEGER,
+                regex_with_location INTEGER,
+                llm_jobs_found INTEGER,
+                llm_leadership_jobs INTEGER,
+                llm_with_location INTEGER,
+                llm_api_cost REAL,
+                overlap_count INTEGER,
+                regex_unique INTEGER,
+                llm_unique INTEGER,
+                UNIQUE(company_name, scrape_date)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_extraction_metrics_company ON extraction_metrics(company_name)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_extraction_metrics_date ON extraction_metrics(scrape_date)
         """)
 
         conn.commit()
@@ -514,6 +573,195 @@ class JobDatabase:
             "by_grade": by_grade,
             "unsent_digest": unsent,
         }
+
+    def store_llm_failure(
+        self,
+        company_name: str,
+        careers_url: str | None = None,
+        markdown_path: str | None = None,
+        failure_reason: str | None = None,
+        error_details: str | None = None,
+    ) -> int:
+        """Store LLM extraction failure for later review
+
+        Args:
+            company_name: Name of the company
+            careers_url: URL of the careers page
+            markdown_path: Path to cached markdown file
+            failure_reason: Short description of failure
+            error_details: Full error message/stack trace
+
+        Returns:
+            ID of the failure record
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        occurred_at = datetime.now().isoformat()
+
+        cursor.execute(
+            """
+            INSERT OR REPLACE INTO llm_extraction_failures
+            (company_name, careers_url, markdown_path, failure_reason, error_details, occurred_at, review_action)
+            VALUES (?, ?, ?, ?, ?, ?, 'pending')
+        """,
+            (company_name, careers_url, markdown_path, failure_reason, error_details, occurred_at),
+        )
+
+        failure_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+        if failure_id is None:
+            raise RuntimeError("Failed to insert LLM failure record")
+        return failure_id
+
+    def get_llm_failures(self, review_action: str | None = None, limit: int = 100) -> list[dict]:
+        """Get LLM extraction failures for review
+
+        Args:
+            review_action: Filter by review action ('pending', 'retry', 'skip')
+            limit: Maximum number of failures to return
+
+        Returns:
+            List of failure dictionaries
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        if review_action:
+            cursor.execute(
+                """
+                SELECT * FROM llm_extraction_failures
+                WHERE review_action = ?
+                ORDER BY occurred_at DESC
+                LIMIT ?
+            """,
+                (review_action, limit),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT * FROM llm_extraction_failures
+                ORDER BY occurred_at DESC
+                LIMIT ?
+            """,
+                (limit,),
+            )
+
+        failures = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+
+        return failures
+
+    def store_extraction_metrics(
+        self,
+        company_name: str,
+        regex_jobs_found: int,
+        regex_leadership_jobs: int,
+        regex_with_location: int,
+        llm_jobs_found: int,
+        llm_leadership_jobs: int,
+        llm_with_location: int,
+        llm_api_cost: float,
+        overlap_count: int,
+        regex_unique: int,
+        llm_unique: int,
+    ) -> int:
+        """Store extraction comparison metrics
+
+        Args:
+            company_name: Name of the company
+            regex_jobs_found: Total jobs found by regex
+            regex_leadership_jobs: Leadership jobs found by regex
+            regex_with_location: Regex jobs with valid location
+            llm_jobs_found: Total jobs found by LLM
+            llm_leadership_jobs: Leadership jobs found by LLM
+            llm_with_location: LLM jobs with valid location
+            llm_api_cost: Cost of LLM API call in USD
+            overlap_count: Jobs found by both methods
+            regex_unique: Jobs only found by regex
+            llm_unique: Jobs only found by LLM
+
+        Returns:
+            ID of the metrics record
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        scrape_date = datetime.now().date().isoformat()
+
+        cursor.execute(
+            """
+            INSERT OR REPLACE INTO extraction_metrics
+            (company_name, scrape_date, regex_jobs_found, regex_leadership_jobs, regex_with_location,
+             llm_jobs_found, llm_leadership_jobs, llm_with_location, llm_api_cost,
+             overlap_count, regex_unique, llm_unique)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+            (
+                company_name,
+                scrape_date,
+                regex_jobs_found,
+                regex_leadership_jobs,
+                regex_with_location,
+                llm_jobs_found,
+                llm_leadership_jobs,
+                llm_with_location,
+                llm_api_cost,
+                overlap_count,
+                regex_unique,
+                llm_unique,
+            ),
+        )
+
+        metrics_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+        if metrics_id is None:
+            raise RuntimeError("Failed to insert extraction metrics record")
+        return metrics_id
+
+    def get_extraction_metrics(self, company_name: str | None = None, days: int = 30) -> list[dict]:
+        """Get extraction comparison metrics
+
+        Args:
+            company_name: Filter by company name (optional)
+            days: Number of days to look back
+
+        Returns:
+            List of metrics dictionaries
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        if company_name:
+            cursor.execute(
+                """
+                SELECT * FROM extraction_metrics
+                WHERE company_name = ?
+                  AND scrape_date >= date('now', '-' || ? || ' days')
+                ORDER BY scrape_date DESC
+            """,
+                (company_name, days),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT * FROM extraction_metrics
+                WHERE scrape_date >= date('now', '-' || ? || ' days')
+                ORDER BY scrape_date DESC
+            """,
+                (days,),
+            )
+
+        metrics = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+
+        return metrics
 
 
 if __name__ == "__main__":
