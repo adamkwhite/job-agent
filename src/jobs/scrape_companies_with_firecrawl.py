@@ -9,6 +9,7 @@ This script is meant to be run BY Claude Code, not standalone.
 """
 
 import json
+import logging
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -18,9 +19,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from agents.job_scorer import JobScorer
 from api.company_service import CompanyService
 from database import JobDatabase
+from extractors.llm_extractor import LLMExtractor
 from job_filter import JobFilter
 from models import OpportunityData
 from notifier import JobNotifier
+
+logger = logging.getLogger(__name__)
 
 
 class CompanyScraperWithFirecrawl:
@@ -34,12 +38,24 @@ class CompanyScraperWithFirecrawl:
         4. Script processes results and stores in database
     """
 
-    def __init__(self):
+    def __init__(self, enable_llm_extraction: bool = False):
         self.company_service = CompanyService()
         self.job_filter = JobFilter()
         self.scorer = JobScorer()
         self.database = JobDatabase()
         self.notifier = JobNotifier()
+        self.enable_llm_extraction = enable_llm_extraction
+        self.llm_extractor = None
+
+        if enable_llm_extraction:
+            try:
+                self.llm_extractor = LLMExtractor()
+                logger.info("LLM extraction enabled")
+            except Exception as e:
+                logger.warning(
+                    f"Failed to initialize LLM extractor: {e}. Continuing with regex only."
+                )
+                self.enable_llm_extraction = False
 
     def get_companies_to_scrape(self, company_filter: str | None = None) -> list[dict]:
         """Get list of companies that need scraping"""
@@ -84,13 +100,32 @@ class CompanyScraperWithFirecrawl:
 
         print(f"\nProcessing {company_name}")
 
-        # Extract jobs from markdown
-        jobs = self._extract_jobs_from_markdown(markdown_content, company_name)
+        # Extract jobs using regex (primary method)
+        regex_jobs = self._extract_jobs_from_markdown(markdown_content, company_name)
+        stats["jobs_found"] = len(regex_jobs)
+        print(f"  Regex extraction: {len(regex_jobs)} jobs found")
 
-        stats["jobs_found"] = len(jobs)
-        print(f"  Found {len(jobs)} job listings")
+        # Store regex results for processing
+        jobs_to_process = [(job, "regex") for job in regex_jobs]
 
-        if not jobs:
+        # Run LLM extraction if enabled and budget available
+        if self.enable_llm_extraction and self.llm_extractor:
+            if self.llm_extractor.budget_available():
+                try:
+                    logger.info(f"Running LLM extraction for {company_name}")
+                    llm_jobs = self.llm_extractor.extract_jobs(markdown_content, company_name)
+                    print(f"  LLM extraction: {len(llm_jobs)} jobs found")
+
+                    # Add LLM results for separate storage
+                    jobs_to_process.extend([(job, "llm") for job in llm_jobs])
+                except Exception as e:
+                    logger.error(f"LLM extraction failed for {company_name}: {e}")
+                    print(f"  ✗ LLM extraction failed: {e}")
+            else:
+                logger.warning(f"LLM budget exceeded, skipping LLM extraction for {company_name}")
+                print("  ⚠ LLM budget exceeded, using regex only")
+
+        if not jobs_to_process:
             return stats
 
         # Process each job
@@ -107,7 +142,7 @@ class CompanyScraperWithFirecrawl:
             "senior manager",
         ]
 
-        for job in jobs:
+        for job, extraction_method in jobs_to_process:
             # Check if leadership role
             title_lower = (job.title or "").lower()
             if not any(kw in title_lower for kw in leadership_keywords):
@@ -130,7 +165,7 @@ class CompanyScraperWithFirecrawl:
 
             stats["jobs_above_threshold"] += 1
 
-            # Prepare for storage
+            # Prepare for storage with extraction method
             job_dict.update(
                 {
                     "source": "company_monitoring",
@@ -141,6 +176,7 @@ class CompanyScraperWithFirecrawl:
                     "score_breakdown": json.dumps(breakdown),
                     "keywords_matched": json.dumps([]),
                     "source_email": "",
+                    "extraction_method": extraction_method,  # Store how job was extracted
                 }
             )
 
@@ -151,7 +187,8 @@ class CompanyScraperWithFirecrawl:
                 stats["jobs_stored"] += 1
                 self.database.update_job_score(job_id, score, grade, json.dumps(breakdown))
 
-                print(f"  ✓ {job.title}")
+                method_label = "🤖 LLM" if extraction_method == "llm" else "📝 Regex"
+                print(f"  ✓ [{method_label}] {job.title}")
                 print(f"    Score: {grade} ({score}/115)")
                 print(f"    Location: {job.location}")
 
@@ -352,10 +389,15 @@ def main():
         default=50,
         help="Minimum score to store (default: 50)",
     )
+    parser.add_argument(
+        "--llm-extraction",
+        action="store_true",
+        help="Enable LLM extraction in parallel with regex (requires OpenRouter API key)",
+    )
 
     args = parser.parse_args()
 
-    scraper = CompanyScraperWithFirecrawl()
+    scraper = CompanyScraperWithFirecrawl(enable_llm_extraction=args.llm_extraction)
 
     # Get companies to scrape
     companies = scraper.get_companies_to_scrape(company_filter=args.company_filter)
