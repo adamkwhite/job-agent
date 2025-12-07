@@ -6,7 +6,8 @@
       "Bash(SKIP=python-safety-dependencies-check git commit:*)",
       "Bash(git rebase:*)",
       "Bash(gh issue edit:*)",
-      "Bash(job-agent-venv/bin/pip index:*)"
+      "Bash(job-agent-venv/bin/pip index:*)",
+      "Bash(git branch:*)"
     ],
     "deny": [],
     "ask": []
