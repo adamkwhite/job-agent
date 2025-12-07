@@ -297,8 +297,11 @@ Toronto, ON](https://jobs.company.com/123)
         jobs = scraper.scrape_jobs("https://company.com/careers", "TestCo")
 
         assert len(jobs) == 1
-        assert jobs[0].title == "Senior Engineer"
-        assert jobs[0].company == "TestCo"
+        # Unpack tuple (OpportunityData, extraction_method)
+        job, method = jobs[0]
+        assert job.title == "Senior Engineer"
+        assert job.company == "TestCo"
+        assert method == "regex"  # Verify extraction method
 
     def test_scrape_jobs_handles_exceptions(self, mocker):
         """Test that scrape_jobs handles exceptions gracefully"""
