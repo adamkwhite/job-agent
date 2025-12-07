@@ -6,7 +6,7 @@
 repos:
   # Python linting and formatting with Ruff (replaces black, flake8, isort)
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.4
+    rev: v0.14.8  # Match CI version (ruff>=0.8.0 installs latest)
     hooks:
       - id: ruff
         name: Lint Python code with Ruff
@@ -16,7 +16,7 @@ repos:
 
   # Static type checking
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.13.0
+    rev: v1.19.0
     hooks:
       - id: mypy
         name: Type check with mypy
@@ -29,7 +29,7 @@ repos:
 
   # General file checks
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
         name: Remove trailing whitespace
@@ -50,7 +50,7 @@ repos:
   # Security scanning (high-severity only for speed)
   # Comprehensive scan runs in CI/CD
   - repo: https://github.com/PyCQA/bandit
-    rev: 1.8.0
+    rev: 1.9.2
     hooks:
       - id: bandit
         name: Security scan with Bandit (high severity)
@@ -59,7 +59,7 @@ repos:
 
   # Dependency security
   - repo: https://github.com/Lucas-C/pre-commit-hooks-safety
-    rev: v1.3.3
+    rev: v1.4.2
     hooks:
       - id: python-safety-dependencies-check
         name: Check dependencies for vulnerabilities
@@ -67,7 +67,7 @@ repos:
 
   # Commit message validation (conventional commits)
   - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: v3.6.0
+    rev: v4.3.0
     hooks:
       - id: conventional-pre-commit
         name: Validate commit message format

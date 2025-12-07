@@ -134,9 +134,9 @@ class TestSeniorityScoring:
         assert scorer._score_seniority("supervisor") == 0, "Supervisor incorrectly matched 'vp'"
 
         # Mischief should score 0 (not match "chief")
-        assert (
-            scorer._score_seniority("mischief coordinator") == 0
-        ), "Mischief incorrectly matched 'chief'"
+        assert scorer._score_seniority("mischief coordinator") == 0, (
+            "Mischief incorrectly matched 'chief'"
+        )
 
         # Managerial should match "manager" and score 10
         # Note: This is expected to match because "managerial" is a valid management-related term
