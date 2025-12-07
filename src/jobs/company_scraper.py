@@ -26,13 +26,13 @@ class CompanyScraper:
     Designed to work with Firecrawl MCP for JavaScript-heavy career pages
     """
 
-    def __init__(self, profile: str | None = None):
+    def __init__(self, profile: str | None = None, enable_llm_extraction: bool = False):
         # Store profile for multi-profile support
         self.profile = profile
 
         # Initialize components
         self.company_service = CompanyService()
-        self.firecrawl_scraper = FirecrawlCareerScraper()
+        self.firecrawl_scraper = FirecrawlCareerScraper(enable_llm_extraction=enable_llm_extraction)
         self.job_filter = JobFilter()
         self.scorer = JobScorer()
         self.database = JobDatabase(profile=profile)
@@ -126,7 +126,7 @@ class CompanyScraper:
     def process_scraped_jobs(
         self,
         company_name: str,
-        jobs: list[OpportunityData],
+        jobs: list[tuple[OpportunityData, str]],
         min_score: int = 50,
         notify_threshold: int = 80,
     ) -> dict:
@@ -135,7 +135,7 @@ class CompanyScraper:
 
         Args:
             company_name: Name of the company
-            jobs: List of job opportunities
+            jobs: List of tuples (OpportunityData, extraction_method)
             min_score: Minimum score to store
             notify_threshold: Score threshold for notifications
 
@@ -153,7 +153,7 @@ class CompanyScraper:
 
         print(f"\nProcessing {len(jobs)} jobs from {company_name}")
 
-        for job in jobs:
+        for job, extraction_method in jobs:
             stats["jobs_processed"] += 1
 
             # Check if leadership role
@@ -190,6 +190,7 @@ class CompanyScraper:
                     "score_breakdown": json.dumps(breakdown),
                     "keywords_matched": json.dumps([]),
                     "source_email": "",
+                    "extraction_method": extraction_method,  # Store extraction method
                 }
             )
 
@@ -205,7 +206,8 @@ class CompanyScraper:
                 # Format breakdown for display
                 breakdown_str = f"Seniority={breakdown.get('seniority', 0)}, Domain={breakdown.get('domain', 0)}, Role={breakdown.get('role_type', 0)}"
 
-                print("\n✓ New Job Stored:")
+                method_label = "🤖 LLM" if extraction_method == "llm" else "📝 Regex"
+                print(f"\n✓ New Job Stored [{method_label}]:")
                 print(f"  Title: {job.title}")
                 print(f"  Company: {job.company}")
                 print(f"  Location: {job.location or 'N/A'}")
