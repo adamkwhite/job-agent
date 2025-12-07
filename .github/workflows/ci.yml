@@ -9,7 +9,7 @@ on:
 
 jobs:
   lint:
-    name: Lint with Ruff
+    name: Pre-commit Checks (Ruff, Formatting)
     runs-on: ubuntu-latest
 
     steps:
@@ -22,40 +22,19 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
 
-      - name: Install ruff
-        run: pip install ruff>=0.8.0
+      - name: Install pre-commit
+        run: pip install pre-commit
 
-      - name: Run ruff check
-        run: ruff check .
-
-      - name: Check ruff formatting
-        run: ruff format --check .
-
-  typecheck:
-    name: Type Check with mypy
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Cache pre-commit environments
+        uses: actions/cache@v4
         with:
-          python-version: '3.12'
-          cache: 'pip'
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: |
+            pre-commit-
 
-      - name: Install dependencies
-        run: |
-          pip install mypy>=1.13.0
-          pip install types-requests types-beautifulsoup4
-          # Install project dependencies for type checking
-          if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          fi
-
-      - name: Run mypy
-        run: mypy src/ --config-file=pyproject.toml
+      - name: Run pre-commit checks
+        run: pre-commit run --all-files --show-diff-on-failure
 
   test:
     name: Test with pytest
