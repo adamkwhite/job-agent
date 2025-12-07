@@ -34,8 +34,7 @@ class LLMExtractor:
         api_key = os.getenv(api_key_env)
         if not api_key:
             raise ValueError(
-                f"Missing {api_key_env} environment variable. "
-                "Please set your OpenRouter API key."
+                f"Missing {api_key_env} environment variable. Please set your OpenRouter API key."
             )
 
         # Build ScrapeGraphAI config
