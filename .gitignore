@@ -77,3 +77,8 @@ src/test_*
 # Documentation PDFs (keep local but not in repo)
 docs/**/*.pdf
 coverage.xml
+
+# Exploration and temporary development files
+tests/exploration/
+tasks/
+docs/ai-docs/
