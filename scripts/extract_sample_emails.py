@@ -17,7 +17,10 @@ with open("config/email-settings.json") as f:
 
 # Connect to email
 mail = imaplib.IMAP4_SSL(settings["imap"]["server"], settings["imap"]["port"])
-mail.login(settings["imap"]["username"], os.getenv("GMAIL_APP_PASSWORD"))
+password = os.getenv("GMAIL_APP_PASSWORD")
+if not password:
+    raise ValueError("GMAIL_APP_PASSWORD environment variable not set")
+mail.login(settings["imap"]["username"], password)
 mail.select(settings["imap"]["mailbox"])
 
 # Search for unread emails
@@ -35,7 +38,15 @@ saved_emails = {
 if message_ids[0]:
     for msg_id in message_ids[0].split()[:20]:  # Check first 20 unread
         _, msg_data = mail.fetch(msg_id, "(RFC822)")
-        msg = email.message_from_bytes(msg_data[0][1])
+        # msg_data is a list of tuples, each tuple is (flags, message_bytes)
+        if msg_data and isinstance(msg_data[0], tuple) and len(msg_data[0]) > 1:
+            msg_bytes = msg_data[0][1]
+            if isinstance(msg_bytes, bytes):
+                msg = email.message_from_bytes(msg_bytes)
+            else:
+                continue
+        else:
+            continue
 
         # Decode subject
         subject_parts = decode_header(msg["Subject"])
@@ -53,9 +64,13 @@ if message_ids[0]:
         body_text = ""
         for part in msg.walk():
             if part.get_content_type() == "text/html":
-                body_html = part.get_payload(decode=True).decode("utf-8", errors="ignore")
+                payload = part.get_payload(decode=True)
+                if isinstance(payload, bytes):
+                    body_html = payload.decode("utf-8", errors="ignore")
             elif part.get_content_type() == "text/plain":
-                body_text = part.get_payload(decode=True).decode("utf-8", errors="ignore")
+                payload = part.get_payload(decode=True)
+                if isinstance(payload, bytes):
+                    body_text = payload.decode("utf-8", errors="ignore")
 
         # Save mechanical engineering emails
         if "mechanical engineer" in subject.lower() and not saved_emails["mechanical"]:
