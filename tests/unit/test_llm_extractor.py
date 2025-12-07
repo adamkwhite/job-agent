@@ -58,16 +58,29 @@ def mock_env_var(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-api-key-12345")
 
 
+@pytest.fixture
+def temp_logs_dir():
+    """Create temporary logs directory for testing"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yield tmpdir
+
+
 class TestLLMExtractorInit:
     """Test LLMExtractor initialization"""
 
-    def test_init_loads_config(self, temp_config_file, mock_env_var):  # noqa: ARG002
+    @patch("src.extractors.llm_extractor.LLMBudgetService")
+    def test_init_loads_config(self, mock_budget_service, temp_config_file, mock_env_var):  # noqa: ARG002
         """Test that extractor loads configuration file"""
         extractor = LLMExtractor(config_path=temp_config_file)
 
         assert extractor.config["enabled"] is True
         assert extractor.config["provider"] == "scrapegraphai"
         assert extractor.config["timeout_seconds"] == 30
+        # Verify budget service was initialized
+        mock_budget_service.assert_called_once_with(
+            monthly_limit=5.0,
+            alert_threshold=0.8,
+        )
 
     def test_init_missing_config_file(self, mock_env_var):  # noqa: ARG002
         """Test that missing config file raises FileNotFoundError"""
@@ -96,7 +109,13 @@ class TestLLMExtractorInit:
 class TestBudgetAvailable:
     """Test budget checking"""
 
-    def test_budget_available_when_not_paused(self, temp_config_file, mock_env_var, monkeypatch):  # noqa: ARG002
+    @patch("src.extractors.llm_extractor.LLMBudgetService")
+    def test_budget_available_when_not_paused(
+        self,
+        mock_budget_service_class,  # noqa: ARG002
+        temp_config_file,
+        mock_env_var,  # noqa: ARG002
+    ):
         """Test budget_available returns True when pause_when_exceeded is False"""
         # Modify config to disable pause
         config = json.loads(Path(temp_config_file).read_text())
@@ -106,11 +125,39 @@ class TestBudgetAvailable:
         extractor = LLMExtractor(config_path=temp_config_file)
         assert extractor.budget_available() is True
 
-    def test_budget_available_placeholder(self, temp_config_file, mock_env_var):  # noqa: ARG002
-        """Test budget_available returns True (placeholder implementation)"""
+    @patch("src.extractors.llm_extractor.LLMBudgetService")
+    def test_budget_available_uses_service(
+        self,
+        mock_budget_service_class,
+        temp_config_file,
+        mock_env_var,  # noqa: ARG002
+    ):
+        """Test budget_available uses budget service"""
+        # Mock budget service to return True for check_budget_available
+        mock_service = Mock()
+        mock_service.check_budget_available.return_value = True
+        mock_budget_service_class.return_value = mock_service
+
         extractor = LLMExtractor(config_path=temp_config_file)
-        # Currently always returns True (budget tracking in Issue #89)
+        # Should use budget service
         assert extractor.budget_available() is True
+        mock_service.check_budget_available.assert_called_once()
+
+    @patch("src.extractors.llm_extractor.LLMBudgetService")
+    def test_budget_available_when_exceeded(
+        self,
+        mock_budget_service_class,
+        temp_config_file,
+        mock_env_var,  # noqa: ARG002
+    ):
+        """Test budget_available returns False when budget exceeded"""
+        # Mock budget service to return False for check_budget_available
+        mock_service = Mock()
+        mock_service.check_budget_available.return_value = False
+        mock_budget_service_class.return_value = mock_service
+
+        extractor = LLMExtractor(config_path=temp_config_file)
+        assert extractor.budget_available() is False
 
 
 class TestExtractJobs:
@@ -138,9 +185,21 @@ class TestExtractJobs:
         jobs = extractor.extract_jobs("   ", "Test Company")
         assert jobs == []
 
+    @patch("src.extractors.llm_extractor.LLMBudgetService")
     @patch("src.extractors.llm_extractor.SmartScraperGraph")
-    def test_extract_jobs_success(self, mock_smart_scraper_class, temp_config_file, mock_env_var):  # noqa: ARG002
+    def test_extract_jobs_success(
+        self,
+        mock_smart_scraper_class,
+        mock_budget_service_class,
+        temp_config_file,
+        mock_env_var,  # noqa: ARG002
+    ):
         """Test successful job extraction"""
+        # Mock budget service
+        mock_service = Mock()
+        mock_service.check_budget_available.return_value = True
+        mock_budget_service_class.return_value = mock_service
+
         # Mock SmartScraperGraph response
         mock_graph = Mock()
         mock_graph.run.return_value = {
@@ -170,9 +229,21 @@ class TestExtractJobs:
         assert jobs[0].source == "llm_extraction"
         assert jobs[1].title == "Director of Product"
 
+    @patch("src.extractors.llm_extractor.LLMBudgetService")
     @patch("src.extractors.llm_extractor.SmartScraperGraph")
-    def test_extract_jobs_timeout(self, mock_smart_scraper_class, temp_config_file, mock_env_var):  # noqa: ARG002
+    def test_extract_jobs_timeout(
+        self,
+        mock_smart_scraper_class,
+        mock_budget_service_class,
+        temp_config_file,
+        mock_env_var,  # noqa: ARG002
+    ):
         """Test that timeout is detected and raised"""
+        # Mock budget service
+        mock_service = Mock()
+        mock_service.check_budget_available.return_value = True
+        mock_budget_service_class.return_value = mock_service
+
         # Mock SmartScraperGraph.run() to take a long time
         mock_graph = Mock()
 
@@ -212,6 +283,70 @@ class TestExtractJobs:
         jobs = extractor.extract_jobs("# Test markdown", "Test Company")
 
         assert jobs == []  # Should return empty list on error
+
+    @patch("src.extractors.llm_extractor.LLMBudgetService")
+    def test_extract_jobs_skipped_when_budget_exceeded(
+        self,
+        mock_budget_service_class,
+        temp_config_file,
+        mock_env_var,  # noqa: ARG002
+    ):
+        """Test that extraction is skipped when budget exceeded"""
+        # Mock budget service to return False for budget check
+        mock_service = Mock()
+        mock_service.check_budget_available.return_value = False
+        mock_budget_service_class.return_value = mock_service
+
+        extractor = LLMExtractor(config_path=temp_config_file)
+
+        # Try to extract jobs
+        jobs = extractor.extract_jobs("# Test markdown", "Test Company")
+
+        # Should return empty list without calling LLM
+        assert jobs == []
+
+    @patch("src.extractors.llm_extractor.LLMBudgetService")
+    @patch("src.extractors.llm_extractor.SmartScraperGraph")
+    def test_extract_jobs_records_api_call(
+        self,
+        mock_smart_scraper_class,
+        mock_budget_service_class,
+        temp_config_file,
+        mock_env_var,  # noqa: ARG002
+    ):
+        """Test that successful extraction records API call in budget"""
+        # Mock budget service
+        mock_service = Mock()
+        mock_service.check_budget_available.return_value = True
+        mock_budget_service_class.return_value = mock_service
+
+        # Mock SmartScraperGraph response with usage info
+        mock_graph = Mock()
+        mock_graph.run.return_value = {
+            "result": [
+                {
+                    "title": "VP of Engineering",
+                    "location": "Remote",
+                    "link": "https://example.com/jobs/vp-eng",
+                }
+            ],
+            "usage": {"prompt_tokens": 500, "completion_tokens": 200},
+        }
+        mock_smart_scraper_class.return_value = mock_graph
+
+        extractor = LLMExtractor(config_path=temp_config_file)
+        jobs = extractor.extract_jobs("# Test Career Page", "Test Company")
+
+        # Verify extraction succeeded
+        assert len(jobs) == 1
+
+        # Verify budget service recorded the call
+        mock_service.record_api_call.assert_called_once()
+        call_args = mock_service.record_api_call.call_args
+        assert call_args.kwargs["tokens_in"] == 500
+        assert call_args.kwargs["tokens_out"] == 200
+        assert call_args.kwargs["cost_usd"] > 0  # Should have calculated cost
+        assert call_args.kwargs["company_name"] == "Test Company"
 
 
 class TestParseLLMResponse:
