@@ -367,14 +367,22 @@ def _review_single_failure(db, failures):
 
     console.print(detail_table)
 
-    # Action menu
+    # Action menu - conditionally show "View markdown" based on availability
+    has_markdown = failure.get("markdown_path") and failure["markdown_path"] != "N/A"
+
     console.print("\n[bold yellow]Actions:[/bold yellow]")
-    console.print("  [v] View markdown content")
+    if has_markdown:
+        console.print("  [v] View markdown content")
     console.print("  [r] Retry extraction")
     console.print("  [s] Skip permanently")
     console.print("  [b] Back to failure list")
 
-    action = Prompt.ask("\n[bold]Select action[/bold]", choices=["v", "r", "s", "b"], default="b")
+    # Build choices list dynamically
+    choices = ["r", "s", "b"]
+    if has_markdown:
+        choices.insert(0, "v")
+
+    action = Prompt.ask("\n[bold]Select action[/bold]", choices=choices, default="b")
 
     if action == "b":
         return
