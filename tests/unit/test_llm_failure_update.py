@@ -217,3 +217,25 @@ def test_update_llm_failure_preserves_other_fields(temp_db):
     assert updated["markdown_path"] == original["markdown_path"]
     assert updated["error_details"] == original["error_details"]
     assert updated["occurred_at"] == original["occurred_at"]
+
+
+def test_update_llm_failure_database_error(temp_db, monkeypatch):
+    """Test that update_llm_failure handles database errors gracefully"""
+
+    # Create a test failure
+    failure_id = temp_db.store_llm_failure(
+        company_name="Test Company",
+        failure_reason="Test error",
+        markdown_path="data/test.md",
+        error_details="Test error",
+    )
+
+    # Mock sqlite3.connect to raise an exception
+    def mock_connect(*_args, **_kwargs):
+        raise Exception("Database connection failed")
+
+    monkeypatch.setattr("sqlite3.connect", mock_connect)
+
+    # Try to update - should handle error gracefully
+    success = temp_db.update_llm_failure(failure_id, "retry")
+    assert success is False
