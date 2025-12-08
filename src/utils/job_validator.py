@@ -77,6 +77,12 @@ class JobValidator:
 
             # Parse HTML and extract text
             soup = BeautifulSoup(response.text, "html.parser")
+
+            # LinkedIn-specific context-aware detection
+            if "linkedin.com" in url:
+                return self._check_linkedin_staleness(soup)
+
+            # Generic staleness check for other platforms
             page_text = soup.get_text().lower()
 
             # Check for staleness indicators
@@ -90,6 +96,72 @@ class JobValidator:
         except Exception as e:
             logger.debug(f"Could not check content for staleness ({url}): {e}")
             return (False, None)  # Assume not stale if can't verify
+
+    def _check_linkedin_staleness(self, soup: BeautifulSoup) -> tuple[bool, str | None]:
+        """
+        LinkedIn-specific staleness detection using high-signal page areas
+
+        LinkedIn shows staleness in specific UI elements, not scattered throughout.
+        Check only these high-confidence areas to avoid false positives from
+        recommendations, footer links, or related jobs sections.
+
+        Args:
+            soup: BeautifulSoup parsed HTML
+
+        Returns:
+            (is_stale, matched_phrase) tuple
+        """
+        from bs4 import Tag
+
+        # High-signal areas to check (in priority order)
+        check_areas: list = []
+
+        # 1. Alert/banner messages (highest signal)
+        alerts = soup.find_all(
+            ["div", "section"],
+            class_=lambda c: c
+            and any(x in c.lower() for x in ["alert", "banner", "message", "notice"]),
+        )
+        check_areas.extend(alerts)
+
+        # 2. Job header/title area
+        job_header = soup.find("h1") or soup.find("h2", class_=lambda c: c and "job" in c.lower())
+        if job_header:
+            # Check parent container for status messages
+            header_container = job_header.find_parent(["div", "section", "header"])
+            if header_container and isinstance(header_container, Tag):
+                check_areas.append(header_container)
+
+        # 3. Application button area
+        apply_sections = soup.find_all(
+            ["div", "section", "button"],
+            class_=lambda c: c and any(x in c.lower() for x in ["apply", "application"]),
+        )
+        check_areas.extend(apply_sections)
+
+        # 4. Main content area (but not entire page)
+        main_content = soup.find("main") or soup.find("div", {"role": "main"})
+        if main_content and isinstance(main_content, Tag):
+            # Only check direct text in main, not nested elements
+            check_areas.append(main_content)
+
+        # Check each high-signal area
+        for area in check_areas:
+            if not area:
+                continue
+
+            area_text = area.get_text().lower()
+
+            # Check for staleness indicators
+            for indicator in self.STALENESS_INDICATORS:
+                if indicator in area_text:
+                    logger.info(
+                        f"LinkedIn job appears stale in {area.name} "
+                        f"(class={area.get('class')}, matched: '{indicator}')"
+                    )
+                    return (True, indicator)
+
+        return (False, None)
 
     def validate_url(self, url: str) -> tuple[bool, str, bool]:
         """
