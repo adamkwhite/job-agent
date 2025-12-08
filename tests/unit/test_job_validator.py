@@ -524,3 +524,171 @@ class TestJobValidator:
         is_valid, reason, needs_review = validator.validate_url("https://example.com/jobs/12345")
         assert is_valid is True
         assert reason == "valid"
+
+    # LinkedIn-Specific Staleness Detection Tests (Issue #115)
+    @patch("requests.Session.get")
+    @patch("requests.Session.head")
+    def test_linkedin_stale_in_alert_banner(self, mock_head, mock_get, validator):
+        """Test LinkedIn job correctly identified as stale from alert banner"""
+        mock_head_response = Mock()
+        mock_head_response.status_code = 200
+        mock_head_response.url = "https://linkedin.com/jobs/view/12345"
+        mock_head.return_value = mock_head_response
+
+        mock_get_response = Mock()
+        mock_get_response.status_code = 200
+        mock_get_response.text = """
+        <html>
+            <body>
+                <div class="alert-banner">
+                    <p>This job is no longer accepting applications</p>
+                </div>
+                <main>
+                    <h1>Senior Product Manager</h1>
+                    <button class="apply-button">Easy Apply</button>
+                </main>
+            </body>
+        </html>
+        """
+        mock_get.return_value = mock_get_response
+
+        is_valid, reason, needs_review = validator.validate_url(
+            "https://linkedin.com/jobs/view/12345"
+        )
+        assert is_valid is False
+        assert "stale" in reason
+        assert needs_review is False
+
+    @patch("requests.Session.get")
+    @patch("requests.Session.head")
+    def test_linkedin_false_positive_in_recommendations(self, mock_head, mock_get, validator):
+        """Test LinkedIn job NOT marked stale when phrase only in recommendations section"""
+        mock_head_response = Mock()
+        mock_head_response.status_code = 200
+        mock_head_response.url = "https://linkedin.com/jobs/view/12345"
+        mock_head.return_value = mock_head_response
+
+        # Job is ACTIVE, but "no longer accepting" appears in unrelated section
+        mock_get_response = Mock()
+        mock_get_response.status_code = 200
+        mock_get_response.text = """
+        <html>
+            <body>
+                <main role="main">
+                    <h1>Product Manager at Lemurian Labs</h1>
+                    <button class="apply-button">Easy Apply</button>
+                    <p>Join our team building next-gen robotics!</p>
+                </main>
+                <aside class="recommendations">
+                    <h2>Similar Jobs</h2>
+                    <div class="job-card">
+                        <p>Product Manager at OtherCo</p>
+                        <small>No longer accepting applications</small>
+                    </div>
+                </aside>
+            </body>
+        </html>
+        """
+        mock_get.return_value = mock_get_response
+
+        # Should be valid - staleness indicator only in recommendations, not main job
+        is_valid, reason, needs_review = validator.validate_url(
+            "https://linkedin.com/jobs/view/12345"
+        )
+        assert is_valid is True
+        assert reason == "valid"
+        assert needs_review is False
+
+    @patch("requests.Session.get")
+    @patch("requests.Session.head")
+    def test_linkedin_stale_in_main_content(self, mock_head, mock_get, validator):
+        """Test LinkedIn job correctly identified as stale from main content area"""
+        mock_head_response = Mock()
+        mock_head_response.status_code = 200
+        mock_head_response.url = "https://linkedin.com/jobs/view/12345"
+        mock_head.return_value = mock_head_response
+
+        mock_get_response = Mock()
+        mock_get_response.status_code = 200
+        mock_get_response.text = """
+        <html>
+            <body>
+                <main role="main">
+                    <h1>Engineering Manager</h1>
+                    <p>Applications are closed for this position.</p>
+                </main>
+            </body>
+        </html>
+        """
+        mock_get.return_value = mock_get_response
+
+        is_valid, reason, needs_review = validator.validate_url(
+            "https://linkedin.com/jobs/view/12345"
+        )
+        assert is_valid is False
+        assert "stale" in reason
+
+    @patch("requests.Session.get")
+    @patch("requests.Session.head")
+    def test_linkedin_stale_in_application_section(self, mock_head, mock_get, validator):
+        """Test LinkedIn job correctly identified as stale from application section"""
+        mock_head_response = Mock()
+        mock_head_response.status_code = 200
+        mock_head_response.url = "https://linkedin.com/jobs/view/12345"
+        mock_head.return_value = mock_head_response
+
+        mock_get_response = Mock()
+        mock_get_response.status_code = 200
+        mock_get_response.text = """
+        <html>
+            <body>
+                <h1>Director of Engineering</h1>
+                <div class="application-section">
+                    <p>This position is no longer available.</p>
+                </div>
+            </body>
+        </html>
+        """
+        mock_get.return_value = mock_get_response
+
+        is_valid, reason, needs_review = validator.validate_url(
+            "https://linkedin.com/jobs/view/12345"
+        )
+        assert is_valid is False
+        assert "stale" in reason
+
+    @patch("requests.Session.get")
+    @patch("requests.Session.head")
+    def test_linkedin_active_job_with_unrelated_text(self, mock_head, mock_get, validator):
+        """Test LinkedIn active job not flagged when staleness phrase in footer/unrelated areas"""
+        mock_head_response = Mock()
+        mock_head_response.status_code = 200
+        mock_head_response.url = "https://linkedin.com/jobs/view/12345"
+        mock_head.return_value = mock_head_response
+
+        # Active job, but phrase appears in footer/help text
+        mock_get_response = Mock()
+        mock_get_response.status_code = 200
+        mock_get_response.text = """
+        <html>
+            <body>
+                <main role="main">
+                    <h1>VP of Product</h1>
+                    <div class="apply-section">
+                        <button class="apply-button">Apply Now</button>
+                    </div>
+                </main>
+                <footer>
+                    <p>Help: What if a job is no longer accepting applications?</p>
+                </footer>
+            </body>
+        </html>
+        """
+        mock_get.return_value = mock_get_response
+
+        # Should be valid - phrase only in footer, not in high-signal areas
+        is_valid, reason, needs_review = validator.validate_url(
+            "https://linkedin.com/jobs/view/12345"
+        )
+        assert is_valid is True
+        assert reason == "valid"
