@@ -251,6 +251,229 @@ def show_criteria():
     input("\n[dim]Press Enter to return to menu...[/dim]")
 
 
+def review_llm_failures():  # pragma: no cover
+    """Interactive interface for reviewing LLM extraction failures
+
+    Note: TUI functions are excluded from coverage requirements as they will be
+    replaced with Textual framework (Issue #119). Manual testing confirms functionality.
+    """
+
+    from database import JobDatabase
+
+    db = JobDatabase()
+
+    while True:
+        console.clear()
+        console.print(
+            "\n[bold magenta]═══════════════════════════════════════════════[/bold magenta]"
+        )
+        console.print(
+            "[bold magenta]           LLM EXTRACTION FAILURES REVIEW           [/bold magenta]"
+        )
+        console.print(
+            "[bold magenta]═══════════════════════════════════════════════[/bold magenta]\n"
+        )
+
+        # Get pending failures
+        failures = db.get_llm_failures(review_action="pending", limit=50)
+
+        if not failures:
+            console.print("[green]✅ No pending LLM extraction failures to review![/green]\n")
+            input("\n[dim]Press Enter to return to menu...[/dim]")
+            return
+
+        # Summary stats
+        console.print(f"[bold yellow]📊 Summary:[/bold yellow] {len(failures)} pending failures\n")
+
+        # Display failures table
+        table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+        table.add_column("#", style="cyan", width=4)
+        table.add_column("Company", style="white", width=25)
+        table.add_column("Failure Reason", style="yellow", width=30)
+        table.add_column("Occurred", style="dim", width=12)
+
+        for idx, failure in enumerate(failures[:20], 1):  # Show first 20
+            occurred = failure["occurred_at"][:10] if failure["occurred_at"] else "Unknown"
+            reason = (
+                (failure["failure_reason"][:27] + "...")
+                if len(failure["failure_reason"]) > 30
+                else failure["failure_reason"]
+            )
+            table.add_row(
+                str(idx),
+                failure["company_name"],
+                reason,
+                occurred,
+            )
+
+        console.print(table)
+
+        if len(failures) > 20:
+            console.print(f"\n[dim]Showing 20 of {len(failures)} failures...[/dim]")
+
+        # Action menu
+        console.print("\n[bold yellow]Actions:[/bold yellow]")
+        console.print("  [r] Review specific failure (view details, retry, skip)")
+        console.print("  [a] Retry all pending failures")
+        console.print("  [s] Skip all pending failures")
+        console.print("  [b] Back to main menu")
+
+        choice = Prompt.ask(
+            "\n[bold]Select action[/bold]", choices=["r", "a", "s", "b"], default="b"
+        )
+
+        if choice == "b":
+            return
+        elif choice == "a":
+            _retry_all_failures(db, failures)
+        elif choice == "s":
+            _skip_all_failures(db, failures)
+        elif choice == "r":
+            _review_single_failure(db, failures)
+
+
+def _review_single_failure(db, failures):  # pragma: no cover
+    """Review a single LLM extraction failure"""
+
+    # Select failure
+    failure_num = Prompt.ask(
+        "\n[bold]Enter failure number to review[/bold]",
+        default="1",
+    )
+
+    try:
+        failure_idx = int(failure_num) - 1
+        if failure_idx < 0 or failure_idx >= len(failures):
+            console.print(f"[red]❌ Invalid failure number. Must be 1-{len(failures)}[/red]")
+            input("\n[dim]Press Enter to continue...[/dim]")
+            return
+
+        failure = failures[failure_idx]
+    except ValueError:
+        console.print("[red]❌ Invalid input. Enter a number.[/red]")
+        input("\n[dim]Press Enter to continue...[/dim]")
+        return
+
+    # Show failure details
+    console.clear()
+    console.print("\n[bold cyan]═══════════════════════════════════════════════[/bold cyan]")
+    console.print(f"[bold cyan]      FAILURE DETAILS - {failure['company_name']}      [/bold cyan]")
+    console.print("[bold cyan]═══════════════════════════════════════════════[/bold cyan]\n")
+
+    detail_table = Table(box=box.ROUNDED, show_header=False)
+    detail_table.add_column("Field", style="cyan", width=20)
+    detail_table.add_column("Value", style="white")
+
+    detail_table.add_row("Company", failure["company_name"])
+    detail_table.add_row("Occurred At", failure["occurred_at"] or "Unknown")
+    detail_table.add_row("Failure Reason", failure["failure_reason"])
+    detail_table.add_row("Markdown Path", failure["markdown_path"] or "N/A")
+
+    console.print(detail_table)
+
+    # Action menu - conditionally show "View markdown" based on availability
+    has_markdown = failure.get("markdown_path") and failure["markdown_path"] != "N/A"
+
+    console.print("\n[bold yellow]Actions:[/bold yellow]")
+    if has_markdown:
+        console.print("  [v] View markdown content")
+    console.print("  [r] Retry extraction")
+    console.print("  [s] Skip permanently")
+    console.print("  [b] Back to failure list")
+
+    # Build choices list dynamically
+    choices = ["r", "s", "b"]
+    if has_markdown:
+        choices.insert(0, "v")
+
+    action = Prompt.ask("\n[bold]Select action[/bold]", choices=choices, default="b")
+
+    if action == "b":
+        return
+    elif action == "v":
+        _view_markdown(failure)
+        input("\n[dim]Press Enter to continue...[/dim]")
+    elif action == "r":
+        if db.update_llm_failure(failure["id"], "retry"):
+            console.print(f"\n[green]✅ Marked {failure['company_name']} for retry[/green]")
+        else:
+            console.print("\n[red]❌ Failed to update failure record[/red]")
+        input("\n[dim]Press Enter to continue...[/dim]")
+    elif action == "s":
+        if db.update_llm_failure(failure["id"], "skip"):
+            console.print(f"\n[yellow]⏭️  Skipped {failure['company_name']} permanently[/yellow]")
+        else:
+            console.print("\n[red]❌ Failed to update failure record[/red]")
+        input("\n[dim]Press Enter to continue...[/dim]")
+
+
+def _view_markdown(failure):
+    """View the markdown content of a failed extraction"""
+    from pathlib import Path
+
+    markdown_path = failure.get("markdown_path")
+    if not markdown_path:
+        console.print("\n[red]❌ No markdown path available for this failure[/red]")
+        return
+
+    md_file = Path(markdown_path)
+    if not md_file.exists():
+        console.print(f"\n[red]❌ Markdown file not found: {markdown_path}[/red]")
+        return
+
+    try:
+        content = md_file.read_text()
+        # Show first 1000 characters
+        preview = content[:1000]
+        if len(content) > 1000:
+            preview += "\n\n[dim]... (truncated, showing first 1000 chars)[/dim]"
+
+        console.print("\n[bold yellow]📄 Markdown Preview:[/bold yellow]\n")
+        console.print(Panel(preview, title=f"[cyan]{md_file.name}[/cyan]", border_style="cyan"))
+    except Exception as e:
+        console.print(f"\n[red]❌ Error reading markdown: {e}[/red]")
+
+
+def _retry_all_failures(db, failures):  # pragma: no cover
+    """Mark all pending failures for retry"""
+    confirm = Prompt.ask(
+        f"\n[bold yellow]⚠️  Retry all {len(failures)} pending failures?[/bold yellow]",
+        choices=["y", "n"],
+        default="n",
+    )
+
+    if confirm == "y":
+        success_count = 0
+        for failure in failures:
+            if db.update_llm_failure(failure["id"], "retry"):
+                success_count += 1
+
+        console.print(
+            f"\n[green]✅ Marked {success_count}/{len(failures)} failures for retry[/green]"
+        )
+        input("\n[dim]Press Enter to continue...[/dim]")
+
+
+def _skip_all_failures(db, failures):  # pragma: no cover
+    """Skip all pending failures permanently"""
+    confirm = Prompt.ask(
+        f"\n[bold yellow]⚠️  Skip all {len(failures)} pending failures permanently?[/bold yellow]",
+        choices=["y", "n"],
+        default="n",
+    )
+
+    if confirm == "y":
+        success_count = 0
+        for failure in failures:
+            if db.update_llm_failure(failure["id"], "skip"):
+                success_count += 1
+
+        console.print(
+            f"\n[yellow]⏭️  Skipped {success_count}/{len(failures)} failures permanently[/yellow]"
+        )
+        input("\n[dim]Press Enter to continue...[/dim]")
+
+
 def select_advanced_options(sources: list[str]) -> dict:
     """Select advanced options for company scraping"""
     console.print("\n[bold yellow]Step 3:[/bold yellow] Advanced Options\n")
@@ -321,13 +544,16 @@ def select_action() -> str | None:
     table.add_row("2", "Send Digest", "Send email digest with stored jobs")
     table.add_row("3", "Scrape + Digest", "Run scraper then send digest email")
     table.add_row("c", "View Criteria", "Show scoring criteria and grading scale")
+    table.add_row("f", "LLM Failures", "Review and retry failed LLM extractions")
     table.add_row("b", "Back", "Return to profile selection")
     table.add_row("q", "Quit", "Exit application")
 
     console.print(table)
 
     choice = Prompt.ask(
-        "\n[bold]Select action[/bold]", choices=["1", "2", "3", "c", "b", "q"], default="3"
+        "\n[bold]Select action[/bold]",
+        choices=["1", "2", "3", "c", "f", "b", "q"],
+        default="3",
     )
 
     # Map choices to actions
@@ -335,6 +561,7 @@ def select_action() -> str | None:
         "q": None,
         "b": "back",
         "c": "criteria",
+        "f": "failures",
         "1": "scrape",
         "2": "digest",
         "3": "both",
@@ -574,6 +801,9 @@ def main():
                 continue
             elif action == "criteria":
                 show_criteria()
+                continue
+            elif action == "failures":
+                review_llm_failures()
                 continue
 
             # Step 5: Select digest options (if sending digest)

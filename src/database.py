@@ -655,6 +655,39 @@ class JobDatabase:
 
         return failures
 
+    def update_llm_failure(self, failure_id: int, review_action: str) -> bool:
+        """Update review action for an LLM extraction failure
+
+        Args:
+            failure_id: ID of the failure record to update
+            review_action: Action taken ('retry', 'skip', 'pending')
+
+        Returns:
+            True if update successful, False otherwise
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            cursor.execute(
+                """
+                UPDATE llm_extraction_failures
+                SET review_action = ?,
+                    reviewed_at = datetime('now')
+                WHERE id = ?
+            """,
+                (review_action, failure_id),
+            )
+
+            conn.commit()
+            rows_updated = cursor.rowcount
+            conn.close()
+
+            return rows_updated > 0
+        except Exception as e:
+            print(f"Error updating LLM failure: {e}")
+            return False
+
     def store_extraction_metrics(
         self,
         company_name: str,
