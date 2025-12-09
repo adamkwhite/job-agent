@@ -66,7 +66,7 @@ class TestAnthropicJobScoring:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should score B grade (80+) for Adam
         assert score >= 80, (
@@ -90,7 +90,7 @@ class TestAnthropicJobScoring:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # With "product", "anthropic", "claude" matches = 3+ matches = 25 points
         assert breakdown["domain"] == 25, (
@@ -107,7 +107,7 @@ class TestAnthropicJobScoring:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Technical should score at least 4 (2 points per match, min 2 matches)
         assert breakdown["technical"] >= 4, (
@@ -124,7 +124,7 @@ class TestAnthropicJobScoring:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should score B+ grade (85+) with senior keyword
         assert score >= 85, (
@@ -150,7 +150,7 @@ class TestDeveloperToolsScoring:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should recognize "developer tools" keyword
         assert breakdown["domain"] >= 20, (
@@ -166,7 +166,7 @@ class TestDeveloperToolsScoring:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should recognize "ide" keyword
         assert breakdown["domain"] >= 15, (

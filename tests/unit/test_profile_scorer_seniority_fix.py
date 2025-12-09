@@ -58,7 +58,7 @@ class TestSeniorKeywordCategorization:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should get 15 points (senior-level), not 10 (mid-level)
         assert breakdown["seniority"] == 15, (
@@ -75,7 +75,7 @@ class TestSeniorKeywordCategorization:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         assert breakdown["seniority"] == 15, (
             f"Senior Software Engineer should get 15 points, got {breakdown['seniority']}"
@@ -90,7 +90,7 @@ class TestSeniorKeywordCategorization:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should get 10 points (mid-level) since no "senior" keyword
         assert breakdown["seniority"] == 10, (
@@ -107,7 +107,7 @@ class TestSeniorKeywordCategorization:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         assert breakdown["seniority"] == 15, (
             f"Staff Product Manager should get 15 points, got {breakdown['seniority']}"
@@ -122,7 +122,7 @@ class TestSeniorKeywordCategorization:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should match role_type (engineering) AND get senior seniority points
         assert breakdown["role_type"] > 0, "Should match engineering role type"
@@ -149,7 +149,7 @@ class TestSeniorityPointsProgression:
 
         for title, expected_points, description in test_cases:
             job = {"title": title, "company": "Tech Company", "location": "Remote"}
-            score, grade, breakdown = scorer.score_job(job)
+            score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
             assert breakdown["seniority"] == expected_points, (
                 f"{title} should get {expected_points} points ({description}), "
@@ -172,7 +172,7 @@ class TestRegressionPrevention:
 
         for title in senior_titles:
             job = {"title": title, "company": "Tech Company", "location": "Remote"}
-            score, grade, breakdown = scorer.score_job(job)
+            score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
             # Should match role_type first
             assert breakdown["role_type"] > 0, f"{title} should match a role_type"
@@ -192,7 +192,7 @@ class TestRegressionPrevention:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # "Lead" is in mid_keywords and should get 10 points
         assert breakdown["seniority"] == 10, (

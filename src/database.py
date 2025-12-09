@@ -401,9 +401,24 @@ class JobDatabase:
     # ===== Multi-Person Scoring Methods =====
 
     def upsert_job_score(
-        self, job_id: int, profile_id: str, score: int, grade: str, breakdown: str
+        self,
+        job_id: int,
+        profile_id: str,
+        score: int,
+        grade: str,
+        breakdown: str,
+        classification_metadata: str | None = None,
     ):
-        """Insert or update score for a specific job and profile"""
+        """Insert or update score for a specific job and profile
+
+        Args:
+            job_id: Job ID to score
+            profile_id: Profile ID to score for
+            score: Fit score (0-115+)
+            grade: Fit grade (A/B/C/D/F)
+            breakdown: JSON string of score breakdown by category
+            classification_metadata: Optional JSON string of company classification data
+        """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
@@ -413,15 +428,16 @@ class JobDatabase:
             """
             INSERT INTO job_scores (
                 job_id, profile_id, fit_score, fit_grade, score_breakdown,
-                created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                classification_metadata, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(job_id, profile_id) DO UPDATE SET
                 fit_score = excluded.fit_score,
                 fit_grade = excluded.fit_grade,
                 score_breakdown = excluded.score_breakdown,
+                classification_metadata = excluded.classification_metadata,
                 updated_at = excluded.updated_at
         """,
-            (job_id, profile_id, score, grade, breakdown, now, now),
+            (job_id, profile_id, score, grade, breakdown, classification_metadata, now, now),
         )
 
         conn.commit()

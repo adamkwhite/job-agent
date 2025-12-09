@@ -205,7 +205,7 @@ class TestHybridJobScraper:
             ),
         ]
         mock_dependencies["firecrawl"].scrape_jobs.return_value = mock_jobs
-        mock_dependencies["scorer"].score_job.return_value = (85, "B", {})
+        mock_dependencies["scorer"].score_job.return_value = (85, "B", {}, {})
         mock_dependencies["database"].add_job.return_value = 1
 
         stats = scraper._scrape_company("Test Co", "https://example.com")
@@ -227,7 +227,7 @@ class TestHybridJobScraper:
             )
         ]
         mock_dependencies["firecrawl"].scrape_jobs.return_value = mock_jobs
-        mock_dependencies["scorer"].score_job.return_value = (92, "A", {"seniority": 30})
+        mock_dependencies["scorer"].score_job.return_value = (92, "A", {"seniority": 30}, {})
         mock_dependencies["database"].add_job.return_value = 1
 
         stats = scraper._scrape_company("Test Co", "https://example.com")
@@ -254,7 +254,7 @@ class TestHybridJobScraper:
             )
         ]
         mock_dependencies["firecrawl"].scrape_jobs.return_value = mock_jobs
-        mock_dependencies["scorer"].score_job.return_value = (35, "F", {})  # Below threshold
+        mock_dependencies["scorer"].score_job.return_value = (35, "F", {}, {})  # Below threshold
 
         stats = scraper._scrape_company("Test Co", "https://example.com")
 
@@ -277,7 +277,7 @@ class TestHybridJobScraper:
             )
         ]
         mock_dependencies["firecrawl"].scrape_jobs.return_value = mock_jobs
-        mock_dependencies["scorer"].score_job.return_value = (92, "A", {})
+        mock_dependencies["scorer"].score_job.return_value = (92, "A", {}, {})
         mock_dependencies["database"].add_job.return_value = 1
         mock_dependencies["notifier"].notify_job.return_value = {"email": True, "sms": True}
 
@@ -304,7 +304,7 @@ class TestHybridJobScraper:
             )
         ]
         mock_dependencies["firecrawl"].scrape_jobs.return_value = mock_jobs
-        mock_dependencies["scorer"].score_job.return_value = (65, "C", {})  # Below notify
+        mock_dependencies["scorer"].score_job.return_value = (65, "C", {}, {})  # Below notify
         mock_dependencies["database"].add_job.return_value = 1
 
         stats = scraper._scrape_company("Test Co", "https://example.com")
@@ -327,7 +327,7 @@ class TestHybridJobScraper:
             )
         ]
         mock_dependencies["firecrawl"].scrape_jobs.return_value = mock_jobs
-        mock_dependencies["scorer"].score_job.return_value = (85, "B", {})
+        mock_dependencies["scorer"].score_job.return_value = (85, "B", {}, {})
         mock_dependencies["database"].add_job.return_value = None  # Duplicate
 
         stats = scraper._scrape_company("Test Co", "https://example.com")
@@ -349,7 +349,7 @@ class TestHybridJobScraper:
             )
         ]
         mock_dependencies["firecrawl"].scrape_jobs.return_value = mock_jobs
-        mock_dependencies["scorer"].score_job.return_value = (92, "A", {})
+        mock_dependencies["scorer"].score_job.return_value = (92, "A", {}, {})
         mock_dependencies["database"].add_job.return_value = 1
         mock_dependencies["notifier"].notify_job.side_effect = Exception("Email failed")
 

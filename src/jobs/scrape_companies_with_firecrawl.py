@@ -158,7 +158,7 @@ class CompanyScraperWithFirecrawl:
                 "link": job.link,
             }
 
-            score, grade, breakdown = self.scorer.score_job(job_dict)
+            score, grade, breakdown, _classification_metadata = self.scorer.score_job(job_dict)
 
             if score < min_score:
                 continue

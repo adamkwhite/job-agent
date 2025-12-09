@@ -220,7 +220,7 @@ class JobProcessorV2:
         """Score a job and update database for the selected profile"""
         try:
             # Score for the selected profile
-            score, grade, breakdown = self.scorer.score_job(job_dict)
+            score, grade, breakdown, _classification_metadata = self.scorer.score_job(job_dict)
             self.database.update_job_score(job_id, score, grade, json.dumps(breakdown))
 
             self._increment_stat(stats, "jobs_scored")

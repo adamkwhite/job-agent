@@ -23,7 +23,7 @@ jobs:
 
           # Check if scoring files changed
           SCORING_CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E '(src/agents/job_scorer.py|config/filter-keywords.json)' || true)
-          EMAIL_CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep 'src/send_digest_to_wes.py' || true)
+          EMAIL_CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep 'src/send_profile_digest.py' || true)
           CLAUDE_CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep 'CLAUDE.md' || true)
 
           echo "scoring_changed=${SCORING_CHANGED}" >> $GITHUB_OUTPUT
@@ -34,7 +34,7 @@ jobs:
         if: steps.changed-files.outputs.scoring_changed != ''
         run: |
           if [ -z "${{ steps.changed-files.outputs.email_changed }}" ]; then
-            echo "::error::❌ Scoring logic changed but email template (src/send_digest_to_wes.py) was not updated!"
+            echo "::error::❌ Scoring logic changed but email template (src/send_profile_digest.py) was not updated!"
             echo "::error::Please update the email template (lines 222-238) to match new scoring criteria."
             echo "::error::See: docs/development/SCORING_UPDATE_CHECKLIST.md"
             exit 1
