@@ -24,6 +24,16 @@
         "richmond hill", "thornhill"
       ],
       "preferred_regions": ["ontario", "canada", "greater toronto area", "gta"]
+    },
+    "filtering": {
+      "aggression_level": "moderate",
+      "software_engineering_avoid": [
+        "software engineer", "software engineering",
+        "vp of software", "director of software",
+        "frontend", "backend", "full stack"
+      ],
+      "hardware_company_boost": 0,
+      "software_company_penalty": -20
     }
   },
   "digest": {
