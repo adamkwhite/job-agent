@@ -81,6 +81,26 @@ class JobScorer:
                 ],
                 "preferred_regions": ["ontario", "canada", "greater toronto area", "gta"],
             },
+            "filtering": {
+                "aggression_level": "moderate",
+                "software_engineering_avoid": [
+                    "software engineer",
+                    "software engineering",
+                    "vp of software",
+                    "director of software",
+                    "frontend",
+                    "backend",
+                    "full stack",
+                    "web developer",
+                    "mobile app",
+                    "devops",
+                    "cloud engineer",
+                    "saas",
+                    "fintech software",
+                ],
+                "hardware_company_boost": 10,
+                "software_company_penalty": -20,
+            },
         }
 
     def score_job(self, job: dict) -> tuple[int, str, dict, dict]:
