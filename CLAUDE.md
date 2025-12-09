@@ -47,9 +47,61 @@ Multi-factor scoring system (0-115 points) evaluating jobs against Wesley's prof
 - **Role Type** (0-20): Engineering leadership > Product leadership
 - **Location** (0-15): Remote (+15), Hybrid Ontario (+15), Ontario cities (+12)
 - **Company Stage** (0-15): Series A-C, growth stage preferred
+- **Company Fit** (±20): Hardware boost (+10) or software penalty (-20)
 - **Technical Keywords** (0-10): Mechatronics, embedded, manufacturing
 
 **Grading**: A (98+), B (80+), C (63+), D (46+), F (<46)
+
+#### Company Classification Filtering (Issue #122)
+
+The scoring engine includes intelligent filtering to reduce software engineering roles while preserving hardware/robotics opportunities:
+
+**Multi-Signal Classification:**
+- Analyzes company name, curated database, domain keywords, and job content
+- Returns type (software/hardware/both/unknown) with confidence score (0-1.0)
+- Performance: <100ms classification, <200ms full scoring
+
+**Three Aggression Levels:**
+1. **Conservative**: Only filters explicit "software engineering" keywords in job title
+   - Use when you want maximum coverage, minimal false negatives
+   - Example: "VP Engineering" at Stripe → NOT filtered
+
+2. **Moderate** (default): Filters engineering roles at software companies (confidence ≥0.6)
+   - Balanced approach for most users
+   - Example: "Director of Engineering" at Stripe → filtered
+
+3. **Aggressive**: Filters any engineering role without hardware keywords
+   - Use when you only want hardware/robotics roles
+   - Example: "VP Engineering" at any company → filtered (unless "hardware" in title)
+
+**Filtering Rules:**
+- Product leadership NEVER filtered (any company type)
+- Dual-role titles (Product Engineering) treated as product leadership
+- Dual-domain companies (Tesla) require explicit software keywords to filter
+- Hardware companies receive +10 boost, never filtered
+
+**Configuration** (in profile JSON):
+```json
+"filtering": {
+  "aggression_level": "moderate",
+  "software_engineering_avoid": [
+    "software engineer", "software engineering",
+    "vp of software", "director of software",
+    "frontend", "backend", "full stack"
+  ],
+  "hardware_company_boost": 10,
+  "software_company_penalty": -20
+}
+```
+
+**Classification Metadata:**
+Each scored job includes classification metadata:
+- `company_type`: software, hardware, both, or unknown
+- `confidence`: 0-1.0 score based on signal strength
+- `signals`: which signals contributed (name, curated, domain, content)
+- `source`: curated_db, multi_signal, or name_pattern
+- `filtered`: boolean indicating if job was filtered
+- `filter_reason`: explanation of filtering decision
 
 ### 2. Email Processing Pipeline (`src/processor_v2.py`)
 1. IMAP monitoring of dedicated Gmail account

@@ -28,9 +28,12 @@ Multi-factor 115-point scoring system evaluating jobs against Wesley's profile:
 - **Role Type** (0-20): Engineering leadership > Product leadership
 - **Location** (0-15): Remote (+15), Hybrid Ontario (+15), Ontario cities (+12)
 - **Company Stage** (0-15): Series A-C, growth stage preferred
+- **Company Fit** (±20): Hardware boost (+10) or software penalty (-20)
 - **Technical Keywords** (0-10): Mechatronics, embedded, manufacturing
 
 **Grading**: A (98+), B (80+), C (63+), D (46+), F (<46)
+
+**Company Classification Filtering**: Intelligent filtering reduces software engineering roles while preserving hardware/robotics opportunities. Three aggression levels (conservative/moderate/aggressive) control filtering strictness. See `CLAUDE.md` for details.
 
 ### 2. Email Processing Pipeline (`src/processor_v2.py`)
 1. IMAP monitoring of dedicated Gmail account
