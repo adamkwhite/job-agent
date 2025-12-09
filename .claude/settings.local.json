@@ -8,7 +8,14 @@
       "Bash(PYTHONPATH=$PWD job-agent-venv/bin/pytest:*)",
       "Bash(PYTHONPATH=$PWD job-agent-venv/bin/python3:*)",
       "Bash(git add:*)",
-      "Bash(job-agent-venv/bin/pre-commit run:*)"
+      "Bash(job-agent-venv/bin/pre-commit run:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh run view:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

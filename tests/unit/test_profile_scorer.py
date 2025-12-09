@@ -259,10 +259,11 @@ class TestScoreJobForProfile:
         result = score_job_for_profile(job, "wes_test")
 
         assert result is not None
-        score, grade, breakdown = result
+        score, grade, breakdown, classification_metadata = result
         assert isinstance(score, int)
         assert grade in ["A", "B", "C", "D", "F"]
         assert isinstance(breakdown, dict)
+        assert isinstance(classification_metadata, dict)
 
     def test_score_job_for_nonexistent_profile(self, mocker):
         """Test scoring job for non-existent profile returns None"""
