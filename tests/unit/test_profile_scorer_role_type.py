@@ -87,7 +87,7 @@ class TestRoleTypeWordBoundaries:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should NOT get role_type points (was 20, should be 0)
         assert breakdown["role_type"] == 0, "Marketing Director should not match 'cto' keyword"
@@ -110,7 +110,7 @@ class TestRoleTypeWordBoundaries:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should get full role_type points (leadership + engineering)
         assert breakdown["role_type"] == 20, "Director of Engineering should score 20 points"
@@ -120,7 +120,7 @@ class TestRoleTypeWordBoundaries:
         scorer = ProfileScorer(engineering_profile)
         job = {"title": "VP of Engineering", "company": "Test Company", "location": "Remote"}
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should get full role_type points
         assert breakdown["role_type"] == 20, "VP of Engineering should score 20 points"
@@ -134,7 +134,7 @@ class TestRoleTypeWordBoundaries:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should match 'cto' keyword
         assert breakdown["role_type"] == 20, "CTO title should match 'cto' keyword"
@@ -148,7 +148,7 @@ class TestRoleTypeWordBoundaries:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should match 'product' keyword with word boundaries
         # "product marketing" contains "product" as a separate word
@@ -166,7 +166,7 @@ class TestRoleTypeWordBoundaries:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should NOT match 'product' (production != product)
         assert breakdown["role_type"] == 0, "Production Engineer should not match 'product'"
@@ -184,7 +184,7 @@ class TestSeniorityDependency:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should get 0 role_type points (no engineering keywords)
         assert breakdown["role_type"] == 0, "Marketing Director should get 0 role_type points"
@@ -201,7 +201,7 @@ class TestSeniorityDependency:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should get role_type points (engineering keyword)
         assert breakdown["role_type"] == 20, "Engineering Director should get 20 role_type points"
@@ -225,7 +225,7 @@ class TestNoFallbackPoints:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should get 0 points (no engineering keywords, no fallback)
         assert breakdown["role_type"] == 0, "Marketing Director should get 0 role_type points"
@@ -235,7 +235,7 @@ class TestNoFallbackPoints:
         scorer = ProfileScorer(engineering_profile)
         job = {"title": "Director of Sales", "company": "SaaS Company", "location": "Remote"}
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         assert breakdown["role_type"] == 0, "Sales Director should get 0 role_type points"
 
@@ -248,7 +248,7 @@ class TestNoFallbackPoints:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         assert breakdown["role_type"] == 0, "VP of HR should get 0 role_type points"
 
@@ -265,7 +265,7 @@ class TestEdgeCases:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should match 'technical' keyword (15 points, not leadership)
         assert breakdown["role_type"] == 15, "Technical PM should match 'technical' keyword"
@@ -279,7 +279,7 @@ class TestEdgeCases:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should match 'engineering' (15 points, manager is not director-level)
         assert breakdown["role_type"] == 15, "Engineering Manager should match 'engineering'"
@@ -293,7 +293,7 @@ class TestEdgeCases:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         assert breakdown["role_type"] == 20, "Case-insensitive matching should work"
 
@@ -302,7 +302,7 @@ class TestEdgeCases:
         scorer = ProfileScorer(engineering_profile)
         job = {"title": "VP Engineering", "company": "Startup", "location": "Remote"}
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should match 'vp engineering' or 'engineering' keywords
         assert breakdown["role_type"] in [

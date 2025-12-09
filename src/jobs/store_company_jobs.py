@@ -138,7 +138,7 @@ def main():
         print(f"  Location: {job['location']}")
 
         # Score the job
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
         print(f"  Score: {score}/115 ({grade} grade)")
 
         # Prepare for storage

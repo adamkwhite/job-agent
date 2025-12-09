@@ -245,7 +245,7 @@ class TestProcessorV2HelperMethods:
 
         # Mock scoring
         processor.scorer.score_job = MagicMock(
-            return_value=(85, "A", {"seniority": 30, "domain": 30, "role_type": 25})
+            return_value=(85, "A", {"seniority": 30, "domain": 30, "role_type": 25}, {})
         )
         processor.database.update_job_score = MagicMock()
 
@@ -267,7 +267,7 @@ class TestProcessorV2HelperMethods:
         job_dict = {"title": "Software Engineer"}
 
         processor.scorer.score_job = MagicMock(
-            return_value=(85, "A", {"seniority": 30, "domain": 30, "role_type": 25})
+            return_value=(85, "A", {"seniority": 30, "domain": 30, "role_type": 25}, {})
         )
         processor.database.update_job_score = MagicMock()
 

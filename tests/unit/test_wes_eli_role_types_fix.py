@@ -69,7 +69,7 @@ class TestWesRoboticsKeywords:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should get role_type match
         assert breakdown["role_type"] > 0, "Should match robotics role_type"
@@ -94,7 +94,7 @@ class TestWesRoboticsKeywords:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         assert breakdown["role_type"] > 0, "Should match automation role_type"
         assert breakdown["seniority"] >= 25, "Director should get 25+ seniority"
@@ -110,7 +110,7 @@ class TestWesRoboticsKeywords:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         assert breakdown["role_type"] > 0, "Should match manufacturing role_type"
         assert breakdown["seniority"] == 30, "VP should get 30 seniority points"
@@ -157,7 +157,7 @@ class TestEliDomainKeywords:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         assert breakdown["role_type"] > 0, "Should match fintech role_type"
         assert breakdown["seniority"] >= 25, "Head of should get 25+ seniority"
@@ -173,7 +173,7 @@ class TestEliDomainKeywords:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         assert breakdown["role_type"] > 0, "Should match healthtech role_type"
         assert breakdown["seniority"] >= 25, "Director should get 25+ seniority"
@@ -189,7 +189,7 @@ class TestEliDomainKeywords:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         assert breakdown["role_type"] > 0, "Should match saas role_type"
         assert breakdown["seniority"] == 30, "VP should get 30 seniority points"

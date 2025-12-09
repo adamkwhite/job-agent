@@ -32,6 +32,7 @@ def db_with_job():
                 fit_score INTEGER,
                 fit_grade TEXT,
                 score_breakdown TEXT,
+                classification_metadata TEXT,
                 digest_sent_at TEXT,
                 notified_at TEXT,
                 created_at TEXT,

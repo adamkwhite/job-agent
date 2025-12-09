@@ -101,7 +101,7 @@ class TestProfileScorer:
             "location": "Remote, USA",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should score well: VP seniority + robotics domain + remote
         assert score >= 70
@@ -120,7 +120,7 @@ class TestProfileScorer:
             "location": "Toronto, Canada",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should score reasonably: senior level + software domain + toronto
         assert score >= 50
@@ -138,7 +138,7 @@ class TestProfileScorer:
             "location": "Unknown",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should score low: no seniority match, no domain match
         assert score < 50
@@ -154,7 +154,7 @@ class TestProfileScorer:
             "location": "Waterloo, Ontario",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         assert breakdown["seniority"] >= 20  # Director level
         assert breakdown["location"] >= 8  # Waterloo/Ontario
@@ -259,10 +259,11 @@ class TestScoreJobForProfile:
         result = score_job_for_profile(job, "wes_test")
 
         assert result is not None
-        score, grade, breakdown = result
+        score, grade, breakdown, classification_metadata = result
         assert isinstance(score, int)
         assert grade in ["A", "B", "C", "D", "F"]
         assert isinstance(breakdown, dict)
+        assert isinstance(classification_metadata, dict)
 
     def test_score_job_for_nonexistent_profile(self, mocker):
         """Test scoring job for non-existent profile returns None"""
