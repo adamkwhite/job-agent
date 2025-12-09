@@ -2,6 +2,10 @@
 Send job digest to any profile
 Multi-person version of send_digest_to_wes.py
 
+Scoring includes company classification filtering (Issue #122):
+- Company Fit: ±20 points (hardware boost or software penalty)
+- Filtering based on aggression level (conservative/moderate/aggressive)
+
 Usage:
     python src/send_profile_digest.py --profile wes
     python src/send_profile_digest.py --profile adam
