@@ -34,12 +34,15 @@ class ProfileScorer:
         self.db = JobDatabase()
         self.role_category_keywords = load_role_category_keywords()
 
-    def score_job(self, job: dict) -> tuple[int, str, dict]:
+    def score_job(self, job: dict) -> tuple[int, str, dict, dict]:
         """
         Score a job from 0-115 with grade and breakdown
 
+        NOTE: ProfileScorer does not yet include company classification filtering.
+        It returns empty classification_metadata for API compatibility.
+
         Returns:
-            (score, grade, breakdown_dict)
+            (score, grade, breakdown_dict, classification_metadata)
         """
         title = job["title"].lower()
         company = job["company"].lower()
@@ -80,7 +83,10 @@ class ProfileScorer:
         # Grade (using shared utility)
         grade = calculate_grade(total_score)
 
-        return total_score, grade, breakdown
+        # Placeholder classification metadata (ProfileScorer doesn't use CompanyClassifier yet)
+        classification_metadata: dict = {}
+
+        return total_score, grade, breakdown, classification_metadata
 
     def _score_seniority(self, title: str) -> int:
         """Score based on seniority level (0-30)"""
@@ -227,7 +233,7 @@ class ProfileScorer:
         return min(score, 10)
 
 
-def score_job_for_profile(job: dict, profile_id: str) -> tuple[int, str, dict] | None:
+def score_job_for_profile(job: dict, profile_id: str) -> tuple[int, str, dict, dict] | None:
     """
     Convenience function to score a job for a specific profile
 
@@ -236,7 +242,7 @@ def score_job_for_profile(job: dict, profile_id: str) -> tuple[int, str, dict] |
         profile_id: Profile ID (e.g., 'wes', 'adam')
 
     Returns:
-        (score, grade, breakdown) or None if profile not found
+        (score, grade, breakdown, classification_metadata) or None if profile not found
     """
     manager = get_profile_manager()
     profile = manager.get_profile(profile_id)
@@ -248,7 +254,7 @@ def score_job_for_profile(job: dict, profile_id: str) -> tuple[int, str, dict] |
     return scorer.score_job(job)
 
 
-def score_job_for_all_profiles(job: dict) -> dict[str, tuple[int, str, dict]]:
+def score_job_for_all_profiles(job: dict) -> dict[str, tuple[int, str, dict, dict]]:
     """
     Score a job for all enabled profiles
 
@@ -256,10 +262,10 @@ def score_job_for_all_profiles(job: dict) -> dict[str, tuple[int, str, dict]]:
         job: Job dictionary with title, company, location
 
     Returns:
-        Dictionary mapping profile_id to (score, grade, breakdown)
+        Dictionary mapping profile_id to (score, grade, breakdown, classification_metadata)
     """
     manager = get_profile_manager()
-    results = {}
+    results: dict[str, tuple[int, str, dict, dict]] = {}
 
     for profile in manager.get_enabled_profiles():
         scorer = ProfileScorer(profile)
@@ -282,7 +288,9 @@ if __name__ == "__main__":
 
     results = score_job_for_all_profiles(test_job)
 
-    for profile_id, (score, grade, breakdown) in results.items():
+    for profile_id, (score, grade, breakdown, classification_metadata) in results.items():
         print(f"\n{profile_id.upper()} Profile:")
         print(f"  Score: {score}/115 (Grade {grade})")
         print(f"  Breakdown: {breakdown}")
+        filtered = " [FILTERED]" if classification_metadata.get("filtered") else ""
+        print(f"  Company: {classification_metadata.get('company_type')}{filtered}")

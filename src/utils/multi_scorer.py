@@ -42,7 +42,7 @@ class MultiPersonScorer:
         results = {}
 
         for profile_id, scorer in self.scorers.items():
-            score, grade, breakdown = scorer.score_job(job)
+            score, grade, breakdown, classification_metadata = scorer.score_job(job)
 
             # Save to job_scores table
             self.db.upsert_job_score(
@@ -51,6 +51,7 @@ class MultiPersonScorer:
                 score=score,
                 grade=grade,
                 breakdown=json.dumps(breakdown),
+                classification_metadata=json.dumps(classification_metadata),
             )
 
             results[profile_id] = (score, grade)
@@ -136,5 +137,6 @@ if __name__ == "__main__":
     print("\nScoring for all profiles (not saving to DB):")
 
     for profile_id, profile_scorer in scorer.scorers.items():
-        score, grade, breakdown = profile_scorer.score_job(test_job)
-        print(f"  {profile_id}: {score}/115 (Grade {grade})")
+        score, grade, breakdown, classification_metadata = profile_scorer.score_job(test_job)
+        filtered_status = " [FILTERED]" if classification_metadata.get("filtered") else ""
+        print(f"  {profile_id}: {score}/115 (Grade {grade}){filtered_status}")

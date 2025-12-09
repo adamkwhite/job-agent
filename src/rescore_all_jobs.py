@@ -67,7 +67,7 @@ def rescore_all_jobs(
         old_grade = job.get("fit_grade", "F")
 
         # Re-score the job
-        new_score, new_grade, breakdown = scorer.score_job(job)
+        new_score, new_grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         assert isinstance(stats["rescored"], int)
         stats["rescored"] += 1

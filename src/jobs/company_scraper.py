@@ -170,7 +170,7 @@ class CompanyScraper:
                 "link": job.link or "",
             }
 
-            score, grade, breakdown = self.scorer.score_job(job_dict)
+            score, grade, breakdown, _classification_metadata = self.scorer.score_job(job_dict)
 
             if score < min_score:
                 print(f"  ⊘ Skipped (below threshold): {job.title}")

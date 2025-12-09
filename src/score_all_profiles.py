@@ -47,7 +47,7 @@ def score_all_jobs_for_profile(profile_id: str, limit: int = 1000) -> dict[str, 
     print(f"\nScoring {len(jobs)} jobs for profile: {profile_id} ({profile.name})")
 
     for i, job in enumerate(jobs):
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, classification_metadata = scorer.score_job(job)
 
         # Save to job_scores table
         db.upsert_job_score(
@@ -56,6 +56,7 @@ def score_all_jobs_for_profile(profile_id: str, limit: int = 1000) -> dict[str, 
             score=score,
             grade=grade,
             breakdown=json.dumps(breakdown),
+            classification_metadata=json.dumps(classification_metadata),
         )
 
         stats["scored"] += 1

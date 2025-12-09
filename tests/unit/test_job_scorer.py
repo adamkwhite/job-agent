@@ -850,3 +850,134 @@ class TestSevenCategoryRoleScoring:
         # Generic role without product/program
         score = scorer._score_role_type("business analyst")
         assert score == 0, f"Business Analyst should score 0, got {score}"
+
+
+class TestScorerFilteringIntegration:
+    """Test scorer integration with company classification and filtering (Issue #122 - Batch 3)"""
+
+    def test_software_role_penalty_applied(self):
+        """Test that software engineering roles at software companies receive -20 penalty"""
+        scorer = JobScorer()
+
+        # Add filtering config to profile
+        scorer.profile["filtering"] = {
+            "aggression_level": "conservative",  # Use conservative to test explicit keyword filtering
+            "software_engineering_avoid": ["software engineering", "backend engineering"],
+            "software_company_penalty": -20,
+            "hardware_company_boost": 10,
+        }
+
+        job = {
+            "title": "VP of Software Engineering",  # Explicit software engineering title
+            "company": "Stripe",  # Known software company in config
+            "location": "Remote, USA",
+        }
+
+        score, grade, breakdown, classification_metadata = scorer.score_job(job)
+
+        # Verify penalty was applied (conservative mode filters explicit titles)
+        assert "company_classification" in breakdown
+        assert breakdown["company_classification"] == -20
+        assert classification_metadata["filtered"] is True
+        assert classification_metadata["company_type"] == "software"
+
+    def test_hardware_company_boost_applied(self):
+        """Test that hardware company engineering roles receive +10 boost"""
+        scorer = JobScorer()
+
+        scorer.profile["filtering"] = {
+            "aggression_level": "moderate",
+            "software_company_penalty": -20,
+            "hardware_company_boost": 10,
+        }
+
+        job = {
+            "title": "VP of Engineering",
+            "company": "Boston Dynamics",  # Known hardware company in config
+            "location": "Remote, USA",
+        }
+
+        score, grade, breakdown, classification_metadata = scorer.score_job(job)
+
+        # Verify boost was applied
+        assert "company_classification" in breakdown
+        assert breakdown["company_classification"] == 10
+        assert classification_metadata["filtered"] is False
+        assert classification_metadata.get("hardware_boost_applied") is True
+        assert classification_metadata["company_type"] == "hardware"
+
+    def test_product_leadership_unaffected_by_filtering(self):
+        """Test that product leadership roles are never filtered regardless of company type"""
+        scorer = JobScorer()
+
+        scorer.profile["filtering"] = {
+            "aggression_level": "moderate",
+            "software_company_penalty": -20,
+            "hardware_company_boost": 10,
+        }
+
+        job = {
+            "title": "VP of Product",
+            "company": "Stripe",  # Software company
+            "location": "Remote, USA",
+        }
+
+        score, grade, breakdown, classification_metadata = scorer.score_job(job)
+
+        # Verify no penalty for product role
+        assert breakdown.get("company_classification", 0) == 0
+        assert classification_metadata["filtered"] is False
+        # Product roles should have reason "product_leadership_any_company"
+        assert classification_metadata.get("filter_reason") == "product_leadership_any_company"
+
+    def test_classification_metadata_stored(self):
+        """Test that classification metadata is returned with all required fields"""
+        scorer = JobScorer()
+
+        job = {
+            "title": "Director of Engineering",
+            "company": "Tesla",  # Dual-domain company
+            "location": "Remote, USA",
+        }
+
+        score, grade, breakdown, classification_metadata = scorer.score_job(job)
+
+        # Verify all metadata fields present
+        assert "company_type" in classification_metadata
+        assert "confidence" in classification_metadata
+        assert "signals" in classification_metadata
+        assert "source" in classification_metadata
+        assert "filtered" in classification_metadata
+
+        # Verify company type is valid
+        assert classification_metadata["company_type"] in [
+            "software",
+            "hardware",
+            "both",
+            "unknown",
+        ]
+
+        # Verify confidence is in valid range
+        assert 0.0 <= classification_metadata["confidence"] <= 1.0
+
+    def test_score_returns_four_values(self):
+        """Test that score_job now returns 4 values (score, grade, breakdown, classification_metadata)"""
+        scorer = JobScorer()
+
+        job = {
+            "title": "VP of Engineering",
+            "company": "Test Company",
+            "location": "Remote",
+        }
+
+        result = scorer.score_job(job)
+
+        # Verify 4-tuple return value
+        assert len(result) == 4
+        score, grade, breakdown, classification_metadata = result
+
+        # Verify types
+        assert isinstance(score, int)
+        assert isinstance(grade, str)
+        assert isinstance(breakdown, dict)
+        assert isinstance(classification_metadata, dict)

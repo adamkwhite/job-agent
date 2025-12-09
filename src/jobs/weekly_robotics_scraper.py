@@ -491,7 +491,7 @@ Related: #65 (Firecrawl generic career pages)
         high_scoring_jobs = []
 
         for job_dict in included:
-            score, grade, breakdown = self.scorer.score_job(job_dict)
+            score, grade, breakdown, _classification_metadata = self.scorer.score_job(job_dict)
 
             if score >= min_score:
                 stats["jobs_above_threshold"] += 1

@@ -1,13 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(SKIP=python-safety-dependencies-check git commit -m \"$(cat <<''EOF''\nfeat: Implement LLM extractor core with Claude 3.5 Sonnet via OpenRouter\n\nImplements Issue #88 - Core LLM extraction functionality using ScrapeGraphAI.\n\n**New Files:**\n- `src/extractors/llm_extractor.py` - LLMExtractor class with timeout enforcement\n- `config/llm-extraction-settings.json` - Configuration for model, budget, prompts\n- `tests/unit/test_llm_extractor.py` - 19 comprehensive unit tests (91% coverage)\n\n**Key Features:**\n- Claude 3.5 Sonnet via OpenRouter API for job extraction\n- 30-second timeout enforcement (NFR1)\n- Budget tracking placeholder ($5/month limit)\n- Error handling with database failure logging\n- Validates required fields (title, link) before creating jobs\n- Supports multiple LLM response formats (dict, list, JSON string)\n\n**Dependencies Added:**\n- `openai>=1.0.0` - OpenRouter API compatibility\n- `scrapegraphai>=1.0.0` - LLM extraction library\n\n**Test Coverage:**\n- 19 unit tests covering initialization, extraction, parsing, timeout, errors\n- Module-level mocking to avoid scrapegraphai import issues\n- Explicit environment cleanup for test isolation\n- All 773 unit tests passing\n\n**Related:**\n- Issue: #88 (LLM Extractor Core Implementation)\n- PRD: `docs/features/llm-job-extraction-PLANNED/prd.md`\n- Next: Issue #89 (Budget Tracking Service)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
-      "Bash(git ls-tree:*)",
-      "Bash(SKIP=python-safety-dependencies-check git commit:*)",
-      "Bash(git rebase:*)",
-      "Bash(gh issue edit:*)",
-      "Bash(job-agent-venv/bin/pip index:*)",
-      "Bash(git branch:*)"
+      "WebSearch",
+      "SlashCommand(/WrapUpForTheDay)",
+      "mcp__claude-memory__search_conversations",
+      "Bash(job-agent-venv/bin/pip list:*)",
+      "Bash(PYTHONPATH=$PWD job-agent-venv/bin/pytest:*)",
+      "Bash(PYTHONPATH=$PWD job-agent-venv/bin/python3:*)",
+      "Bash(git add:*)",
+      "Bash(job-agent-venv/bin/pre-commit run:*)"
     ],
     "deny": [],
     "ask": []

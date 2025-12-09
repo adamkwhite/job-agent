@@ -597,3 +597,186 @@ class CompanyClassifier:
 
         except sqlite3.Error as e:
             logger.error(f"Database error storing classification for '{company_name}': {e}")
+
+
+# Module-level filtering functions (used by job scorer)
+
+
+def classify_role_type(job_title: str, role_types: dict[str, list[str]]) -> str:
+    """
+    Classify job role as engineering_leadership, product_leadership, dual_role, or other
+
+    Args:
+        job_title: Job title to classify (case-insensitive)
+        role_types: Dictionary of role categories with keyword lists from profile
+
+    Returns:
+        Role category: engineering_leadership, product_leadership, dual_role, or other
+
+    Examples:
+        >>> classify_role_type("VP of Engineering", {...})
+        'engineering_leadership'
+        >>> classify_role_type("Director of Product", {...})
+        'product_leadership'
+    """
+    title_lower = job_title.lower()
+
+    # Check dual role first (most specific)
+    if "dual_role" in role_types:
+        dual_keywords = role_types["dual_role"]
+        if any(keyword.lower() in title_lower for keyword in dual_keywords):
+            return "dual_role"
+
+    # Check product leadership
+    if "product_leadership" in role_types:
+        product_keywords = role_types["product_leadership"]
+        if any(keyword.lower() in title_lower for keyword in product_keywords):
+            return "product_leadership"
+
+    # Check engineering leadership
+    if "engineering_leadership" in role_types:
+        engineering_keywords = role_types["engineering_leadership"]
+        if any(keyword.lower() in title_lower for keyword in engineering_keywords):
+            return "engineering_leadership"
+
+    return "other"
+
+
+def should_filter_job(
+    job_title: str,
+    company_name: str,
+    company_classification: CompanyClassification,
+    profile: dict,
+    aggression_level: str = "moderate",
+) -> tuple[bool, str]:
+    """
+    Determine if job should be filtered based on role type and company domain
+
+    This function implements the filtering logic for software engineering roles at
+    software companies. It supports three aggression levels:
+
+    - conservative: Only filter explicit "VP of Software Engineering" titles
+    - moderate (default): Filter engineering roles at software companies with confidence ≥0.6
+    - aggressive: Filter any engineering role without explicit hardware keywords
+
+    Product leadership roles are NEVER filtered regardless of company type.
+
+    Args:
+        job_title: Job title to evaluate
+        company_name: Company name for logging
+        company_classification: CompanyClassification result with type and confidence
+        profile: User profile dict with role_types and filtering config
+        aggression_level: Filtering aggression level (conservative/moderate/aggressive)
+
+    Returns:
+        (should_filter: bool, reason: str) - Whether to filter and human-readable reason
+
+    Examples:
+        >>> should_filter_job(
+        ...     "VP of Engineering",
+        ...     "Stripe",
+        ...     CompanyClassification(type="software", confidence=0.8, ...),
+        ...     profile,
+        ...     "moderate"
+        ... )
+        (True, "software_company_moderate_confidence")
+
+        >>> should_filter_job(
+        ...     "VP of Product",
+        ...     "Stripe",
+        ...     CompanyClassification(type="software", confidence=0.8, ...),
+        ...     profile,
+        ...     "moderate"
+        ... )
+        (False, "product_leadership_any_company")
+    """
+    # Classify role type using profile's role_types config
+    role_types = profile.get("role_types", {})
+    role_type = classify_role_type(job_title, role_types)
+
+    logger.debug(
+        f"Role classification for '{job_title}' at '{company_name}': "
+        f"role_type={role_type}, company_type={company_classification.type}, "
+        f"confidence={company_classification.confidence:.2f}"
+    )
+
+    # Product leadership always passes (any company)
+    if role_type == "product_leadership":
+        logger.debug(f"Not filtering '{job_title}' - product leadership role")
+        return (False, "product_leadership_any_company")
+
+    # Dual role (product + engineering) treated as product leadership - never filter
+    if role_type == "dual_role":
+        logger.debug(f"Not filtering '{job_title}' - dual product/engineering role")
+        return (False, "dual_role_any_company")
+
+    # Engineering leadership depends on company type
+    if role_type == "engineering_leadership":
+        if company_classification.type == "software":
+            # Get software engineering avoid keywords from profile
+            filtering_config = profile.get("filtering", {})
+            avoid_keywords = filtering_config.get("software_engineering_avoid", [])
+
+            # Apply aggression level logic
+            if aggression_level == "conservative":
+                # Only filter if title contains explicit software keywords
+                title_lower = job_title.lower()
+                if any(keyword.lower() in title_lower for keyword in avoid_keywords):
+                    logger.info(
+                        f"Filtering '{job_title}' at '{company_name}' - "
+                        f"software engineering explicit (conservative)"
+                    )
+                    return (True, "software_engineering_explicit_conservative")
+
+            elif aggression_level == "moderate":  # DEFAULT
+                # Filter if company is classified as software with medium+ confidence
+                if company_classification.confidence >= 0.6:
+                    logger.info(
+                        f"Filtering '{job_title}' at '{company_name}' - "
+                        f"software company (confidence={company_classification.confidence:.2f}, moderate)"
+                    )
+                    return (True, "software_company_moderate_confidence")
+
+            elif aggression_level == "aggressive":
+                # Filter any engineering role without explicit hardware keywords
+                hardware_keywords = ["hardware", "robotics", "mechatronics", "embedded", "firmware"]
+                title_lower = job_title.lower()
+                if not any(kw in title_lower for kw in hardware_keywords):
+                    logger.info(
+                        f"Filtering '{job_title}' at '{company_name}' - "
+                        f"no hardware keywords (aggressive)"
+                    )
+                    return (True, "no_hardware_keywords_aggressive")
+
+        elif company_classification.type == "hardware":
+            logger.debug(
+                f"Not filtering '{job_title}' at '{company_name}' - hardware company engineering match"
+            )
+            return (False, "hardware_company_engineering_match")
+
+        elif company_classification.type == "both":
+            # Dual-domain companies (Tesla, Apple, etc.)
+            # For "both" companies, use moderate confidence threshold
+            # Only filter if we're highly confident it's a software-focused role
+            filtering_config = profile.get("filtering", {})
+            avoid_keywords = filtering_config.get("software_engineering_avoid", [])
+            title_lower = job_title.lower()
+
+            # Check if title explicitly mentions software
+            if any(keyword.lower() in title_lower for keyword in avoid_keywords):
+                logger.info(
+                    f"Filtering '{job_title}' at '{company_name}' - "
+                    f"dual-domain company with software-focused title"
+                )
+                return (True, "dual_domain_software_focused")
+            else:
+                # For dual-domain without explicit software keywords, don't filter
+                logger.debug(
+                    f"Not filtering '{job_title}' at '{company_name}' - "
+                    f"dual-domain company without software-specific title"
+                )
+                return (False, "dual_domain_ambiguous")
+
+    # Default: no filter
+    logger.debug(f"Not filtering '{job_title}' at '{company_name}' - no filter criteria matched")
+    return (False, "no_filter_applied")
