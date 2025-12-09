@@ -29,6 +29,12 @@
       "hybrid_keywords": ["hybrid"],
       "preferred_cities": ["toronto", "ottawa"],
       "preferred_regions": ["ontario", "canada"]
+    },
+    "filtering": {
+      "aggression_level": "conservative",
+      "software_engineering_avoid": [],
+      "hardware_company_boost": 0,
+      "software_company_penalty": 0
     }
   },
   "digest": {
