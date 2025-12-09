@@ -51,6 +51,7 @@ def _generate_job_table_rows(jobs: list[dict]) -> str:
                     <td class="score-cell">{breakdown.get("role_type", 0)}</td>
                     <td class="score-cell">{breakdown.get("location", 0)}</td>
                     <td class="score-cell">{breakdown.get("technical", 0)}</td>
+                    <td class="score-cell">{breakdown.get("company_classification", 0):+d}</td>
                     <td class="score-cell">
                         <span class="score grade-{grade}">{score}</span>
                     </td>
@@ -224,7 +225,7 @@ def generate_email_html(jobs: list[dict], profile: Profile) -> str:
             <strong>📊 Summary:</strong><br>
             • <strong>{len(high_scoring)}</strong> excellent matches (80+ score)<br>
             • <strong>{len(acceptable_scoring)}</strong> good matches (70+ score)<br>
-            • Scored on: Seniority (30), Domain (25), Role Type (20), Location (15), Technical (10)
+            • Scored on: Seniority (30), Domain (25), Role Type (20), Location (15), Technical (10), Company Fit (±20)
         </div>
     """
 
@@ -241,6 +242,7 @@ def generate_email_html(jobs: list[dict], profile: Profile) -> str:
                     <th style="text-align: center;">Role<br>/20</th>
                     <th style="text-align: center;">Location<br>/15</th>
                     <th style="text-align: center;">Tech<br>/10</th>
+                    <th style="text-align: center;">Company<br>Fit</th>
                     <th style="text-align: center;">Total<br>/115</th>
                 </tr>
             </thead>
@@ -265,6 +267,7 @@ def generate_email_html(jobs: list[dict], profile: Profile) -> str:
                     <th style="text-align: center;">Role<br>/20</th>
                     <th style="text-align: center;">Location<br>/15</th>
                     <th style="text-align: center;">Tech<br>/10</th>
+                    <th style="text-align: center;">Company<br>Fit</th>
                     <th style="text-align: center;">Total<br>/115</th>
                 </tr>
             </thead>

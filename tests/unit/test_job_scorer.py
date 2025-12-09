@@ -460,7 +460,7 @@ class TestFullJobScoring:
             "location": "Remote",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should score very high
         assert score >= 90, f"Score: {score}, Breakdown: {breakdown}"
@@ -476,7 +476,7 @@ class TestFullJobScoring:
             "location": "Hybrid - Toronto, ON",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         assert score >= 70, f"Score: {score}, Breakdown: {breakdown}"
         assert grade in ["A", "B", "C"]
@@ -491,7 +491,7 @@ class TestFullJobScoring:
             "location": "San Francisco, CA",
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         assert score < 50, f"Score: {score}, Breakdown: {breakdown}"
         assert grade in ["D", "F"]
@@ -506,7 +506,7 @@ class TestFullJobScoring:
             "location": "Remote",
         }
 
-        _, _, breakdown = scorer.score_job(job)
+        _, _, breakdown, _ = scorer.score_job(job)
 
         assert "seniority" in breakdown
         assert "domain" in breakdown
@@ -525,7 +525,7 @@ class TestFullJobScoring:
             "location": None,
         }
 
-        score, grade, breakdown = scorer.score_job(job)
+        score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
         # Should not crash, location score should be 0
         assert breakdown["location"] == 0
