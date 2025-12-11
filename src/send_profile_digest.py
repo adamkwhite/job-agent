@@ -252,7 +252,7 @@ def generate_email_html(jobs: list[dict], profile: Profile) -> str:
             </thead>
             <tbody>
         """
-        html += _generate_job_table_rows(high_scoring[:10])
+        html += _generate_job_table_rows(high_scoring)
         html += """
             </tbody>
         </table>
@@ -277,9 +277,9 @@ def generate_email_html(jobs: list[dict], profile: Profile) -> str:
             </thead>
             <tbody>
         """
-        html += _generate_job_table_rows(
-            acceptable_scoring[len(high_scoring) : len(high_scoring) + 5]
-        )
+        # Show only 70-79 jobs (exclude 80+ which are already shown above)
+        good_only = [j for j in acceptable_scoring if j.get("fit_score", 0) < 80]
+        html += _generate_job_table_rows(good_only)
         html += """
             </tbody>
         </table>
