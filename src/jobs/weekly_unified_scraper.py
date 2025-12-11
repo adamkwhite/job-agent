@@ -194,13 +194,19 @@ def main():
     """CLI entry point"""
     import argparse
 
+    from utils.profile_manager import get_profile_manager
+
+    # Get available profile IDs dynamically
+    profile_manager = get_profile_manager()
+    available_profiles = profile_manager.get_profile_ids()
+
     parser = argparse.ArgumentParser(description="Unified weekly scraper - all job sources")
 
     # Profile selection
     parser.add_argument(
         "--profile",
         type=str,
-        choices=["wes", "adam"],
+        choices=available_profiles,
         help="Profile to use (determines email account and scoring)",
     )
 
