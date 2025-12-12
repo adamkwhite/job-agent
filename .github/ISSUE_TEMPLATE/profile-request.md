@@ -41,9 +41,11 @@ email:
 enabled: yes
 
 # ==============================================================================
-# EMAIL CREDENTIALS (Optional - only if you want your own inbox)
+# EMAIL CREDENTIALS (Optional)
 # ==============================================================================
-# Leave blank to receive digests with jobs from the shared inbox
+# Optional - if you want to set up your own email inbox to use for creating
+# your own job alerts. This will help keep your regular email inbox clean.
+# Leave blank to receive digests with jobs from the shared inbox.
 
 # Gmail address that receives job alerts (e.g., yourname.jobalerts@gmail.com)
 email_username:
