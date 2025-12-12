@@ -12,6 +12,7 @@ Usage:
 """
 
 import argparse
+import contextlib
 import logging
 import subprocess
 import sys
@@ -30,6 +31,50 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+def ensure_github_labels_exist(labels: list[str]) -> None:
+    """
+    Ensure all required GitHub labels exist, creating them if needed
+
+    Args:
+        labels: List of label names to check/create
+    """
+    # Label definitions with colors
+    label_definitions = {
+        "user-feedback": {
+            "description": "User feedback from digest email replies",
+            "color": "C5DEF5",
+        },
+        "false-positive": {"description": "Job incorrectly matched or scored", "color": "E99695"},
+        "location-filtering": {
+            "description": "Issues with location-based job filtering",
+            "color": "FEF2C0",
+        },
+        "digest": {"description": "Email digest and summary features", "color": "BFD4F2"},
+        "scoring": {"description": "Job scoring and fit evaluation features", "color": "0E8A16"},
+    }
+
+    for label in labels:
+        if label in label_definitions:
+            definition = label_definitions[label]
+            # Try to create label, ignore if it already exists
+            with contextlib.suppress(Exception):
+                subprocess.run(
+                    [
+                        "gh",
+                        "label",
+                        "create",
+                        label,
+                        "--description",
+                        definition["description"],
+                        "--color",
+                        definition["color"],
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=False,  # Don't raise error if label exists
+                )
 
 
 def create_github_issue(feedback: dict, profile_name: str, dry_run: bool = False) -> str | None:
@@ -109,6 +154,9 @@ def create_github_issue(feedback: dict, profile_name: str, dry_run: bool = False
         print(f"\nBody:\n{body}")
         print("=" * 80)
         return None
+
+    # Ensure all required labels exist
+    ensure_github_labels_exist(labels)
 
     # Create issue using gh CLI
     try:
