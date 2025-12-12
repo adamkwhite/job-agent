@@ -24,7 +24,17 @@
       "Bash(job-agent-venv/bin/python:*)",
       "Bash(PYTHONPATH=$PWD job-agent-venv/bin/python3:*)",
       "Bash(PYTHONPATH=$PWD job-agent-venv/bin/pytest:*)",
-      "Bash(job-agent-venv/bin/pre-commit run:*)"
+      "Bash(job-agent-venv/bin/pre-commit run:*)",
+      "Bash(git pull:*)",
+      "Bash(git reset:*)",
+      "Bash(git fetch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git stash:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(head:*)",
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "KillShell"
     ],
     "deny": [],
     "ask": []
