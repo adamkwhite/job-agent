@@ -2,6 +2,7 @@
 Generate HTML page with jobs table
 """
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -9,12 +10,24 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from database import JobDatabase
+from utils.connections_manager import ConnectionsManager
 
 
-def generate_html():
-    """Generate HTML page with all jobs (sorted by score)"""
+def generate_html(profile_id: str | None = None):
+    """Generate HTML page with all jobs (sorted by score)
+
+    Args:
+        profile_id: Optional profile ID to show connections for
+    """
     db = JobDatabase()
     jobs = db.get_recent_jobs(limit=100)
+
+    # Initialize connections manager if profile provided
+    connections_manager = None
+    if profile_id:
+        connections_manager = ConnectionsManager(profile_name=profile_id)
+        if connections_manager.connections_exist:
+            print(f"✓ Loaded LinkedIn connections for profile: {profile_id}")
 
     # Sort by fit_score descending (None scores go to bottom)
     jobs = sorted(jobs, key=lambda x: x.get("fit_score") or 0, reverse=True)
@@ -172,6 +185,32 @@ def generate_html():
             color: white;
             border-color: #4CAF50;
         }
+        .connections-section {
+            margin-top: 8px;
+            padding: 10px;
+            background-color: #e3f2fd;
+            border-left: 3px solid #2196f3;
+            font-size: 13px;
+            border-radius: 3px;
+        }
+        .connections-section strong {
+            color: #1976d2;
+            display: block;
+            margin-bottom: 6px;
+        }
+        .connection-item {
+            margin-left: 15px;
+            color: #424242;
+            line-height: 1.6;
+        }
+        .connection-name {
+            font-weight: 600;
+            color: #1976d2;
+        }
+        .connection-title {
+            color: #666;
+            font-size: 12px;
+        }
     </style>
     <script>
         function filterJobs(filterType) {
@@ -301,13 +340,40 @@ def generate_html():
             score_display = "Not Scored"
             grade_class = "grade-F"
 
+        # Get connections for this company
+        connections_html = ""
+        if connections_manager and connections_manager.connections_exist:
+            try:
+                summary = connections_manager.get_connection_summary(job["company"])
+                if summary["count"] > 0:
+                    connections_html = '<div class="connections-section">'
+                    plural = "s" if summary["count"] > 1 else ""
+                    connections_html += (
+                        f"<strong>👥 {summary['count']} Connection{plural}:</strong>"
+                    )
+                    for conn in summary["connections"][:5]:  # Show max 5 connections
+                        connections_html += f"""
+                        <div class="connection-item">
+                            <span class="connection-name">{conn.full_name}</span>
+                            <span class="connection-title"> - {conn.position}</span>
+                        </div>"""
+                    if summary["count"] > 5:
+                        connections_html += f'<div class="connection-item" style="font-style: italic;">... and {summary["count"] - 5} more</div>'
+                    connections_html += "</div>"
+            except Exception:
+                # Gracefully handle any connection lookup errors
+                pass
+
         html += f"""
                 <tr>
                     <td class="score-cell {grade_class}">{score_display}</td>
                     <td class="title-cell">
                         <a href="{job["link"]}" target="_blank">{job["title"]}</a>
                     </td>
-                    <td class="company-cell">{job["company"]}</td>
+                    <td class="company-cell">
+                        {job["company"]}
+                        {connections_html}
+                    </td>
                     <td class="location-cell">{location}</td>
                     <td class="keywords">{keywords_html}</td>
                     <td>
@@ -335,4 +401,12 @@ def generate_html():
 
 
 if __name__ == "__main__":
-    generate_html()
+    parser = argparse.ArgumentParser(description="Generate HTML report with job listings")
+    parser.add_argument(
+        "--profile",
+        type=str,
+        help="Profile ID to show connections for (e.g., 'wes', 'adam')",
+    )
+    args = parser.parse_args()
+
+    generate_html(profile_id=args.profile)
