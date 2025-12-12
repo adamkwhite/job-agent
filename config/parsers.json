@@ -49,6 +49,12 @@
       "description": "Work In Tech job board notifications"
     },
     {
+      "name": "feedback",
+      "enabled": true,
+      "type": "feedback",
+      "description": "Job digest feedback replies for GitHub issue creation"
+    },
+    {
       "name": "indeed",
       "enabled": false,
       "type": "job_alert",
