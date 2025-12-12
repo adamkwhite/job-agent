@@ -136,7 +136,39 @@ Each scored job includes classification metadata:
 - Location-based filtering buttons (Remote/Hybrid/Ontario)
 - Sent to wesvanooyen@gmail.com with scoring breakdowns
 
-### 5. Unified Weekly Scraper (`src/jobs/weekly_unified_scraper.py`) **RECOMMENDED**
+### 5. LinkedIn Connections Matching (`src/utils/connections_manager.py`)
+**Status:** COMPLETED (Issue #134)
+
+Automatically surface LinkedIn connections at companies in job digests to help leverage professional networks for referrals and insights.
+
+**Key Features:**
+- **CSV Import**: Upload LinkedIn connections export via `scripts/upload_connections.py`
+- **Fuzzy Matching**: Dual matching strategy (substring + 85% similarity threshold)
+- **Company Normalization**: Handles suffixes (Inc., LLC, Corp., Ltd.) and casing variations
+- **Profile-Specific**: Each profile has isolated connections in `data/profiles/{profile}/connections.csv`
+- **Email Integration**: Shows "👥 You have 2 connections at Company" in digests
+- **HTML Reports**: Displays connection names and titles in detailed view
+- **Performance**: <50ms matching per job, in-memory caching during digest runs
+- **Privacy**: All data stays local, no external API calls
+
+**Usage:**
+```bash
+# Upload LinkedIn CSV export
+python scripts/upload_connections.py --profile wes ~/Downloads/Connections.csv
+
+# Generate HTML report with connections
+python src/generate_jobs_html.py --profile wes
+
+# Digest emails automatically include connections (if CSV uploaded)
+PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile wes
+```
+
+**Export LinkedIn Connections:**
+1. Go to https://www.linkedin.com/mypreferences/d/download-my-data
+2. Select 'Connections'
+3. Download Connections.csv file
+
+### 6. Unified Weekly Scraper (`src/jobs/weekly_unified_scraper.py`) **RECOMMENDED**
 Combines ALL job sources into one automated workflow:
 - **Email processing** (LinkedIn, Supra, F6S, Artemis, Built In, etc.)
 - **Robotics/Deeptech sheet** (1,092 jobs from Google Sheets)
@@ -158,14 +190,14 @@ PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py
 - Robotics: B+ grade (70+)
 - Companies: D+ grade (50+) ← Lower threshold for more options
 
-### 6. Company Monitoring (`src/jobs/company_scraper.py`)
+### 7. Company Monitoring (`src/jobs/company_scraper.py`)
 - Scrapes 26+ companies' career pages for leadership roles
 - Uses Firecrawl MCP for JavaScript-heavy pages
 - Stores D+ grade jobs (50+) to capture more opportunities
 - Tracks last_checked timestamps
 - Sends notifications for A/B grade jobs (80+)
 
-### 7. LLM Extraction Pipeline (`src/extractors/llm_extractor.py`) **EXPERIMENTAL**
+### 8. LLM Extraction Pipeline (`src/extractors/llm_extractor.py`) **EXPERIMENTAL**
 **Status:** IN PROGRESS - Core pipeline complete, validation ongoing
 
 Dual extraction system running regex AND LLM-based job extraction in parallel:

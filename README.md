@@ -54,6 +54,13 @@ Multi-factor 115-point scoring system evaluating jobs against Wesley's profile:
 - Location-based filtering (Remote/Hybrid/Ontario)
 - Tracks sent jobs to prevent duplicate emails
 
+### 5. LinkedIn Connections Matching (`src/utils/connections_manager.py`)
+- Load LinkedIn connections CSV export
+- Match connections to job companies using fuzzy matching
+- Display connection counts and names in email digests
+- Show detailed connection info in HTML reports
+- Profile-specific connections storage (`data/profiles/{profile}/connections.csv`)
+
 ## Project Structure
 
 ```
@@ -138,10 +145,24 @@ job-agent-venv/bin/python src/jobs/weekly_robotics_scraper.py --min-score 70
 PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/company_scraper.py --filter "From Wes"
 ```
 
+**LinkedIn Connections**:
+```bash
+# Upload LinkedIn connections CSV for a profile
+python scripts/upload_connections.py --profile wes ~/Downloads/Connections.csv
+
+# How to export from LinkedIn:
+# 1. Go to https://www.linkedin.com/mypreferences/d/download-my-data
+# 2. Select 'Connections'
+# 3. Download the Connections.csv file
+```
+
 **Generate Reports**:
 ```bash
 # Create interactive HTML report
 job-agent-venv/bin/python src/generate_jobs_html.py
+
+# Create HTML report with connections for a profile
+job-agent-venv/bin/python src/generate_jobs_html.py --profile wes
 
 # Send email digest
 PYTHONPATH=$PWD job-agent-venv/bin/python src/send_digest_to_wes.py

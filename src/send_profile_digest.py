@@ -26,13 +26,16 @@ sys.path.insert(0, str(Path(__file__).parent))
 from dotenv import load_dotenv
 
 from database import JobDatabase
+from utils.connections_manager import ConnectionsManager
 from utils.job_validator import JobValidator
 from utils.profile_manager import Profile, get_profile_manager
 
 load_dotenv()
 
 
-def _generate_job_table_rows(jobs: list[dict]) -> str:
+def _generate_job_table_rows(
+    jobs: list[dict], connections_manager: ConnectionsManager | None = None
+) -> str:
     """Generate HTML table rows for job listings"""
     rows = ""
     for job in jobs:
@@ -41,11 +44,27 @@ def _generate_job_table_rows(jobs: list[dict]) -> str:
         breakdown = json.loads(job.get("score_breakdown", "{}"))
         location = job.get("location") or ""
 
+        # Get connections count for this company
+        connections_html = ""
+        if connections_manager and connections_manager.connections_exist:
+            try:
+                summary = connections_manager.get_connection_summary(job["company"])
+                if summary["count"] > 0:
+                    plural = "s" if summary["count"] > 1 else ""
+                    connections_html = f"""
+                        <div class="connections-badge">
+                            👥 You have {summary["count"]} connection{plural} here
+                        </div>"""
+            except Exception:
+                # Gracefully handle any connection lookup errors
+                pass
+
         rows += f"""
                 <tr>
                     <td>
                         <div>{job["company"]}</div>
                         <div class="company">📌 {location}</div>
+                        {connections_html}
                     </td>
                     <td class="job-title">
                         <a href="{job["link"]}" target="_blank">{job["title"]}</a>
@@ -112,7 +131,9 @@ def _format_location_prefs(profile: Profile) -> str:
     return ", ".join(parts) if parts else "Not specified"
 
 
-def generate_email_html(jobs: list[dict], profile: Profile) -> str:
+def generate_email_html(
+    jobs: list[dict], profile: Profile, connections_manager: ConnectionsManager | None = None
+) -> str:
     """Generate HTML email with top jobs for a specific profile"""
 
     # Filter for B+ and good grade jobs
@@ -179,6 +200,15 @@ def generate_email_html(jobs: list[dict], profile: Profile) -> str:
             .company {{
                 color: #7f8c8d;
                 font-size: 13px;
+            }}
+            .connections-badge {{
+                margin-top: 8px;
+                padding: 6px 10px;
+                background: #e3f2fd;
+                border-left: 3px solid #2196f3;
+                font-size: 13px;
+                color: #1976d2;
+                border-radius: 3px;
             }}
             .score {{
                 font-weight: 600;
@@ -252,7 +282,7 @@ def generate_email_html(jobs: list[dict], profile: Profile) -> str:
             </thead>
             <tbody>
         """
-        html += _generate_job_table_rows(high_scoring)
+        html += _generate_job_table_rows(high_scoring, connections_manager)
         html += """
             </tbody>
         </table>
@@ -279,7 +309,7 @@ def generate_email_html(jobs: list[dict], profile: Profile) -> str:
         """
         # Show only 70-79 jobs (exclude 80+ which are already shown above)
         good_only = [j for j in acceptable_scoring if j.get("fit_score", 0) < 80]
-        html += _generate_job_table_rows(good_only)
+        html += _generate_job_table_rows(good_only, connections_manager)
         html += """
             </tbody>
         </table>
@@ -406,8 +436,13 @@ def send_digest_to_profile(
         )
         return True
 
+    # Initialize connections manager for this profile
+    connections_manager = ConnectionsManager(profile_name=profile_id)
+    if connections_manager.connections_exist:
+        print(f"✓ Loaded LinkedIn connections for {profile.name}")
+
     # Generate email HTML
-    html_body = generate_email_html(jobs, profile)
+    html_body = generate_email_html(jobs, profile, connections_manager)
 
     # Build email message
     msg = MIMEMultipart("mixed")
