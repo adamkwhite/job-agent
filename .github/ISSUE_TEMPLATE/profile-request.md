@@ -45,7 +45,7 @@ enabled: yes
 # ==============================================================================
 # Optional - if you want to set up your own email inbox to use for creating
 # your own job alerts. This will help keep your regular email inbox clean.
-# Leave blank to receive digests with jobs from the shared inbox.
+# Leave blank to receive digests with jobs from the shared alerts inbox.
 
 # Gmail address that receives job alerts (e.g., yourname.jobalerts@gmail.com)
 email_username:
@@ -158,7 +158,7 @@ notifications_min_score: 80
 **Do you want your own dedicated job alerts inbox?** (Optional)
 
 - [ ] Yes, I'll set up `myname.jobalerts@gmail.com` and provide app password
-- [ ] No, just send me digests with jobs from the shared inbox
+- [ ] No, just send me digests with jobs from the shared alerts inbox
 
 If yes, you'll need to:
 1. Create a Gmail account (e.g., `yourname.jobalerts@gmail.com`)
