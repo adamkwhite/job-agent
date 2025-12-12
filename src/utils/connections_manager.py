@@ -111,6 +111,20 @@ class ConnectionsManager:
 
         try:
             with open(self.connections_file, encoding="utf-8") as f:
+                # Check if file starts with LinkedIn's notes header
+                # If so, skip: Notes: + note text + empty line = 3 lines total
+                pos = f.tell()
+                first_line = f.readline().strip()
+
+                if first_line.startswith("Notes:"):
+                    # Skip the note description line
+                    f.readline()
+                    # Skip the empty line
+                    f.readline()
+                else:
+                    # Not a notes header, reset to beginning
+                    f.seek(pos)
+
                 reader = csv.DictReader(f)
 
                 # Validate required columns
