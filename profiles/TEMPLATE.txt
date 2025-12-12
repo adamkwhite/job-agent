@@ -1,0 +1,161 @@
+# ==============================================================================
+# JOB AGENT PROFILE TEMPLATE
+# ==============================================================================
+#
+# HOW TO USE THIS TEMPLATE:
+#
+# OPTION 1 - Submit as GitHub Issue (Easiest):
+#   1. Download this template
+#   2. Fill in your information below
+#   3. Go to: https://github.com/adamkwhite/job-agent/issues/new/choose
+#   4. Select "Profile Creation Request"
+#   5. Paste your completed template and submit
+#   6. Done! We'll create your profile and notify you
+#
+# OPTION 2 - Create Yourself (If you have repo access):
+#   1. Fill in this template and save it as profiles/yourname.txt
+#   2. Run: python scripts/generate_profile_json.py yourname
+#   3. This will create profiles/yourname.json automatically
+#
+# Lines starting with # are comments (ignored)
+# Use commas to separate multiple values
+# ==============================================================================
+
+# ==============================================================================
+# BASIC INFO
+# ==============================================================================
+
+# Your full name
+name: Adam White
+
+# Your email address (where digests will be sent)
+email: adamkwhite@gmail.com
+
+# Should this profile receive weekly digest emails? (yes/no)
+# If "no", jobs will still be scored for this profile but no digest sent
+enabled: yes
+
+# ==============================================================================
+# EMAIL CREDENTIALS (Optional - only needed if you want to scrape your own inbox)
+# ==============================================================================
+# If you DON'T have your own job alerts email inbox, leave these blank
+# You'll still get digests, but jobs will come from the main email account
+
+# Gmail address that receives job alerts (e.g., yourname.jobalerts@gmail.com)
+email_username: adamwhite.jobalerts@gmail.com
+
+# Environment variable name for your Gmail app password (stored in .env file)
+# Example: If this is ADAM_GMAIL_APP_PASSWORD, then add this to .env:
+# ADAM_GMAIL_APP_PASSWORD=your-actual-app-password-here
+app_password_env: ADAM_GMAIL_APP_PASSWORD
+
+# ==============================================================================
+# SCORING - TARGET SENIORITY
+# ==============================================================================
+# What level of roles are you looking for? (comma-separated)
+# Options: intern, junior, mid-level, senior, staff, lead, principal, director, vp, cto, head, architect
+target_seniority: senior, staff, lead, principal, architect
+
+# ==============================================================================
+# SCORING - DOMAIN KEYWORDS
+# ==============================================================================
+# Technologies, industries, or domains you're interested in (comma-separated)
+# Examples: robotics, hardware, ai, machine learning, python, product, saas, etc.
+domain_keywords: software, fullstack, backend, frontend, web, cloud, devops, data, machine learning, ai, python, product management, product, leadership, coaching, consulting, agile, strategy, saas, technology, anthropic, claude, developer tools, ide
+
+# ==============================================================================
+# SCORING - ROLE TYPES
+# ==============================================================================
+# What types of roles interest you? (comma-separated for each category)
+
+# Engineering roles
+engineering_roles: software engineer, developer, architect, engineering
+
+# Data/ML roles
+data_roles: data engineer, data scientist, ml engineer
+
+# DevOps/Platform roles
+devops_roles: devops, sre, platform engineer
+
+# Product roles
+product_roles: product manager, product owner, product lead, product management, product
+
+# ==============================================================================
+# SCORING - COMPANY PREFERENCES
+# ==============================================================================
+
+# What company stages do you prefer? (comma-separated)
+# Options: startup, seed, series a, series b, series c, growth, public, enterprise, tech
+company_stage: startup, series a, series b, tech
+
+# Keywords to AVOID in job titles (auto-reject if found)
+avoid_keywords: junior, intern, coordinator, sales
+
+# ==============================================================================
+# SCORING - LOCATION PREFERENCES
+# ==============================================================================
+
+# Keywords that indicate remote work
+remote_keywords: remote, work from home, wfh, anywhere, distributed
+
+# Keywords that indicate hybrid work
+hybrid_keywords: hybrid
+
+# Cities you'd consider (for hybrid/onsite roles)
+preferred_cities: toronto, ottawa
+
+# Regions you'd consider (for hybrid/onsite roles)
+preferred_regions: ontario, canada
+
+# ==============================================================================
+# SCORING - FILTERING (Advanced)
+# ==============================================================================
+
+# How aggressively to filter software engineering roles? (conservative/moderate/aggressive)
+# conservative: Only filter explicit "software engineering" keywords in title
+# moderate: Filter engineering roles at software companies (default)
+# aggressive: Filter any engineering role without hardware keywords
+filtering_aggression: conservative
+
+# Bonus points for hardware companies (0-10, default 0 for software profiles)
+hardware_company_boost: 0
+
+# Penalty for software companies (0 to -20, default 0 for software profiles)
+software_company_penalty: 0
+
+# ==============================================================================
+# DIGEST SETTINGS
+# ==============================================================================
+
+# Minimum grade to include in weekly digest (A/B/C/D/F)
+digest_min_grade: C
+
+# Minimum score to include in weekly digest (0-115)
+digest_min_score: 63
+
+# Minimum location score required (0-15)
+digest_min_location_score: 8
+
+# How often to send digests? (weekly/daily - weekly recommended)
+digest_frequency: weekly
+
+# ==============================================================================
+# NOTIFICATIONS (Instant alerts for great matches)
+# ==============================================================================
+
+# Send instant notifications for high-scoring jobs? (yes/no)
+notifications_enabled: yes
+
+# Minimum grade for instant notifications (A/B/C/D/F)
+notifications_min_grade: B
+
+# Minimum score for instant notifications (0-115)
+notifications_min_score: 80
+
+# ==============================================================================
+# DONE!
+# ==============================================================================
+# Save this file as profiles/yourname.txt
+# Then run: python scripts/generate_profile_json.py yourname
+# This will create profiles/yourname.json for you
+# ==============================================================================
