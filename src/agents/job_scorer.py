@@ -30,12 +30,20 @@ def load_role_category_keywords() -> dict:
     return config.get("role_category_keywords", {})
 
 
+def load_location_settings() -> dict:
+    """Load location restriction patterns from config file"""
+    config_path = Path(__file__).parent.parent.parent / "config" / "location-settings.json"
+    with open(config_path) as f:
+        return json.load(f)
+
+
 class JobScorer:
     """Score jobs against Wesley van Ooyen's profile"""
 
     def __init__(self):
         self.db = JobDatabase()
         self.role_category_keywords = load_role_category_keywords()
+        self.location_settings = load_location_settings()
         self.company_classifier = CompanyClassifier()
 
         # Wesley's profile criteria
@@ -118,6 +126,9 @@ class JobScorer:
         company = job["company"].lower()
         company_display = job["company"]  # Keep original case for display
         location = (job["location"] or "").lower()
+        description = job.get(
+            "description", ""
+        )  # Get job description for country restriction check
 
         breakdown = {}
         classification_metadata = {}
@@ -155,7 +166,7 @@ class JobScorer:
         breakdown["role_type"] = role_score
 
         # 4. Location Match (0-15 points)
-        location_score = self._score_location(location)
+        location_score = self._score_location(location, description)
         breakdown["location"] = location_score
 
         # 5. Company Stage Match (0-15 points) - Limited info available
@@ -430,12 +441,54 @@ class JobScorer:
         # Could be enhanced with company research later
         return 10  # Default neutral score
 
-    def _score_location(self, location: str) -> int:
+    def _is_country_restricted(self, location: str, description: str = "") -> bool:
+        """
+        Check if a remote job is restricted to a specific country (e.g., US-only)
+
+        Args:
+            location: Job location string (e.g., "Remote", "United States (Remote)")
+            description: Job description text (may contain country requirements)
+
+        Returns:
+            True if job is restricted to non-Canadian countries, False otherwise
+        """
+        if not location:
+            return False
+
+        location_lower = location.lower()
+        description_lower = description.lower() if description else ""
+        patterns = self.location_settings.get("country_restriction_patterns", {})
+
+        # Check for Canada-friendly patterns first (these override restrictions)
+        canada_friendly = patterns.get("canada_friendly", [])
+        for pattern in canada_friendly:
+            if pattern in location_lower or pattern in description_lower:
+                return False  # Explicitly welcomes Canadian candidates
+
+        # Check for US-only patterns in location
+        us_only_patterns = patterns.get("us_only", [])
+        for pattern in us_only_patterns:
+            if pattern in location_lower or pattern in description_lower:
+                return True  # Restricted to US
+
+        # Check for US states/cities in location (indicates US-specific remote)
+        # Only flag if it's a remote job with a specific US location
+        if any(kw in location_lower for kw in ["remote", "work from home", "wfh"]):
+            us_states = patterns.get("us_states", [])
+            for state in us_states:
+                # Match full word boundaries to avoid false positives (e.g., "OR" in "Director")
+                if f" {state} " in f" {location_lower} " or location_lower.endswith(f" {state}"):
+                    return True  # Remote job in specific US location
+
+        return False  # No country restrictions detected
+
+    def _score_location(self, location: str, description: str = "") -> int:
         """
         Score based on location match (0-15 points)
 
         Scoring:
-        - Remote: 15 points (hard requirement met)
+        - Remote (unrestricted or Canada-friendly): 15 points (hard requirement met)
+        - Remote (US-only or country-restricted): 0 points (not viable for Canadian candidates)
         - Hybrid + Ontario: 15 points (hard requirement met)
         - Preferred Ontario cities: 12 points (acceptable if hybrid)
         - Broader Canada: 8 points (possible)
@@ -447,9 +500,12 @@ class JobScorer:
         location_lower = location.lower()
         prefs = self.profile["location_preferences"]
 
-        # Check for remote (15 points - perfect match)
+        # Check for remote (15 points - perfect match, but check for country restrictions)
         if any(kw in location_lower for kw in prefs["remote_keywords"]):
-            return 15
+            # Check if remote job is restricted to non-Canadian countries
+            if self._is_country_restricted(location, description):
+                return 0  # US-only or country-restricted remote job
+            return 15  # Unrestricted or Canada-friendly remote job
 
         # Check for hybrid (need to also check if in Ontario)
         is_hybrid = any(kw in location_lower for kw in prefs["hybrid_keywords"])

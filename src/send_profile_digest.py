@@ -229,7 +229,7 @@ def generate_email_html(jobs: list[dict], profile: Profile) -> str:
             <strong>📊 Summary:</strong><br>
             • <strong>{len(high_scoring)}</strong> excellent matches (80+ score)<br>
             • <strong>{len(acceptable_scoring)}</strong> good matches (70+ score)<br>
-            • Scored on: Seniority (30), Domain (25), Role Type (20), Location (15), Technical (10), Company Fit (±20)
+            • Scored on: Seniority (30), Domain (25), Role Type (20), Location (15 if unrestricted remote/Canada-friendly), Technical (10), Company Fit (±20)
         </div>
     """
 
