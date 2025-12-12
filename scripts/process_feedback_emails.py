@@ -21,7 +21,7 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from imap_client import IMAPClient
+from imap_client import IMAPEmailClient
 from parsers.feedback_parser import FeedbackParser
 from utils.profile_manager import get_profile_manager
 
@@ -157,26 +157,32 @@ def process_feedback_emails(profile_id: str, limit: int = 50, dry_run: bool = Fa
         logger.error(f"Profile not found: {profile_id}")
         return 0
 
-    # Get email credentials
-    email_address = profile.get_email_address()
-    email_password = profile.get_email_password()
-
-    if not email_address or not email_password:
-        logger.warning(f"No email configured for profile {profile_id}, skipping")
-        return 0
-
-    # Connect to IMAP
-    imap = IMAPClient(email_address, email_password)
+    # Connect to IMAP (IMAPEmailClient reads credentials from .env)
+    imap = IMAPEmailClient(profile=profile_id)
     parser = FeedbackParser()
 
     try:
-        logger.info(f"Connecting to {email_address}...")
-        messages = imap.fetch_emails(limit=limit)
+        logger.info(f"Connecting to inbox for profile {profile_id}...")
+        messages = imap.fetch_recent_emails(limit=limit)
         logger.info(f"Fetched {len(messages)} emails")
 
         issues_created = 0
 
-        for msg, from_addr, subject in messages:
+        for msg in messages:
+            from_addr = msg.get("From", "")
+            subject_raw = msg.get("Subject", "")
+
+            # Decode MIME-encoded subject
+            import email.header
+
+            decoded = email.header.decode_header(subject_raw)
+            subject = ""
+            for text, encoding in decoded:
+                if isinstance(text, bytes):
+                    subject += text.decode(encoding or "utf-8")
+                else:
+                    subject += text
+
             # Check if this is a feedback email
             if not parser.can_parse(msg, from_addr, subject):
                 continue
@@ -195,8 +201,9 @@ def process_feedback_emails(profile_id: str, limit: int = 50, dry_run: bool = Fa
         logger.info(f"✅ Processed {len(messages)} emails, created {issues_created} issues")
         return issues_created
 
-    finally:
-        imap.close()
+    except Exception as e:
+        logger.error(f"Error processing feedback emails: {e}")
+        raise
 
 
 def main():
