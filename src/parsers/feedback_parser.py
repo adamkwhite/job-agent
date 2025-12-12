@@ -164,8 +164,11 @@ class FeedbackParser:
         job_refs = []
 
         # Pattern: "Title at Company"
-        title_company_pattern = r"([A-Z][a-zA-Z\s]+(?:Director|VP|Engineer|Manager|Lead|Head)(?:[a-zA-Z\s]+)?)\s+at\s+([A-Z][a-zA-Z0-9\s&,.-]+)"
-        matches = re.findall(title_company_pattern, text)
+        # Title: Must contain Director, VP, Engineer, Manager, Lead, or Head
+        # Company: Capitalized name, stops at common sentence words or punctuation
+        # Use word boundary \b to properly separate company name from following words
+        title_company_pattern = r"(?:the\s+|both\s+(?:the\s+)?)?([A-Z][a-zA-Z\s]*?(?:Director|VP|Engineer|Manager|Lead|Head)[a-zA-Z\s]*?)\s+at\s+([A-Z][a-zA-Z0-9\s&]+?)(?:\s+(?:is|are|job|and|the)\b|[.,;]|$)"
+        matches = re.findall(title_company_pattern, text, re.IGNORECASE)
         for title, company in matches:
             job_refs.append(
                 {
