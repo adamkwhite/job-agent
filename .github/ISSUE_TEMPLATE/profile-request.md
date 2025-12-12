@@ -9,23 +9,26 @@ assignees: ''
 
 ## Profile Request
 
-I'd like to create a job alert profile for the job agent system.
+Fill out the template below to create your job alert profile.
 
 ### Instructions
 
-1. Download the profile template: [profiles/TEMPLATE.txt](https://raw.githubusercontent.com/adamkwhite/job-agent/main/profiles/TEMPLATE.txt)
-2. Fill in your information (see comments in the file for guidance)
-3. Paste the completed template below
-4. Submit this issue
+1. Fill in all fields below (follow the comments for guidance)
+2. Delete or skip optional sections you don't need
+3. Submit this issue when complete
 
-### My Completed Profile
+### My Profile
 
 ```
 # ==============================================================================
 # JOB AGENT PROFILE TEMPLATE
 # ==============================================================================
-# Paste your completed profile template here
-# Make sure to include ALL sections from TEMPLATE.txt
+# Fill in the fields below - lines starting with # are comments (will be ignored)
+# Use commas to separate multiple values
+# ==============================================================================
+
+# ==============================================================================
+# BASIC INFO
 # ==============================================================================
 
 # Your full name
@@ -37,7 +40,114 @@ email:
 # Should this profile receive weekly digest emails? (yes/no)
 enabled: yes
 
-# ... (rest of template - copy from TEMPLATE.txt and fill in)
+# ==============================================================================
+# EMAIL CREDENTIALS (Optional - only if you want your own inbox)
+# ==============================================================================
+# Leave blank to receive digests with jobs from the shared inbox
+
+# Gmail address that receives job alerts (e.g., yourname.jobalerts@gmail.com)
+email_username:
+
+# Environment variable name for your Gmail app password
+app_password_env:
+
+# ==============================================================================
+# SCORING - TARGET SENIORITY
+# ==============================================================================
+# Options: intern, junior, mid-level, senior, staff, lead, principal, director, vp, cto, head, architect
+
+target_seniority:
+
+# ==============================================================================
+# SCORING - DOMAIN KEYWORDS
+# ==============================================================================
+# Technologies, industries, or domains (e.g., robotics, ai, python, product, saas)
+
+domain_keywords:
+
+# ==============================================================================
+# SCORING - ROLE TYPES
+# ==============================================================================
+
+# Engineering roles
+engineering_roles:
+
+# Data/ML roles
+data_roles:
+
+# DevOps/Platform roles
+devops_roles:
+
+# Product roles
+product_roles:
+
+# ==============================================================================
+# SCORING - COMPANY PREFERENCES
+# ==============================================================================
+
+# Company stages (e.g., startup, series a, series b, growth, public)
+company_stage:
+
+# Keywords to AVOID in job titles
+avoid_keywords:
+
+# ==============================================================================
+# SCORING - LOCATION PREFERENCES
+# ==============================================================================
+
+# Remote work keywords
+remote_keywords: remote, work from home, wfh, anywhere, distributed
+
+# Hybrid work keywords
+hybrid_keywords: hybrid
+
+# Cities you'd consider for hybrid/onsite
+preferred_cities:
+
+# Regions you'd consider
+preferred_regions:
+
+# ==============================================================================
+# SCORING - FILTERING (Advanced - most users can skip this)
+# ==============================================================================
+
+# How aggressively to filter software roles? (conservative/moderate/aggressive)
+filtering_aggression: conservative
+
+# Bonus points for hardware companies (0-10)
+hardware_company_boost: 0
+
+# Penalty for software companies (0 to -20)
+software_company_penalty: 0
+
+# ==============================================================================
+# DIGEST SETTINGS
+# ==============================================================================
+
+# Minimum grade to include in weekly digest (A/B/C/D/F)
+digest_min_grade: C
+
+# Minimum score to include (0-115)
+digest_min_score: 63
+
+# Minimum location score (0-15)
+digest_min_location_score: 8
+
+# How often to send digests? (weekly/daily)
+digest_frequency: weekly
+
+# ==============================================================================
+# NOTIFICATIONS (Instant alerts for great matches)
+# ==============================================================================
+
+# Send instant notifications? (yes/no)
+notifications_enabled: yes
+
+# Minimum grade for notifications (A/B/C/D/F)
+notifications_min_grade: B
+
+# Minimum score for notifications (0-115)
+notifications_min_score: 80
 
 ```
 
