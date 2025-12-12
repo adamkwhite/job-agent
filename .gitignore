@@ -82,3 +82,16 @@ coverage.xml
 tests/exploration/
 tasks/
 docs/ai-docs/
+
+# SECURITY: Profile data contains sensitive information
+# - Email addresses and names
+# - Gmail app passwords
+# - Personal preferences
+profiles/*.json
+profiles/*/*.json
+
+# SECURITY: Connections data is personal information
+# - LinkedIn connections with names, emails, companies
+data/profiles/
+data/profiles/*/connections.csv
+data/profiles/*/connections_cache.json
