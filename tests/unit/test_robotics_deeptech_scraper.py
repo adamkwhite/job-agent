@@ -598,12 +598,14 @@ class TestFirecrawlMethods:
         assert scraper.priority_config is not None
         assert "priority_companies" in scraper.priority_config
         assert isinstance(scraper.priority_companies, list)
-        assert len(scraper.priority_companies) == 10
+        assert len(scraper.priority_companies) == 16  # 10 original + 6 VentureFizz (Issue #123)
 
         # Verify expected companies
         assert "Boston Dynamics" in scraper.priority_companies
         assert "Figure" in scraper.priority_companies
         assert "Skydio" in scraper.priority_companies
+        assert "Symbotic" in scraper.priority_companies  # VentureFizz addition
+        assert "Formlabs" in scraper.priority_companies  # VentureFizz addition
 
     def test_load_priority_companies_config_fields(self):
         """Test all required config fields are present"""

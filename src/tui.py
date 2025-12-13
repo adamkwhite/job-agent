@@ -640,6 +640,7 @@ def confirm_execution(
         else:
             digest_mode = "Production (real digest)"
         summary_text += f"\n[bold]Digest Mode:[/bold] {digest_mode}"
+        summary_text += "\n[bold]CC:[/bold] adamkwhite@gmail.com"
 
     summary = Panel(
         summary_text,
