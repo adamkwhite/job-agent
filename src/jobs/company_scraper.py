@@ -40,7 +40,11 @@ class CompanyScraper:
         self.notifier = JobNotifier()
 
     def scrape_all_companies(
-        self, min_score: int = 50, company_filter: str | None = None, notify_threshold: int = 80
+        self,
+        min_score: int = 50,
+        company_filter: str | None = None,
+        notify_threshold: int = 80,
+        skip_recent_hours: int | None = None,
     ) -> dict[str, Any]:
         """
         Scrape all monitored companies
@@ -49,6 +53,7 @@ class CompanyScraper:
             min_score: Minimum score to store (default: 50 for D+ grade)
             company_filter: Filter companies by notes (e.g., "From Wes")
             notify_threshold: Score threshold for notifications (default: 80 for A/B grade)
+            skip_recent_hours: Skip companies checked within this many hours (None = scrape all)
 
         Returns:
             Stats dictionary with scraping results
@@ -57,10 +62,14 @@ class CompanyScraper:
         print(f"COMPANY MONITORING SCRAPER - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print("=" * 80)
         print(f"Minimum score: {min_score}")
-        print(f"Notification threshold: {notify_threshold}\n")
+        print(f"Notification threshold: {notify_threshold}")
+        if skip_recent_hours:
+            print(f"Skip if checked within: {skip_recent_hours} hours")
+        print()
 
         stats: dict[str, Any] = {
             "companies_checked": 0,
+            "companies_skipped": 0,
             "jobs_scraped": 0,
             "leadership_jobs": 0,
             "jobs_above_threshold": 0,
@@ -81,7 +90,25 @@ class CompanyScraper:
         else:
             companies = all_companies
 
-        print(f"Monitoring {len(companies)} active companies\n")
+        # Filter out recently checked companies if requested
+        if skip_recent_hours is not None:
+            from datetime import timedelta
+
+            cutoff_time = (datetime.now() - timedelta(hours=skip_recent_hours)).isoformat()
+            filtered_companies = []
+            for company in companies:
+                last_checked = company.get("last_checked")
+                if not last_checked or last_checked < cutoff_time:
+                    filtered_companies.append(company)
+                else:
+                    stats["companies_skipped"] += 1
+
+            print(
+                f"Skipping {stats['companies_skipped']} companies checked in last {skip_recent_hours} hours"
+            )
+            companies = filtered_companies
+
+        print(f"Scraping {len(companies)} companies\n")
 
         # Scrape each company
         for i, company in enumerate(companies, 1):

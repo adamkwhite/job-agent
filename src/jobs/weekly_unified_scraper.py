@@ -56,6 +56,7 @@ class WeeklyUnifiedScraper:
         scrape_companies: bool = True,
         companies_min_score: int = 50,
         company_filter: str | None = None,
+        skip_recent_hours: int | None = None,
     ) -> dict:
         """
         Run all job processing sources
@@ -68,6 +69,7 @@ class WeeklyUnifiedScraper:
             scrape_companies: Whether to scrape monitored companies
             companies_min_score: Minimum score for company jobs (default: 50 for D+ grade)
             company_filter: Filter companies by notes (e.g., "From Wes")
+            skip_recent_hours: Skip companies checked within this many hours (None = scrape all)
 
         Returns:
             Combined stats from all sources
@@ -125,7 +127,9 @@ class WeeklyUnifiedScraper:
             print("=" * 80 + "\n")
 
             company_stats = self._scrape_monitored_companies(
-                min_score=companies_min_score, company_filter=company_filter
+                min_score=companies_min_score,
+                company_filter=company_filter,
+                skip_recent_hours=skip_recent_hours,
             )
 
             all_stats["companies"] = company_stats
@@ -139,7 +143,10 @@ class WeeklyUnifiedScraper:
         return all_stats
 
     def _scrape_monitored_companies(
-        self, min_score: int = 50, company_filter: str | None = None
+        self,
+        min_score: int = 50,
+        company_filter: str | None = None,
+        skip_recent_hours: int | None = None,
     ) -> dict:
         """
         Scrape all monitored companies using Firecrawl
@@ -147,12 +154,16 @@ class WeeklyUnifiedScraper:
         Args:
             min_score: Minimum score to store/notify
             company_filter: Filter companies by notes (e.g., "From Wes")
+            skip_recent_hours: Skip companies checked within this many hours (None = scrape all)
 
         Returns:
             Stats dictionary
         """
         return self.company_scraper.scrape_all_companies(
-            min_score=min_score, company_filter=company_filter, notify_threshold=80
+            min_score=min_score,
+            company_filter=company_filter,
+            notify_threshold=80,
+            skip_recent_hours=skip_recent_hours,
         )
 
     def _print_summary(
@@ -331,6 +342,11 @@ def main():
         action="store_true",
         help="Enable LLM extraction in parallel with regex for company monitoring (requires OpenRouter API key)",
     )
+    parser.add_argument(
+        "--skip-recent-hours",
+        type=int,
+        help="Skip companies checked within this many hours (saves API credits)",
+    )
 
     args = parser.parse_args()
 
@@ -362,6 +378,7 @@ def main():
         scrape_companies=run_companies,
         companies_min_score=args.companies_min_score,
         company_filter=args.company_filter,
+        skip_recent_hours=args.skip_recent_hours,
     )
 
     # Output JSON for logging
