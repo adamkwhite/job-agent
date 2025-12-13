@@ -9,7 +9,13 @@
     "Skild AI",
     "Dexterity",
     "Covariant",
-    "Nuro"
+    "Nuro",
+    "Symbotic",
+    "Formlabs",
+    "Motional",
+    "Blue Water Autonomy",
+    "Eyebot",
+    "Lexington Medical"
   ],
   "rate_limit_seconds": 2,
   "max_companies_per_run": 10,
