@@ -83,9 +83,9 @@ class TestDigestJobDisplay:
 
         html = generate_email_html(jobs, profile)
 
-        # Verify summary says 10 excellent, 18 good (10+8)
+        # Verify summary says 10 excellent, 8 good (70-79 only)
         assert "10</strong> excellent matches" in html
-        assert "18</strong> good matches" in html
+        assert "8</strong> good matches (70-79 score)" in html
 
         # Count good matches (70-79 only) in the HTML
         good_jobs_in_html = 0
@@ -121,7 +121,7 @@ class TestDigestJobDisplay:
         summary_good = int(good_match.group(1))
 
         assert summary_excellent == 12
-        assert summary_good == 17  # 12 excellent + 5 good
+        assert summary_good == 5  # 5 good (70-79 only)
 
         # Count actual job entries in HTML
         # Each job has a table row with company name
@@ -211,7 +211,7 @@ class TestDigestJobDisplay:
 
         # Verify summary
         assert "15</strong> excellent matches" in html
-        assert "17</strong> good matches" in html  # 15 + 2
+        assert "2</strong> good matches (70-79 score)" in html  # 2 in 70-79 range only
 
         # Verify ALL 15 excellent jobs are in HTML
         for i in range(15):
@@ -221,8 +221,8 @@ class TestDigestJobDisplay:
         assert "Good 1" in html
         assert "Good 2" in html
 
-        # Count total unique job titles in HTML
+        # Count total unique job titles in HTML (15 excellent + 2 good)
         job_titles = re.findall(r"(Excellent \d+|Good \d+)", html)
         assert len(job_titles) == 17, (
-            f"Expected 17 jobs in HTML, found {len(job_titles)}: {job_titles}"
+            f"Expected 17 jobs in HTML (15 excellent + 2 good), found {len(job_titles)}: {job_titles}"
         )
