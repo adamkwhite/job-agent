@@ -63,6 +63,9 @@ Thumbs.db
 # Generated files
 jobs.html
 
+# Claude Code local settings (auto-allow permissions, etc.)
+.claude/settings.local.json
+
 # Firecrawl cache (keep .gitkeep but not cached markdown)
 data/firecrawl_cache/*.md
 
