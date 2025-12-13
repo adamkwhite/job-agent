@@ -504,3 +504,123 @@ class TestMainCLI:
             mock_scraper_class.return_value.scrape_all_companies.assert_called_once_with(
                 min_score=80, company_filter="Priority"
             )
+
+
+class TestSkipRecentHours:
+    """Test skip_recent_hours functionality"""
+
+    def test_skip_recent_hours_filters_recently_checked(self, company_scraper):
+        """Should skip companies checked within specified hours"""
+        from datetime import datetime, timedelta
+
+        # Create companies with different last_checked times
+        one_hour_ago = (datetime.now() - timedelta(hours=1)).isoformat()
+        three_hours_ago = (datetime.now() - timedelta(hours=3)).isoformat()
+
+        companies = [
+            {
+                "id": 1,
+                "name": "Recent Company",
+                "careers_url": "https://test1.com",
+                "notes": "Test",
+                "last_checked": one_hour_ago,  # Within 2 hours
+            },
+            {
+                "id": 2,
+                "name": "Old Company",
+                "careers_url": "https://test2.com",
+                "notes": "Test",
+                "last_checked": three_hours_ago,  # Outside 2 hours
+            },
+            {
+                "id": 3,
+                "name": "Never Checked",
+                "careers_url": "https://test3.com",
+                "notes": "Test",
+                "last_checked": None,  # Never checked
+            },
+        ]
+
+        company_scraper.company_service.get_all_companies = MagicMock(return_value=companies)
+        company_scraper.firecrawl_scraper.scrape_jobs = MagicMock(return_value=[])
+        company_scraper.company_service.update_last_checked = MagicMock()
+
+        stats = company_scraper.scrape_all_companies(skip_recent_hours=2)
+
+        # Should skip company 1 (checked 1 hour ago), scrape companies 2 and 3
+        assert stats["companies_skipped"] == 1
+        assert stats["companies_checked"] == 2
+
+    def test_skip_recent_hours_none_scrapes_all(self, company_scraper):
+        """Should scrape all companies when skip_recent_hours is None"""
+        from datetime import datetime, timedelta
+
+        one_hour_ago = (datetime.now() - timedelta(hours=1)).isoformat()
+
+        companies = [
+            {
+                "id": 1,
+                "name": "Company 1",
+                "careers_url": "https://test1.com",
+                "notes": "Test",
+                "last_checked": one_hour_ago,
+            },
+            {
+                "id": 2,
+                "name": "Company 2",
+                "careers_url": "https://test2.com",
+                "notes": "Test",
+                "last_checked": one_hour_ago,
+            },
+        ]
+
+        company_scraper.company_service.get_all_companies = MagicMock(return_value=companies)
+        company_scraper.firecrawl_scraper.scrape_jobs = MagicMock(return_value=[])
+        company_scraper.company_service.update_last_checked = MagicMock()
+
+        stats = company_scraper.scrape_all_companies(skip_recent_hours=None)
+
+        # Should scrape all companies
+        assert stats["companies_skipped"] == 0
+        assert stats["companies_checked"] == 2
+
+    def test_skip_recent_hours_with_company_filter(self, company_scraper):
+        """Should apply both skip_recent_hours and company_filter"""
+        from datetime import datetime, timedelta
+
+        one_hour_ago = (datetime.now() - timedelta(hours=1)).isoformat()
+        three_hours_ago = (datetime.now() - timedelta(hours=3)).isoformat()
+
+        companies = [
+            {
+                "id": 1,
+                "name": "Wes Recent",
+                "careers_url": "https://test1.com",
+                "notes": "From Wes",
+                "last_checked": one_hour_ago,  # Within 2 hours
+            },
+            {
+                "id": 2,
+                "name": "Wes Old",
+                "careers_url": "https://test2.com",
+                "notes": "From Wes",
+                "last_checked": three_hours_ago,  # Outside 2 hours
+            },
+            {
+                "id": 3,
+                "name": "Other Company",
+                "careers_url": "https://test3.com",
+                "notes": "Other",
+                "last_checked": None,
+            },
+        ]
+
+        company_scraper.company_service.get_all_companies = MagicMock(return_value=companies)
+        company_scraper.firecrawl_scraper.scrape_jobs = MagicMock(return_value=[])
+        company_scraper.company_service.update_last_checked = MagicMock()
+
+        stats = company_scraper.scrape_all_companies(company_filter="From Wes", skip_recent_hours=2)
+
+        # Should filter to 2 "From Wes" companies, then skip 1 (checked recently)
+        assert stats["companies_skipped"] == 1
+        assert stats["companies_checked"] == 1
