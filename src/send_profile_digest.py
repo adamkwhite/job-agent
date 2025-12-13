@@ -217,7 +217,7 @@ def generate_email_html(
 
     # Filter for B+ and good grade jobs
     high_scoring = [j for j in jobs if j.get("fit_score", 0) >= 80]
-    acceptable_scoring = [j for j in jobs if j.get("fit_score", 0) >= 70]
+    good_scoring = [j for j in jobs if 70 <= j.get("fit_score", 0) < 80]
 
     # Get profile-specific targeting info
     target_seniority = ", ".join(profile.get_target_seniority()[:3])
@@ -337,7 +337,7 @@ def generate_email_html(
         <div class="summary">
             <strong>📊 Summary:</strong><br>
             • <strong>{len(high_scoring)}</strong> excellent matches (80+ score)<br>
-            • <strong>{len(acceptable_scoring)}</strong> good matches (70+ score)<br>
+            • <strong>{len(good_scoring)}</strong> good matches (70-79 score)<br>
             • Scored on: Seniority (30), Domain (25), Role Type (20), Location (15 if unrestricted remote/Canada-friendly), Technical (10), Company Fit (±20)
         </div>
     """
@@ -368,7 +368,7 @@ def generate_email_html(
         </table>
         """
 
-    if acceptable_scoring and len(acceptable_scoring) > len(high_scoring):
+    if good_scoring:
         html += "<h2>✅ Also Worth Considering (70-79 Score)</h2>"
         html += """
         <table>
@@ -388,9 +388,7 @@ def generate_email_html(
             </thead>
             <tbody>
         """
-        # Show only 70-79 jobs (exclude 80+ which are already shown above)
-        good_only = [j for j in acceptable_scoring if j.get("fit_score", 0) < 80]
-        html += _generate_job_table_rows(good_only, connections_manager)
+        html += _generate_job_table_rows(good_scoring, connections_manager)
         html += """
             </tbody>
         </table>
@@ -612,7 +610,7 @@ def send_digest_to_profile(
     text_body = f"""
 Hi {profile.name.split()[0]},
 
-I've found {len(high_scoring)} excellent job matches (80+ score) and {len(good_scoring)} good matches (70+ score).
+I've found {len(high_scoring)} excellent job matches (80+ score) and {len(good_scoring)} good matches (70-79 score).
 
 Open the HTML email to see full details and apply links.
 
