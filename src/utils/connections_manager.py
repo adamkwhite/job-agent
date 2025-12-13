@@ -22,6 +22,7 @@ class Connection:
     company: str
     position: str
     connected_on: str
+    url: str = ""  # LinkedIn profile URL (optional)
 
     @property
     def full_name(self) -> str:
@@ -148,6 +149,7 @@ class ConnectionsManager:
                             company=row["Company"].strip(),
                             position=row["Position"].strip(),
                             connected_on=row["Connected On"].strip(),
+                            url=row.get("URL", "").strip(),  # Optional field
                         )
                         connections.append(connection)
                     except KeyError as e:

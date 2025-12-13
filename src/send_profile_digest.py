@@ -44,31 +44,51 @@ def _generate_job_table_rows(
         breakdown = json.loads(job.get("score_breakdown", "{}"))
         location = job.get("location") or ""
 
-        # Get connections count for this company
-        connections_html = ""
+        # Get connections for this company
+        connections_cell = ""
         if connections_manager and connections_manager.connections_exist:
             try:
                 summary = connections_manager.get_connection_summary(job["company"])
                 if summary["count"] > 0:
-                    plural = "s" if summary["count"] > 1 else ""
-                    connections_html = f"""
-                        <div class="connections-badge">
-                            👥 You have {summary["count"]} connection{plural} here
-                        </div>"""
+                    # Build compact list of clickable names (max 4, no titles)
+                    name_links = []
+                    max_display = 4
+                    for conn in summary["connections"][:max_display]:
+                        if conn.url:
+                            name_links.append(
+                                f"<a href='{conn.url}' target='_blank' style='color: #0077b5; text-decoration: none;'>{conn.full_name}</a>"
+                            )
+                        else:
+                            name_links.append(conn.full_name)
+
+                    # Add "and X more" if there are additional connections
+                    if summary["count"] > max_display:
+                        remaining = summary["count"] - max_display
+                        connections_cell = f"👥 {summary['count']}: {', '.join(name_links)}, <span style='color: #7f8c8d;'>and {remaining} more</span>"
+                    else:
+                        connections_cell = f"👥 {summary['count']}: {', '.join(name_links)}"
+                else:
+                    connections_cell = "—"
             except Exception:
-                # Gracefully handle any connection lookup errors
-                pass
+                connections_cell = "—"
+        else:
+            connections_cell = "—"
+
+        # Create LinkedIn search URL for 1st degree connections at this company
+        import urllib.parse
+
+        linkedin_search_url = f"https://www.linkedin.com/search/results/people/?keywords={urllib.parse.quote(job['company'])}&network=%5B%22F%22%5D"
 
         rows += f"""
                 <tr>
                     <td>
-                        <div>{job["company"]}</div>
+                        <div><a href="{linkedin_search_url}" target="_blank" style="color: #2c3e50; text-decoration: none; font-weight: 600;">{job["company"]}</a></div>
                         <div class="company">📌 {location}</div>
-                        {connections_html}
                     </td>
                     <td class="job-title">
                         <a href="{job["link"]}" target="_blank">{job["title"]}</a>
                     </td>
+                    <td class="score-cell">{connections_cell}</td>
                     <td class="score-cell">{breakdown.get("seniority", 0)}</td>
                     <td class="score-cell">{breakdown.get("domain", 0)}</td>
                     <td class="score-cell">{breakdown.get("role_type", 0)}</td>
@@ -81,6 +101,65 @@ def _generate_job_table_rows(
                 </tr>
             """
     return rows
+
+
+def _generate_connections_section(
+    jobs: list[dict], connections_manager: ConnectionsManager | None
+) -> str:
+    """Generate connections section showing all connections at job companies"""
+    if not connections_manager or not connections_manager.connections_exist:
+        return ""
+
+    # Collect all companies with connections
+    companies_with_connections = {}
+    for job in jobs:
+        try:
+            summary = connections_manager.get_connection_summary(job["company"])
+            # Only add if not already present (avoid duplicates)
+            if summary["count"] > 0 and job["company"] not in companies_with_connections:
+                companies_with_connections[job["company"]] = summary
+        except Exception:
+            continue
+
+    if not companies_with_connections:
+        return ""
+
+    # Generate HTML
+    html = """
+        <div style="margin-top: 40px; padding: 20px; background: #f8f9fa; border-radius: 8px;">
+            <h2 style="color: #34495e; margin-top: 0;">🤝 Your Connections at These Companies</h2>
+    """
+
+    # Sort by connection count (descending)
+    sorted_companies = sorted(
+        companies_with_connections.items(), key=lambda x: x[1]["count"], reverse=True
+    )
+
+    for company, summary in sorted_companies:
+        html += f"""
+            <div style="margin-bottom: 20px;">
+                <h3 style="color: #2c3e50; margin-bottom: 8px;">{company} ({summary["count"]} connection{"s" if summary["count"] > 1 else ""})</h3>
+                <ul style="list-style: none; padding-left: 0; margin: 0;">
+        """
+        for conn in summary["connections"]:
+            # Make name clickable if URL is available
+            if conn.url:
+                name_html = f'<a href="{conn.url}" target="_blank" style="color: #0077b5; text-decoration: none; font-weight: 600;">{conn.full_name}</a>'
+            else:
+                name_html = f'<span style="font-weight: 600;">{conn.full_name}</span>'
+
+            html += f'<li style="margin: 4px 0;">• {name_html} - {conn.position}</li>'
+
+        html += """
+                </ul>
+            </div>
+        """
+
+    html += """
+        </div>
+    """
+
+    return html
 
 
 def _format_seniority_list(profile: Profile, max_items: int = 7) -> str:
@@ -271,6 +350,7 @@ def generate_email_html(
                 <tr>
                     <th>Company</th>
                     <th>Job Title</th>
+                    <th style="text-align: center;">Connections</th>
                     <th style="text-align: center;">Seniority<br>/30</th>
                     <th style="text-align: center;">Domain<br>/25</th>
                     <th style="text-align: center;">Role<br>/20</th>
@@ -296,6 +376,7 @@ def generate_email_html(
                 <tr>
                     <th>Company</th>
                     <th>Job Title</th>
+                    <th style="text-align: center;">Connections</th>
                     <th style="text-align: center;">Seniority<br>/30</th>
                     <th style="text-align: center;">Domain<br>/25</th>
                     <th style="text-align: center;">Role<br>/20</th>
@@ -314,6 +395,10 @@ def generate_email_html(
             </tbody>
         </table>
         """
+
+    # Add connections section
+    connections_section = _generate_connections_section(jobs, connections_manager)
+    html += connections_section
 
     html += f"""
         <div class="footer">
@@ -411,6 +496,49 @@ def send_digest_to_profile(
             reason = job.get("validation_reason", "unknown")
             print(f"    - {job['company']} - {job['title'][:50]}... ({reason})")
             print(f"      URL: {job.get('link', 'N/A')}")
+
+        # Mark invalid jobs in database to skip future validation
+        for job in invalid_jobs:
+            job_hash = job.get("job_hash")
+            reason = job.get("validation_reason", "invalid")
+
+            # Simplify status values
+            if reason.startswith("stale_"):
+                url_status = "stale"
+            elif reason == "404_not_found":
+                url_status = "404"
+            elif reason == "connection_error":
+                url_status = "connection_error"
+            elif reason == "invalid_response":
+                url_status = "invalid_response"
+            else:
+                url_status = reason
+
+            if job_hash:
+                db.update_url_validation(job_hash, url_status)
+
+    # Also mark valid jobs as validated
+    if valid_jobs or flagged_jobs:
+        for job in valid_jobs:
+            job_hash = job.get("job_hash")
+            if job_hash:
+                db.update_url_validation(job_hash, "valid")
+        for job in flagged_jobs:
+            job_hash = job.get("job_hash")
+            reason = job.get("validation_reason", "needs_review")
+
+            # Simplify status values for flagged jobs
+            if reason == "rate_limited_assumed_valid":
+                url_status = "rate_limited"
+            elif reason.startswith("linkedin_"):
+                url_status = "linkedin"
+            elif reason.startswith("generic_"):
+                url_status = "generic_page"
+            else:
+                url_status = reason
+
+            if job_hash:
+                db.update_url_validation(job_hash, url_status)
 
     # Include both valid and flagged jobs in digest
     jobs = valid_jobs + flagged_jobs

@@ -95,3 +95,4 @@ profiles/*/*.json
 data/profiles/
 data/profiles/*/connections.csv
 data/profiles/*/connections_cache.json
+docs/features/*/Connections.csv

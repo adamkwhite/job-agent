@@ -91,6 +91,13 @@ class JobDatabase:
         if "extraction_cost" not in columns:
             cursor.execute("ALTER TABLE jobs ADD COLUMN extraction_cost REAL")
 
+        # Migration: Add URL validation tracking columns
+        if "url_status" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN url_status TEXT")
+
+        if "url_checked_at" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN url_checked_at TEXT")
+
         # Create index after column exists
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_fit_score ON jobs(fit_score)
@@ -300,6 +307,30 @@ class JobDatabase:
         conn.commit()
         conn.close()
 
+    def update_url_validation(self, job_hash: str, url_status: str):
+        """Update URL validation status for a job
+
+        Args:
+            job_hash: Job hash identifier
+            url_status: Status from validation (valid, stale_*, 404_not_found, etc.)
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        now = datetime.now().isoformat()
+
+        cursor.execute(
+            """
+            UPDATE jobs
+            SET url_status = ?, url_checked_at = ?, updated_at = ?
+            WHERE job_hash = ?
+        """,
+            (url_status, now, now, job_hash),
+        )
+
+        conn.commit()
+        conn.close()
+
     def get_all_jobs(self) -> list[dict]:
         """Get all jobs from database"""
         conn = sqlite3.connect(self.db_path)
@@ -500,6 +531,7 @@ class JobDatabase:
             WHERE js.profile_id = ?
               AND js.digest_sent_at IS NULL
               AND j.received_at >= datetime('now', '-' || ? || ' days')
+              AND (j.url_status IS NULL OR j.url_status = 'valid' OR j.url_status = 'linkedin' OR j.url_status = 'generic_page' OR j.url_status = 'rate_limited')
               AND (
                   (js.fit_grade = 'A' AND ? >= 1) OR
                   (js.fit_grade = 'B' AND ? >= 2) OR
