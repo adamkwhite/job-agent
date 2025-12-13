@@ -219,6 +219,9 @@ def generate_email_html(
     high_scoring = [j for j in jobs if j.get("fit_score", 0) >= 80]
     good_scoring = [j for j in jobs if 70 <= j.get("fit_score", 0) < 80]
 
+    # Calculate total displayable jobs (70+)
+    total_displayed = len(high_scoring) + len(good_scoring)
+
     # Get profile-specific targeting info
     target_seniority = ", ".join(profile.get_target_seniority()[:3])
     target_domains = ", ".join(profile.get_domain_keywords()[:5])
@@ -332,7 +335,7 @@ def generate_email_html(
 
         <p>Hi {profile.name.split()[0]},</p>
 
-        <p>I've analyzed <strong>{len(jobs)} opportunities</strong> scored against your profile targeting <strong>{target_seniority}</strong> roles in <strong>{target_domains}</strong>.</p>
+        <p>I've analyzed <strong>{total_displayed} opportunities</strong> scored against your profile targeting <strong>{target_seniority}</strong> roles in <strong>{target_domains}</strong>.</p>
 
         <div class="summary">
             <strong>📊 Summary:</strong><br>

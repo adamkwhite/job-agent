@@ -295,3 +295,90 @@ class TestDigestCountAccuracy:
         assert "Job 79" in html
         assert "Job 80" in html
         # Job 69 might not be in the email at all depending on filtering
+
+    def test_regression_issue_149_mario_case(self, test_profile):
+        """Regression test for Issue #149: Opening count matches summary counts.
+
+        Mario's case: Email said "I've analyzed 1 opportunities" but showed "0 excellent, 0 good".
+        This happened when the only job scored below 70.
+        """
+        jobs = [
+            {
+                "title": "Low Scoring Job",
+                "company": "Company X",
+                "location": "Remote",
+                "link": "https://example.com/job/low",
+                "fit_score": 65,  # Below 70 threshold
+                "fit_grade": "C",
+                "score_breakdown": json.dumps({"seniority": 15}),
+                "location_score": 10,
+            }
+        ]
+
+        html = generate_email_html(jobs, test_profile)
+
+        # Opening should say "0 opportunities" to match summary
+        assert "0 opportunities</strong>" in html
+
+        # Summary should show 0 for both categories
+        assert "0</strong> excellent matches (80+ score)" in html
+        assert "0</strong> good matches (70-79 score)" in html
+
+    def test_opening_count_matches_summary_with_mixed_scores(self, test_profile):
+        """Test that opening paragraph count matches summary across various scenarios."""
+        # Scenario 1: 5 excellent, 3 good, 2 below threshold
+        jobs = []
+
+        # 5 excellent (80+)
+        for i in range(5):
+            jobs.append(
+                {
+                    "title": f"Excellent {i}",
+                    "company": f"Company {i}",
+                    "location": "Remote",
+                    "link": f"https://example.com/job/{i}",
+                    "fit_score": 85 + i,
+                    "fit_grade": "A",
+                    "score_breakdown": json.dumps({"seniority": 30}),
+                    "location_score": 15,
+                }
+            )
+
+        # 3 good (70-79)
+        for i in range(3):
+            jobs.append(
+                {
+                    "title": f"Good {i}",
+                    "company": f"Company {i + 5}",
+                    "location": "Remote",
+                    "link": f"https://example.com/job/{i + 5}",
+                    "fit_score": 72 + i,
+                    "fit_grade": "B",
+                    "score_breakdown": json.dumps({"seniority": 20}),
+                    "location_score": 10,
+                }
+            )
+
+        # 2 below threshold (<70)
+        for i in range(2):
+            jobs.append(
+                {
+                    "title": f"Low {i}",
+                    "company": f"Company {i + 8}",
+                    "location": "Remote",
+                    "link": f"https://example.com/job/{i + 8}",
+                    "fit_score": 65 + i,
+                    "fit_grade": "C",
+                    "score_breakdown": json.dumps({"seniority": 15}),
+                    "location_score": 8,
+                }
+            )
+
+        html = generate_email_html(jobs, test_profile)
+
+        # Opening should say "8 opportunities" (5 excellent + 3 good), NOT "10 opportunities"
+        assert "8 opportunities</strong>" in html
+
+        # Summary counts should match
+        assert "5</strong> excellent matches (80+ score)" in html
+        assert "3</strong> good matches (70-79 score)" in html
