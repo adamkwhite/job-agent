@@ -184,6 +184,22 @@ class WeeklyUnifiedScraper:
             print(f"  Jobs stored: {company_stats.get('jobs_stored', 0)}")
             print(f"  Notifications: {company_stats.get('notifications_sent', 0)}")
 
+            # Print failed extractions table (both regex and LLM returned 0)
+            failed_extractions = company_stats.get("failed_extractions", [])
+            if failed_extractions:
+                print("\n⚠️  COMPANIES NEEDING REVIEW (Both Regex + LLM Failed):")
+                print("=" * 80)
+                print(f"{'Company':<40} {'Career Page URL':<40}")
+                print("-" * 80)
+                for company in failed_extractions:
+                    name = company["name"][:39]  # Truncate if too long
+                    url = company["url"][:39]  # Truncate if too long
+                    print(f"{name:<40} {url:<40}")
+                print("=" * 80)
+                print(
+                    f"Total: {len(failed_extractions)} companies may have broken pages or unusual formats"
+                )
+
         print("\n📊 TOTALS:")
         print(f"  Jobs found: {all_stats['total_jobs_found']}")
         print(f"  Jobs stored: {all_stats['total_jobs_stored']}")
