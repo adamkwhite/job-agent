@@ -5,15 +5,23 @@ Runs weekly to find new opportunities across all channels
 """
 
 import json
+import os
+import smtplib
 import sys
 from datetime import datetime
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from dotenv import load_dotenv
+
 from jobs.company_scraper import CompanyScraper
 from jobs.weekly_robotics_scraper import WeeklyRoboticsJobChecker
 from processor_v2 import JobProcessorV2
+
+load_dotenv()
 
 
 class WeeklyUnifiedScraper:
@@ -184,10 +192,91 @@ class WeeklyUnifiedScraper:
             print(f"  Jobs stored: {company_stats.get('jobs_stored', 0)}")
             print(f"  Notifications: {company_stats.get('notifications_sent', 0)}")
 
+            # Email failed extractions table (both regex and LLM returned 0)
+            failed_extractions = company_stats.get("failed_extractions", [])
+            if failed_extractions:
+                print(
+                    f"\n⚠️  {len(failed_extractions)} companies failed both extraction methods - emailing review list..."
+                )
+                self._email_failed_extractions(failed_extractions)
+
         print("\n📊 TOTALS:")
         print(f"  Jobs found: {all_stats['total_jobs_found']}")
         print(f"  Jobs stored: {all_stats['total_jobs_stored']}")
         print(f"  Notifications sent: {all_stats['total_notifications']}")
+
+    def _email_failed_extractions(self, failed_companies: list[dict]) -> None:
+        """Email list of companies where both regex and LLM extraction failed"""
+        try:
+            # Build HTML table
+            html_rows = ""
+            for company in failed_companies:
+                html_rows += f"""
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{company["name"]}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">
+                        <a href="{company["url"]}">{company["url"]}</a>
+                    </td>
+                </tr>
+                """
+
+            html_body = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif;">
+                <h2>⚠️ Companies Needing Review - Extraction Failed</h2>
+                <p>The following {len(failed_companies)} companies returned 0 jobs from both regex AND LLM extraction:</p>
+                <p>This may indicate:</p>
+                <ul>
+                    <li>Broken career pages</li>
+                    <li>Unusual job posting formats</li>
+                    <li>Career pages requiring JavaScript or authentication</li>
+                    <li>No current job openings</li>
+                </ul>
+                <table style="border-collapse: collapse; width: 100%; margin-top: 20px;">
+                    <thead>
+                        <tr style="background-color: #f0f0f0;">
+                            <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Company</th>
+                            <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Career Page URL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {html_rows}
+                    </tbody>
+                </table>
+                <p style="margin-top: 20px; color: #666;">
+                    Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+                </p>
+            </body>
+            </html>
+            """
+
+            # Get email credentials
+            gmail_user = os.getenv("ADAM_GMAIL_USERNAME")
+            gmail_password = os.getenv("ADAM_GMAIL_APP_PASSWORD")
+
+            if not gmail_user or not gmail_password:
+                print("  ⚠ Email credentials not found - skipping email notification")
+                return
+
+            # Create message
+            msg = MIMEMultipart("alternative")
+            msg["From"] = gmail_user
+            msg["To"] = "adamkwhite@gmail.com"
+            msg["Subject"] = (
+                f"⚠️ {len(failed_companies)} Companies Failed Extraction - Review Needed"
+            )
+
+            msg.attach(MIMEText(html_body, "html"))
+
+            # Send email
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+                server.login(gmail_user, gmail_password)
+                server.send_message(msg)
+
+            print("  ✓ Emailed review list to adamkwhite@gmail.com")
+
+        except Exception as e:
+            print(f"  ✗ Failed to send email: {e}")
 
 
 def main():

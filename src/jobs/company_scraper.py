@@ -8,6 +8,7 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -40,7 +41,7 @@ class CompanyScraper:
 
     def scrape_all_companies(
         self, min_score: int = 50, company_filter: str | None = None, notify_threshold: int = 80
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Scrape all monitored companies
 
@@ -58,7 +59,7 @@ class CompanyScraper:
         print(f"Minimum score: {min_score}")
         print(f"Notification threshold: {notify_threshold}\n")
 
-        stats = {
+        stats: dict[str, Any] = {
             "companies_checked": 0,
             "jobs_scraped": 0,
             "leadership_jobs": 0,
@@ -67,6 +68,7 @@ class CompanyScraper:
             "notifications_sent": 0,
             "duplicates_skipped": 0,
             "scraping_errors": 0,
+            "failed_extractions": [],  # Companies where both regex and LLM failed
         }
 
         # Get active companies
@@ -96,6 +98,13 @@ class CompanyScraper:
                 )
 
                 stats["jobs_scraped"] += len(jobs)
+
+                # Track companies where both regex AND LLM extraction failed
+                if not jobs and self.firecrawl_scraper.enable_llm_extraction:
+                    stats["failed_extractions"].append(
+                        {"name": company["name"], "url": company["careers_url"]}
+                    )
+                    print("  ⚠ Both regex and LLM extraction returned 0 jobs - flagged for review")
 
                 # Process and store the jobs
                 if jobs:
@@ -129,7 +138,7 @@ class CompanyScraper:
         jobs: list[tuple[OpportunityData, str]],
         min_score: int = 50,
         notify_threshold: int = 80,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Process jobs scraped from a company
 
@@ -142,7 +151,7 @@ class CompanyScraper:
         Returns:
             Stats dictionary
         """
-        stats = {
+        stats: dict[str, Any] = {
             "jobs_processed": 0,
             "leadership_jobs": 0,
             "jobs_above_threshold": 0,
