@@ -687,3 +687,89 @@ Remote](https://test.com/job/789)
         job, method = jobs[0]
         assert method == "regex"
         assert "Principal Engineer" in job.title
+
+
+class TestTimeoutFunctionality:
+    """Test timeout functionality in Firecrawl scraper"""
+
+    def test_timeout_parameter_initialization(self):
+        """Test that timeout parameter is stored correctly"""
+        scraper = FirecrawlCareerScraper(timeout_seconds=90)
+        assert scraper.timeout_seconds == 90
+
+    def test_default_timeout_value(self):
+        """Test that default timeout is 60 seconds"""
+        scraper = FirecrawlCareerScraper()
+        assert scraper.timeout_seconds == 60
+
+    def test_firecrawl_scrape_timeout_triggers(self, mocker, capsys):
+        """Test that timeout handler triggers after timeout_seconds"""
+        scraper = FirecrawlCareerScraper(timeout_seconds=1)
+
+        # Mock Firecrawl API to sleep longer than timeout
+        def slow_scrape(*_args, **_kwargs):
+            import time
+
+            time.sleep(2)  # Sleep longer than 1 second timeout
+            return mocker.Mock(markdown="test")
+
+        mocker.patch.object(scraper.firecrawl, "scrape", side_effect=slow_scrape)
+
+        # Mock rate limiting to not interfere
+        mocker.patch.object(scraper, "_wait_for_rate_limit")
+
+        result = scraper._firecrawl_scrape("https://test.com")
+
+        # Should return None due to timeout
+        assert result is None
+
+        # Check timeout error message
+        captured = capsys.readouterr()
+        assert "timeout" in captured.out.lower()
+        assert "exceeded 1s" in captured.out.lower()
+
+    def test_firecrawl_scrape_alarm_cancelled_on_success(self, mocker):
+        """Test that alarm is cancelled after successful scrape"""
+        import signal
+
+        scraper = FirecrawlCareerScraper(timeout_seconds=60)
+
+        # Mock successful Firecrawl call
+        mock_doc = mocker.Mock(markdown="test markdown")
+        mocker.patch.object(scraper.firecrawl, "scrape", return_value=mock_doc)
+        mocker.patch.object(scraper, "_wait_for_rate_limit")
+
+        # Track signal.alarm calls
+        alarm_calls = []
+        original_alarm = signal.alarm
+
+        def track_alarm(seconds):
+            alarm_calls.append(seconds)
+            return original_alarm(seconds)
+
+        mocker.patch("signal.alarm", side_effect=track_alarm)
+
+        result = scraper._firecrawl_scrape("https://test.com")
+
+        # Should succeed
+        assert result == {"markdown": "test markdown"}
+
+        # Alarm should be set (60) and cancelled (0)
+        assert 60 in alarm_calls
+        assert 0 in alarm_calls
+
+    def test_scrape_jobs_handles_timeout_gracefully(self, mocker, capsys):
+        """Test that scrape_jobs handles timeout in _firecrawl_scrape"""
+        scraper = FirecrawlCareerScraper(timeout_seconds=1)
+
+        # Mock _firecrawl_scrape to timeout (return None)
+        mocker.patch.object(scraper, "_firecrawl_scrape", return_value=None)
+
+        jobs = scraper.scrape_jobs("https://slow-site.com/careers", "SlowCo")
+
+        # Should return empty list
+        assert jobs == []
+
+        # Should print failure message
+        captured = capsys.readouterr()
+        assert "failed to scrape" in captured.out.lower()

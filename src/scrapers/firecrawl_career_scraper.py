@@ -6,6 +6,7 @@ Uses Firecrawl API to scrape JavaScript-heavy career pages
 import logging
 import os
 import re
+import signal
 import time
 
 from dotenv import load_dotenv
@@ -18,16 +19,33 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
+class TimeoutError(Exception):
+    """Raised when an operation times out"""
+
+    pass
+
+
+def timeout_handler(_signum, _frame):
+    """Handler for timeout signal"""
+    raise TimeoutError("Operation timed out")
+
+
 class FirecrawlCareerScraper:
     """Scrape career pages using Firecrawl API with rate limiting"""
 
-    def __init__(self, requests_per_minute: int = 9, enable_llm_extraction: bool = False):
+    def __init__(
+        self,
+        requests_per_minute: int = 9,
+        enable_llm_extraction: bool = False,
+        timeout_seconds: int = 60,
+    ):
         """
         Initialize scraper with rate limiting
 
         Args:
             requests_per_minute: Max requests per minute (default 9 to stay under 10/min limit)
             enable_llm_extraction: Enable LLM extraction alongside regex (default: False)
+            timeout_seconds: Timeout for each scrape request (default: 60 seconds)
         """
         self.name = "firecrawl_career_scraper"
         api_key = os.getenv("FIRECRAWL_API_KEY")
@@ -39,6 +57,9 @@ class FirecrawlCareerScraper:
         self.requests_per_minute = requests_per_minute
         self.request_times: list[float] = []  # Track timestamps of recent requests
         self.min_delay = 60.0 / requests_per_minute  # Minimum seconds between requests
+
+        # Timeout
+        self.timeout_seconds = timeout_seconds
 
         # LLM extraction (optional)
         self.enable_llm_extraction = enable_llm_extraction
@@ -162,7 +183,7 @@ class FirecrawlCareerScraper:
 
     def _firecrawl_scrape(self, url: str) -> dict | None:
         """
-        Scrape a URL using Firecrawl API with rate limiting
+        Scrape a URL using Firecrawl API with rate limiting and timeout
 
         Args:
             url: URL to scrape
@@ -174,10 +195,22 @@ class FirecrawlCareerScraper:
             # Wait if necessary to respect rate limits
             self._wait_for_rate_limit()
 
-            # Make the API request
-            document = self.firecrawl.scrape(url, formats=["markdown"])
-            # Convert Document object to dict for compatibility
-            return {"markdown": document.markdown if document.markdown else ""}
+            # Set up timeout handler
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(self.timeout_seconds)
+
+            try:
+                # Make the API request
+                document = self.firecrawl.scrape(url, formats=["markdown"])
+                # Convert Document object to dict for compatibility
+                return {"markdown": document.markdown if document.markdown else ""}
+            finally:
+                # Cancel the alarm
+                signal.alarm(0)
+
+        except TimeoutError:
+            print(f"  ✗ Firecrawl API timeout: Request exceeded {self.timeout_seconds}s")
+            return None
         except Exception as e:
             print(f"  ✗ Firecrawl API error: {e}")
             return None
