@@ -425,7 +425,7 @@ def generate_email_html(
 
 
 def send_digest_to_profile(
-    profile_id: str, force_resend: bool = False, dry_run: bool = False
+    profile_id: str, force_resend: bool = False, dry_run: bool = False, max_age_days: int = 7
 ) -> bool:
     """
     Send digest email to a specific profile
@@ -434,6 +434,7 @@ def send_digest_to_profile(
         profile_id: Profile ID to send digest to
         force_resend: Include previously sent jobs
         dry_run: Don't actually send, just show what would be sent
+        max_age_days: Include jobs from last N days (default: 7)
 
     Returns:
         True if sent successfully
@@ -464,6 +465,7 @@ def send_digest_to_profile(
             min_grade="F",
             min_location_score=0,  # No location filtering in force-resend
             limit=100,
+            max_age_days=max_age_days,
         )
     else:
         jobs = db.get_jobs_for_profile_digest(
@@ -471,6 +473,7 @@ def send_digest_to_profile(
             min_grade=profile.digest_min_grade,
             min_location_score=profile.digest_min_location_score,
             limit=100,
+            max_age_days=max_age_days,
         )
 
     print(f"✓ Found {len(jobs)} unsent jobs for {profile.name}")
@@ -546,6 +549,30 @@ def send_digest_to_profile(
     print(
         f"  ✓ {len(valid_jobs)} verified jobs + {len(flagged_jobs)} flagged for review = {len(jobs)} total"
     )
+
+    # Filter for staleness (age + content check)
+    print("\n🗓️  Filtering stale jobs...")
+    fresh_jobs = []
+    stale_jobs = []
+
+    for job in jobs:
+        is_valid, stale_reason = validator.validate_for_digest(job, use_cache=True)
+        if is_valid:
+            fresh_jobs.append(job)
+        else:
+            stale_jobs.append((job, stale_reason))
+            # Update database with staleness reason
+            job_hash = job.get("job_hash")
+            if job_hash:
+                db.update_url_validation(job_hash, stale_reason or "stale")
+
+    if stale_jobs:
+        print(f"  ⛔ Filtered out {len(stale_jobs)} stale jobs:")
+        for job, reason in stale_jobs:
+            print(f"    - {job['company']} - {job['title'][:50]}... ({reason})")
+
+    jobs = fresh_jobs
+    print(f"  ✓ {len(jobs)} fresh jobs remaining")
 
     if len(jobs) == 0:
         print("\n⏸  No valid jobs to send after filtering")
@@ -658,13 +685,15 @@ Generated on {datetime.now().strftime("%Y-%m-%d at %H:%M")}
         return False
 
 
-def send_all_digests(force_resend: bool = False, dry_run: bool = False):
+def send_all_digests(force_resend: bool = False, dry_run: bool = False, max_age_days: int = 7):
     """Send digests to all enabled profiles"""
     manager = get_profile_manager()
     results = {}
 
     for profile in manager.get_enabled_profiles():
-        success = send_digest_to_profile(profile.id, force_resend=force_resend, dry_run=dry_run)
+        success = send_digest_to_profile(
+            profile.id, force_resend=force_resend, dry_run=dry_run, max_age_days=max_age_days
+        )
         results[profile.id] = success
 
     print("\n" + "=" * 60)
@@ -703,13 +732,26 @@ def main():
         action="store_true",
         help="Don't actually send, just show what would be sent",
     )
+    parser.add_argument(
+        "--max-age-days",
+        type=int,
+        default=7,
+        help="Include jobs from last N days (default: 7)",
+    )
 
     args = parser.parse_args()
 
     if args.all:
-        send_all_digests(force_resend=args.force_resend, dry_run=args.dry_run)
+        send_all_digests(
+            force_resend=args.force_resend, dry_run=args.dry_run, max_age_days=args.max_age_days
+        )
     elif args.profile:
-        send_digest_to_profile(args.profile, force_resend=args.force_resend, dry_run=args.dry_run)
+        send_digest_to_profile(
+            args.profile,
+            force_resend=args.force_resend,
+            dry_run=args.dry_run,
+            max_age_days=args.max_age_days,
+        )
     else:
         # Show available profiles
         manager = get_profile_manager()

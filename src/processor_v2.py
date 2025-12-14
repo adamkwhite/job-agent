@@ -13,6 +13,7 @@ from typing import cast
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from agents.job_filter_pipeline import JobFilterPipeline
 from agents.profile_scorer import ProfileScorer
 from database import JobDatabase
 from enrichment.enrichment_pipeline import EnrichmentPipeline
@@ -81,6 +82,9 @@ class JobProcessorV2:
         profile_obj = pm.get_profile(self.profile)
         self.scorer = ProfileScorer(profile_obj)
 
+        # Initialize filter pipeline with profile config
+        self.filter_pipeline = JobFilterPipeline(profile_obj.scoring) if profile_obj else None
+
         self.imap_client = IMAPEmailClient(profile=profile)
 
         # Register parsers
@@ -120,6 +124,8 @@ class JobProcessorV2:
             "opportunities_found": 0,
             "opportunities_enriched": 0,
             "jobs_passed_filter": 0,
+            "jobs_hard_filtered": 0,
+            "jobs_context_filtered": 0,
             "jobs_stored": 0,
             "jobs_scored": 0,
             "notifications_sent": 0,
@@ -196,6 +202,21 @@ class JobProcessorV2:
 
     def _store_and_process_job(self, job_dict: dict, stats: dict[str, int | list[str]]) -> None:
         """Store a job and process it (score + notify)"""
+        # Stage 1: Hard filters (before storage and scoring)
+        if self.filter_pipeline:
+            should_score, filter_reason = self.filter_pipeline.apply_hard_filters(job_dict)
+            if not should_score:
+                self._increment_stat(stats, "jobs_hard_filtered")
+                print(f"\n⊘ Hard filtered: {job_dict['title']}")
+                print(f"  Reason: {filter_reason}")
+
+                # Store filtered job with filter_reason
+                job_dict["filter_reason"] = filter_reason
+                job_dict["filtered_at"] = datetime.now().isoformat()
+                self.database.add_job(job_dict)
+                return
+
+        # Store the job
         job_id = self.database.add_job(job_dict)
 
         if not job_id:
@@ -209,14 +230,30 @@ class JobProcessorV2:
         print(f"  Keywords: {', '.join(job_dict.get('keywords_matched', []))}")
         print(f"  Link: {job_dict['link']}")
 
-        # Score and notify
-        score, grade = self._score_and_update_job(job_id, job_dict, stats)
-        if score is not None and grade is not None:
+        # Stage 2: Score the job
+        score, grade, breakdown = self._score_and_update_job(job_id, job_dict, stats)
+
+        # Stage 3: Context filters (after scoring)
+        if score is not None and grade is not None and breakdown is not None:
+            if self.filter_pipeline:
+                should_keep, filter_reason = self.filter_pipeline.apply_context_filters(
+                    job_dict, score, breakdown
+                )
+                if not should_keep:
+                    self._increment_stat(stats, "jobs_context_filtered")
+                    print(f"  ⊘ Context filtered: {job_dict['title']}")
+                    print(f"    Reason: {filter_reason}")
+
+                    # Update job with filter_reason
+                    self.database.mark_job_filtered(job_id, filter_reason)
+                    return
+
+            # Notify if qualified
             self._notify_if_qualified(job_id, job_dict, score, grade, stats)
 
     def _score_and_update_job(
         self, job_id: int, job_dict: dict, stats: dict[str, int | list[str]]
-    ) -> tuple[int | None, str | None]:
+    ) -> tuple[int | None, str | None, dict | None]:
         """Score a job and update database for the selected profile"""
         try:
             # Score for the selected profile
@@ -240,12 +277,12 @@ class JobProcessorV2:
             except Exception as mp_error:
                 print(f"  ⚠ Multi-profile scoring failed: {mp_error}")
 
-            return score, grade
+            return score, grade, breakdown
 
         except Exception as e:
             print(f"  ✗ Scoring failed: {e}")
             self._append_error(stats, f"Scoring failed for job {job_id}: {e}")
-            return None, None
+            return None, None, None
 
     def _notify_if_qualified(
         self,

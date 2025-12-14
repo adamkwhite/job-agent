@@ -390,6 +390,8 @@ class TestMainCLI:
                     "companies_checked": 5,
                     "jobs_scraped": 10,
                     "leadership_jobs": 8,
+                    "jobs_hard_filtered": 0,
+                    "jobs_context_filtered": 0,
                     "jobs_above_threshold": 6,
                     "jobs_stored": 6,
                     "notifications_sent": 2,
@@ -428,6 +430,8 @@ class TestMainCLI:
                     "companies_checked": 0,
                     "jobs_scraped": 0,
                     "leadership_jobs": 0,
+                    "jobs_hard_filtered": 0,
+                    "jobs_context_filtered": 0,
                     "jobs_above_threshold": 0,
                     "jobs_stored": 0,
                     "notifications_sent": 0,
@@ -459,6 +463,8 @@ class TestMainCLI:
                     "companies_checked": 3,
                     "jobs_scraped": 5,
                     "leadership_jobs": 4,
+                    "jobs_hard_filtered": 0,
+                    "jobs_context_filtered": 0,
                     "jobs_above_threshold": 2,
                     "jobs_stored": 2,
                     "notifications_sent": 1,
@@ -490,6 +496,8 @@ class TestMainCLI:
                     "companies_checked": 2,
                     "jobs_scraped": 3,
                     "leadership_jobs": 3,
+                    "jobs_hard_filtered": 0,
+                    "jobs_context_filtered": 0,
                     "jobs_above_threshold": 1,
                     "jobs_stored": 1,
                     "notifications_sent": 1,
@@ -504,6 +512,211 @@ class TestMainCLI:
             mock_scraper_class.return_value.scrape_all_companies.assert_called_once_with(
                 min_score=80, company_filter="Priority"
             )
+
+
+class TestFilterPipelineIntegration:
+    """Test filter pipeline integration in CompanyScraper"""
+
+    @patch("src.jobs.company_scraper.get_profile_manager")
+    @patch("src.jobs.company_scraper.JobFilterPipeline")
+    def test_hard_filters_block_before_scoring(self, mock_pipeline_class, mock_get_pm):
+        """Should apply hard filters before scoring and store with filter_reason"""
+        # Setup profile and filter pipeline
+        mock_profile = MagicMock()
+        mock_profile.scoring = {"hard_filter_keywords": {"seniority_blocks": ["junior"]}}
+        mock_pm = MagicMock()
+        mock_pm.get_profile.return_value = mock_profile
+        mock_get_pm.return_value = mock_pm
+
+        mock_pipeline = MagicMock()
+        mock_pipeline.apply_hard_filters.return_value = (False, "hard_filter_junior")
+        mock_pipeline_class.return_value = mock_pipeline
+
+        # Create scraper with profile
+        with (
+            patch("src.jobs.company_scraper.CompanyService"),
+            patch("src.jobs.company_scraper.FirecrawlCareerScraper"),
+            patch("src.jobs.company_scraper.JobFilter"),
+            patch("src.jobs.company_scraper.JobScorer"),
+            patch("src.jobs.company_scraper.JobDatabase"),
+            patch("src.jobs.company_scraper.JobNotifier"),
+        ):
+            scraper = CompanyScraper(profile="wes")
+            scraper.job_filter.is_leadership_role = MagicMock(return_value=True)
+            scraper.database.add_job = MagicMock(return_value=None)  # Simulate storage
+
+            jobs = [
+                (
+                    OpportunityData(
+                        type="direct_job",
+                        title="Junior Director",
+                        company="Test Company",
+                        location="Remote",
+                        link="https://test.com/job",
+                        source="company_monitoring",
+                    ),
+                    "regex",
+                )
+            ]
+
+            stats = scraper.process_scraped_jobs(
+                "Test Company", jobs, min_score=50, notify_threshold=80
+            )
+
+            # Should apply hard filter and increment stats
+            assert stats["jobs_hard_filtered"] == 1
+            assert stats["jobs_stored"] == 0
+            mock_pipeline.apply_hard_filters.assert_called_once()
+            # Should store filtered job with filter_reason
+            scraper.database.add_job.assert_called_once()
+            call_args = scraper.database.add_job.call_args[0][0]
+            assert call_args["filter_reason"] == "hard_filter_junior"
+            assert "filtered_at" in call_args
+
+    @patch("src.jobs.company_scraper.get_profile_manager")
+    @patch("src.jobs.company_scraper.JobFilterPipeline")
+    def test_context_filters_block_after_scoring(self, mock_pipeline_class, mock_get_pm):
+        """Should apply context filters after scoring and update job with filter_reason"""
+        # Setup profile and filter pipeline
+        mock_profile = MagicMock()
+        mock_profile.scoring = {"context_filters": {}}
+        mock_pm = MagicMock()
+        mock_pm.get_profile.return_value = mock_profile
+        mock_get_pm.return_value = mock_pm
+
+        mock_pipeline = MagicMock()
+        mock_pipeline.apply_hard_filters.return_value = (True, None)  # Pass hard filters
+        mock_pipeline.apply_context_filters.return_value = (
+            False,
+            "context_filter_software_engineering",
+        )
+        mock_pipeline_class.return_value = mock_pipeline
+
+        with (
+            patch("src.jobs.company_scraper.CompanyService"),
+            patch("src.jobs.company_scraper.FirecrawlCareerScraper"),
+            patch("src.jobs.company_scraper.JobFilter"),
+            patch("src.jobs.company_scraper.JobScorer"),
+            patch("src.jobs.company_scraper.JobDatabase"),
+            patch("src.jobs.company_scraper.JobNotifier"),
+        ):
+            scraper = CompanyScraper(profile="wes")
+            scraper.job_filter.is_leadership_role = MagicMock(return_value=True)
+            scraper.scorer.score_job = MagicMock(
+                return_value=(75, "B", {"seniority": 25, "domain": 20, "role_type": 15}, {})
+            )
+            scraper.database.add_job = MagicMock(return_value=1)  # Job stored successfully
+            scraper.database.update_job_score = MagicMock()
+
+            jobs = [
+                (
+                    OpportunityData(
+                        type="direct_job",
+                        title="Director of Software Engineering",
+                        company="Test Company",
+                        location="Remote",
+                        link="https://test.com/job",
+                        source="company_monitoring",
+                    ),
+                    "regex",
+                )
+            ]
+
+            stats = scraper.process_scraped_jobs(
+                "Test Company", jobs, min_score=50, notify_threshold=80
+            )
+
+            # Should apply context filter after scoring
+            assert stats["jobs_context_filtered"] == 1
+            assert stats["jobs_stored"] == 0  # Filtered jobs don't count as "stored"
+            mock_pipeline.apply_context_filters.assert_called_once()
+            # Should add filtered job to database for audit
+            scraper.database.add_job.assert_called_once()
+            # Should update job score even though filtered
+            scraper.database.update_job_score.assert_called_once()
+
+    @patch("src.jobs.company_scraper.get_profile_manager")
+    @patch("src.jobs.company_scraper.JobFilterPipeline")
+    def test_filtered_stats_aggregation(self, mock_pipeline_class, mock_get_pm):
+        """Should aggregate filtered stats from multiple jobs"""
+        mock_profile = MagicMock()
+        mock_profile.scoring = {"hard_filter_keywords": {}, "context_filters": {}}
+        mock_pm = MagicMock()
+        mock_pm.get_profile.return_value = mock_profile
+        mock_get_pm.return_value = mock_pm
+
+        mock_pipeline = MagicMock()
+        # First job: hard filtered, second: context filtered, third: passes
+        mock_pipeline.apply_hard_filters.side_effect = [
+            (False, "hard_filter_junior"),
+            (True, None),
+            (True, None),
+        ]
+        mock_pipeline.apply_context_filters.side_effect = [
+            (False, "context_filter_software_engineering"),
+            (True, None),
+        ]
+        mock_pipeline_class.return_value = mock_pipeline
+
+        with (
+            patch("src.jobs.company_scraper.CompanyService"),
+            patch("src.jobs.company_scraper.FirecrawlCareerScraper"),
+            patch("src.jobs.company_scraper.JobFilter"),
+            patch("src.jobs.company_scraper.JobScorer"),
+            patch("src.jobs.company_scraper.JobDatabase"),
+            patch("src.jobs.company_scraper.JobNotifier"),
+        ):
+            scraper = CompanyScraper(profile="wes")
+            scraper.job_filter.is_leadership_role = MagicMock(return_value=True)
+            scraper.scorer.score_job = MagicMock(
+                return_value=(75, "B", {"seniority": 25, "domain": 20, "role_type": 15}, {})
+            )
+            # Hard filtered returns None (audit), context filtered returns 1 (audit), passed returns 2 (stored)
+            scraper.database.add_job = MagicMock(side_effect=[None, 1, 2])
+            scraper.database.update_job_score = MagicMock()
+
+            jobs = [
+                (
+                    OpportunityData(
+                        type="direct_job",
+                        title="Junior Director",
+                        company="Test",
+                        location="Remote",
+                        link="https://test.com/job1",
+                        source="company_monitoring",
+                    ),
+                    "regex",
+                ),
+                (
+                    OpportunityData(
+                        type="direct_job",
+                        title="Director of Software Engineering",
+                        company="Test",
+                        location="Remote",
+                        link="https://test.com/job2",
+                        source="company_monitoring",
+                    ),
+                    "regex",
+                ),
+                (
+                    OpportunityData(
+                        type="direct_job",
+                        title="VP of Engineering",
+                        company="Test",
+                        location="Remote",
+                        link="https://test.com/job3",
+                        source="company_monitoring",
+                    ),
+                    "regex",
+                ),
+            ]
+
+            stats = scraper.process_scraped_jobs("Test Company", jobs)
+
+            # Verify stats
+            assert stats["jobs_hard_filtered"] == 1
+            assert stats["jobs_context_filtered"] == 1
+            assert stats["jobs_stored"] == 1  # Only the third job that passed all filters
 
 
 class TestSkipRecentHours:

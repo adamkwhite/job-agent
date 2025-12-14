@@ -12,6 +12,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from agents.job_filter_pipeline import JobFilterPipeline
 from agents.job_scorer import JobScorer
 from api.company_service import CompanyService
 from database import JobDatabase
@@ -19,6 +20,7 @@ from job_filter import JobFilter
 from models import OpportunityData
 from notifier import JobNotifier
 from scrapers.firecrawl_career_scraper import FirecrawlCareerScraper
+from utils.profile_manager import get_profile_manager
 
 
 class CompanyScraper:
@@ -31,10 +33,16 @@ class CompanyScraper:
         # Store profile for multi-profile support
         self.profile = profile
 
+        # Load profile configuration for filtering
+        pm = get_profile_manager()
+        profile_obj = pm.get_profile(profile) if profile else None
+        profile_config = profile_obj.scoring if profile_obj else {}
+
         # Initialize components
         self.company_service = CompanyService()
         self.firecrawl_scraper = FirecrawlCareerScraper(enable_llm_extraction=enable_llm_extraction)
         self.job_filter = JobFilter()
+        self.filter_pipeline = JobFilterPipeline(profile_config) if profile_config else None
         self.scorer = JobScorer()
         self.database = JobDatabase(profile=profile)
         self.notifier = JobNotifier()
@@ -72,6 +80,8 @@ class CompanyScraper:
             "companies_skipped": 0,
             "jobs_scraped": 0,
             "leadership_jobs": 0,
+            "jobs_hard_filtered": 0,
+            "jobs_context_filtered": 0,
             "jobs_above_threshold": 0,
             "jobs_stored": 0,
             "notifications_sent": 0,
@@ -144,6 +154,8 @@ class CompanyScraper:
 
                     # Aggregate stats
                     stats["leadership_jobs"] += job_stats["leadership_jobs"]
+                    stats["jobs_hard_filtered"] += job_stats["jobs_hard_filtered"]
+                    stats["jobs_context_filtered"] += job_stats["jobs_context_filtered"]
                     stats["jobs_above_threshold"] += job_stats["jobs_above_threshold"]
                     stats["jobs_stored"] += job_stats["jobs_stored"]
                     stats["notifications_sent"] += job_stats["notifications_sent"]
@@ -181,6 +193,8 @@ class CompanyScraper:
         stats: dict[str, Any] = {
             "jobs_processed": 0,
             "leadership_jobs": 0,
+            "jobs_hard_filtered": 0,
+            "jobs_context_filtered": 0,
             "jobs_above_threshold": 0,
             "jobs_stored": 0,
             "notifications_sent": 0,
@@ -198,7 +212,7 @@ class CompanyScraper:
 
             stats["leadership_jobs"] += 1
 
-            # Score the job
+            # Prepare job dictionary
             job_dict = {
                 "title": job.title or "",
                 "company": job.company or "",
@@ -206,7 +220,59 @@ class CompanyScraper:
                 "link": job.link or "",
             }
 
+            # Stage 1: Hard filters (before scoring)
+            if self.filter_pipeline:
+                should_score, filter_reason = self.filter_pipeline.apply_hard_filters(job_dict)
+                if not should_score:
+                    stats["jobs_hard_filtered"] += 1
+                    print(f"  ⊘ Hard filtered: {job.title}")
+                    print(f"    Reason: {filter_reason}")
+                    # Store filtered job in database
+                    job_dict.update(
+                        {
+                            "source": "company_monitoring",
+                            "type": "direct_job",
+                            "received_at": job.received_at,
+                            "filter_reason": filter_reason,
+                            "filtered_at": datetime.now().isoformat(),
+                            "keywords_matched": json.dumps([]),
+                            "source_email": "",
+                        }
+                    )
+                    self.database.add_job(job_dict)
+                    continue
+
+            # Stage 2: Scoring
             score, grade, breakdown, _classification_metadata = self.scorer.score_job(job_dict)
+
+            # Stage 3: Context filters (after scoring)
+            if self.filter_pipeline:
+                should_keep, filter_reason = self.filter_pipeline.apply_context_filters(
+                    job_dict, score, breakdown
+                )
+                if not should_keep:
+                    stats["jobs_context_filtered"] += 1
+                    print(f"  ⊘ Context filtered: {job.title}")
+                    print(f"    Reason: {filter_reason}")
+                    # Store with score but mark as filtered
+                    job_dict.update(
+                        {
+                            "source": "company_monitoring",
+                            "type": "direct_job",
+                            "received_at": job.received_at,
+                            "fit_score": score,
+                            "fit_grade": grade,
+                            "score_breakdown": json.dumps(breakdown),
+                            "filter_reason": filter_reason,
+                            "filtered_at": datetime.now().isoformat(),
+                            "keywords_matched": json.dumps([]),
+                            "source_email": "",
+                        }
+                    )
+                    job_id = self.database.add_job(job_dict)
+                    if job_id:
+                        self.database.update_job_score(job_id, score, grade, json.dumps(breakdown))
+                    continue
 
             if score < min_score:
                 print(f"  ⊘ Skipped (below threshold): {job.title}")
@@ -321,6 +387,8 @@ def main():
     print(f"Companies checked: {stats['companies_checked']}")
     print(f"Jobs scraped: {stats['jobs_scraped']}")
     print(f"Leadership jobs: {stats['leadership_jobs']}")
+    print(f"Jobs hard filtered: {stats['jobs_hard_filtered']}")
+    print(f"Jobs context filtered: {stats['jobs_context_filtered']}")
     print(f"Jobs stored: {stats['jobs_stored']}")
     print(f"Notifications sent: {stats['notifications_sent']}")
 

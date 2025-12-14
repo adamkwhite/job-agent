@@ -268,6 +268,25 @@ class JobDatabase:
         conn.commit()
         conn.close()
 
+    def mark_job_filtered(self, job_id: int, filter_reason: str):
+        """Mark job as filtered with reason"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        now = datetime.now().isoformat()
+
+        cursor.execute(
+            """
+            UPDATE jobs
+            SET filter_reason = ?, filtered_at = ?, updated_at = ?
+            WHERE id = ?
+        """,
+            (filter_reason, now, now, job_id),
+        )
+
+        conn.commit()
+        conn.close()
+
     def mark_digest_sent(self, job_ids: list[int]):
         """Mark jobs as included in digest"""
         conn = sqlite3.connect(self.db_path)
