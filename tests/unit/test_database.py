@@ -2,9 +2,22 @@
 Unit tests for database module, focusing on deduplication logic
 """
 
+import importlib.util
+from pathlib import Path
+
 import pytest
 
 from database import JobDatabase
+
+# Import migration 003 for filter tracking tests
+migration_path = (
+    Path(__file__).parent.parent.parent / "src" / "migrations" / "003_filter_tracking.py"
+)
+spec = importlib.util.spec_from_file_location("migration_003", migration_path)
+if spec is None or spec.loader is None:
+    raise ImportError(f"Could not load migration from {migration_path}")
+migration_003 = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(migration_003)
 
 
 class TestJobDeduplication:
@@ -141,6 +154,9 @@ class TestMarkJobFiltered:
 
         db = JobDatabase(db_path=temp_db_path)
 
+        # Run migration to add filter_reason and filtered_at columns
+        migration_003.migrate(db_path=temp_db_path)
+
         # Add a test job
         job_dict = {
             "source": "test",
@@ -180,6 +196,9 @@ class TestMarkJobFiltered:
         from src.database import JobDatabase
 
         db = JobDatabase(db_path=temp_db_path)
+
+        # Run migration to add filter_reason and filtered_at columns
+        migration_003.migrate(db_path=temp_db_path)
 
         reasons = [
             "hard_filter_intern",
