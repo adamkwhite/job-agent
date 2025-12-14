@@ -515,7 +515,7 @@ class TestFilterPipelineIntegration:
         """Should apply hard filters before scoring and store with filter_reason"""
         # Setup profile and filter pipeline
         mock_profile = MagicMock()
-        mock_profile.config = {"hard_filter_keywords": {"seniority_blocks": ["junior"]}}
+        mock_profile.scoring = {"hard_filter_keywords": {"seniority_blocks": ["junior"]}}
         mock_pm = MagicMock()
         mock_pm.get_profile.return_value = mock_profile
         mock_get_pm.return_value = mock_pm
@@ -571,7 +571,7 @@ class TestFilterPipelineIntegration:
         """Should apply context filters after scoring and update job with filter_reason"""
         # Setup profile and filter pipeline
         mock_profile = MagicMock()
-        mock_profile.config = {"context_filters": {}}
+        mock_profile.scoring = {"context_filters": {}}
         mock_pm = MagicMock()
         mock_pm.get_profile.return_value = mock_profile
         mock_get_pm.return_value = mock_pm
@@ -632,7 +632,7 @@ class TestFilterPipelineIntegration:
     def test_filtered_stats_aggregation(self, mock_pipeline_class, mock_get_pm):
         """Should aggregate filtered stats from multiple jobs"""
         mock_profile = MagicMock()
-        mock_profile.config = {"hard_filter_keywords": {}, "context_filters": {}}
+        mock_profile.scoring = {"hard_filter_keywords": {}, "context_filters": {}}
         mock_pm = MagicMock()
         mock_pm.get_profile.return_value = mock_profile
         mock_get_pm.return_value = mock_pm

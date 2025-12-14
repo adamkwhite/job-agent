@@ -83,7 +83,7 @@ class JobProcessorV2:
         self.scorer = ProfileScorer(profile_obj)
 
         # Initialize filter pipeline with profile config
-        self.filter_pipeline = JobFilterPipeline(profile_obj.config) if profile_obj else None
+        self.filter_pipeline = JobFilterPipeline(profile_obj.scoring) if profile_obj else None
 
         self.imap_client = IMAPEmailClient(profile=profile)
 

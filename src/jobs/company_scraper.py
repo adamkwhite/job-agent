@@ -36,7 +36,7 @@ class CompanyScraper:
         # Load profile configuration for filtering
         pm = get_profile_manager()
         profile_obj = pm.get_profile(profile) if profile else None
-        profile_config = profile_obj.config if profile_obj else {}
+        profile_config = profile_obj.scoring if profile_obj else {}
 
         # Initialize components
         self.company_service = CompanyService()
