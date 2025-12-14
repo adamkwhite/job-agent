@@ -95,7 +95,7 @@ class JobValidator:
             # Check for staleness indicators
             for indicator in self.STALENESS_INDICATORS:
                 if indicator in page_text:
-                    logger.info(f"Job appears stale ('{indicator}'): {url}")
+                    logger.debug(f"Job appears stale ('{indicator}'): {url}")
                     return (True, indicator)
 
             return (False, None)
@@ -162,7 +162,7 @@ class JobValidator:
             # Check for staleness indicators
             for indicator in self.STALENESS_INDICATORS:
                 if indicator in area_text:
-                    logger.info(
+                    logger.debug(
                         f"LinkedIn job appears stale in {area.name} "
                         f"(class={area.get('class')}, matched: '{indicator}')"
                     )
@@ -273,7 +273,7 @@ class JobValidator:
             if self.check_content:
                 is_stale, matched_phrase = self._check_content_for_staleness(url)
                 if is_stale and matched_phrase:
-                    logger.warning(f"Job appears stale: {url} (matched: '{matched_phrase}')")
+                    logger.debug(f"Job appears stale: {url} (matched: '{matched_phrase}')")
                     return (False, f"stale_{matched_phrase.replace(' ', '_')}", False)
 
             return (True, "valid", False)
@@ -302,12 +302,15 @@ class JobValidator:
         """
         return {url: self.validate_url(url) for url in urls}
 
-    def filter_valid_jobs(self, jobs: list[dict]) -> tuple[list[dict], list[dict], list[dict]]:
+    def filter_valid_jobs(
+        self, jobs: list[dict], show_progress: bool = True
+    ) -> tuple[list[dict], list[dict], list[dict]]:
         """
         Filter jobs list into valid, invalid, and needs-review based on URL validation
 
         Args:
             jobs: List of job dictionaries with 'link' key
+            show_progress: Whether to print progress indicators (default: True)
 
         Returns:
             (valid_jobs, flagged_jobs, invalid_jobs) tuple
@@ -318,9 +321,17 @@ class JobValidator:
         valid_jobs = []
         flagged_jobs = []
         invalid_jobs = []
+        total = len(jobs)
 
-        for job in jobs:
+        for idx, job in enumerate(jobs, 1):
             url = job.get("link", "")
+
+            # Show progress
+            if show_progress:
+                company = job.get("company", "Unknown")[:20]
+                title = job.get("title", "Unknown")[:30]
+                print(f"  [{idx}/{total}] {company} - {title}...", end="", flush=True)
+
             is_valid, reason, needs_review = self.validate_url(url)
 
             # Add validation metadata to job
@@ -329,10 +340,17 @@ class JobValidator:
 
             if not is_valid:
                 invalid_jobs.append(job)
+                if show_progress:
+                    status_emoji = "⛔" if reason.startswith("stale") else "❌"
+                    print(f" {status_emoji} {reason}")
             elif needs_review:
                 flagged_jobs.append(job)
+                if show_progress:
+                    print(f" ⚠️  {reason}")
             else:
                 valid_jobs.append(job)
+                if show_progress:
+                    print(" ✓")
 
         return (valid_jobs, flagged_jobs, invalid_jobs)
 
