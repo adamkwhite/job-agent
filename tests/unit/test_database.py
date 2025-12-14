@@ -2,6 +2,8 @@
 Unit tests for database module, focusing on deduplication logic
 """
 
+import pytest
+
 from database import JobDatabase
 
 
@@ -126,14 +128,18 @@ class TestJobDeduplication:
 class TestMarkJobFiltered:
     """Test mark_job_filtered method for filter pipeline integration"""
 
-    def test_mark_job_filtered_updates_fields(self):
+    @pytest.fixture
+    def temp_db_path(self, tmp_path):
+        """Create a temporary database path for testing"""
+        return str(tmp_path / "test_filter.db")
+
+    def test_mark_job_filtered_updates_fields(self, temp_db_path):
         """Should update filter_reason and filtered_at fields"""
         import sqlite3
 
         from src.database import JobDatabase
 
-        db = JobDatabase()
-        db.run_migrations()  # Ensure migration #003 has run
+        db = JobDatabase(db_path=temp_db_path)
 
         # Add a test job
         job_dict = {
@@ -169,12 +175,11 @@ class TestMarkJobFiltered:
 
         datetime.fromisoformat(filtered_at)  # Should not raise
 
-    def test_mark_job_filtered_different_reasons(self):
+    def test_mark_job_filtered_different_reasons(self, temp_db_path):
         """Should handle different filter reasons"""
         from src.database import JobDatabase
 
-        db = JobDatabase()
-        db.run_migrations()  # Ensure migration #003 has run
+        db = JobDatabase(db_path=temp_db_path)
 
         reasons = [
             "hard_filter_intern",
