@@ -272,6 +272,23 @@ class CompanyScraper:
                     job_id = self.database.add_job(job_dict)
                     if job_id:
                         self.database.update_job_score(job_id, score, grade, json.dumps(breakdown))
+                    else:
+                        # Duplicate filtered job - still score for current profile
+                        job_hash = self.database.generate_job_hash(
+                            job_dict["title"], job_dict["company"], job_dict["link"]
+                        )
+                        existing_job_id = self.database.get_job_id_by_hash(job_hash)
+                        if existing_job_id:
+                            self.database.upsert_job_score(
+                                job_id=existing_job_id,
+                                profile_id=self.profile,
+                                score=score,
+                                grade=grade,
+                                breakdown=json.dumps(breakdown),
+                                classification_metadata=json.dumps(_classification_metadata)
+                                if _classification_metadata
+                                else None,
+                            )
                     continue
 
             if score < min_score:
@@ -319,7 +336,7 @@ class CompanyScraper:
 
                 # Multi-profile scoring
                 try:
-                    from agents.multi_profile_scorer import get_multi_scorer
+                    from utils.multi_scorer import get_multi_scorer
 
                     multi_scorer = get_multi_scorer()
                     profile_scores = multi_scorer.score_job_for_all(job_dict, job_id)
@@ -347,8 +364,41 @@ class CompanyScraper:
                 else:
                     print(f"  ⊘ Notification skipped: Low score ({grade} {score}/115)")
             else:
+                # Duplicate job - still score for current profile
                 stats["duplicates_skipped"] += 1
                 print(f"\n- Duplicate: {job.title} at {job.company}")
+
+                # Get existing job ID and score for current profile
+                job_hash = self.database.generate_job_hash(job.title, job.company, job.link)
+                existing_job_id = self.database.get_job_id_by_hash(job_hash)
+
+                if existing_job_id:
+                    # Score this duplicate for current profile
+                    self.database.upsert_job_score(
+                        job_id=existing_job_id,
+                        profile_id=self.profile,
+                        score=score,
+                        grade=grade,
+                        breakdown=json.dumps(breakdown),
+                        classification_metadata=json.dumps(_classification_metadata)
+                        if _classification_metadata
+                        else None,
+                    )
+                    print(f"  ✓ Scored for {self.profile}: {grade} ({score}/115)")
+
+                    # Also try multi-profile scoring for duplicates
+                    try:
+                        from utils.multi_scorer import get_multi_scorer
+
+                        multi_scorer = get_multi_scorer()
+                        profile_scores = multi_scorer.score_job_for_all(job_dict, existing_job_id)
+                        if profile_scores:
+                            print("  ✓ Multi-profile scores:")
+                            for pid, (s, g) in profile_scores.items():
+                                if pid != self.profile:  # Don't repeat current profile
+                                    print(f"    {pid}: {s}/{g}")
+                    except Exception:
+                        pass  # Multi-profile scoring is optional
 
         return stats
 
