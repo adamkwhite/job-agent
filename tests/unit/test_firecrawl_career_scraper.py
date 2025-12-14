@@ -536,7 +536,7 @@ class TestLLMExtractionIntegration:
         assert not scraper.enable_llm_extraction
         assert scraper.llm_extractor is None
 
-    def test_scrape_jobs_with_llm_extraction_success(self, mocker):
+    def test_scrape_jobs_with_llm_extraction_success(self, mocker, tmp_path):
         """Test successful dual extraction (regex + LLM)"""
         # Mock LLM extractor
         mock_llm_extractor_class = mocker.patch("extractors.llm_extractor.LLMExtractor")
@@ -563,7 +563,9 @@ class TestLLMExtractionIntegration:
         )
         mock_extractor.extract_jobs.return_value = [llm_job]
 
-        scraper = FirecrawlCareerScraper(enable_llm_extraction=True)
+        # Use temporary cache directory
+        cache_dir = tmp_path / "cache"
+        scraper = FirecrawlCareerScraper(enable_llm_extraction=True, cache_dir=str(cache_dir))
 
         # Mock Firecrawl scrape
         mock_result = {
@@ -629,7 +631,7 @@ Toronto, ON](https://test.com/job/123)
         captured = capsys.readouterr()
         assert "budget exceeded" in captured.out.lower()
 
-    def test_scrape_jobs_llm_extraction_failure(self, mocker, capsys):
+    def test_scrape_jobs_llm_extraction_failure(self, mocker, capsys, tmp_path):
         """Test scraper handles LLM extraction failure gracefully"""
         # Mock LLM extractor
         mock_llm_extractor_class = mocker.patch("extractors.llm_extractor.LLMExtractor")
@@ -642,7 +644,9 @@ Toronto, ON](https://test.com/job/123)
         # Mock LLM extraction to raise exception
         mock_extractor.extract_jobs.side_effect = Exception("LLM API error")
 
-        scraper = FirecrawlCareerScraper(enable_llm_extraction=True)
+        # Use temporary cache directory
+        cache_dir = tmp_path / "cache"
+        scraper = FirecrawlCareerScraper(enable_llm_extraction=True, cache_dir=str(cache_dir))
 
         # Mock Firecrawl scrape
         mock_result = {
@@ -666,9 +670,11 @@ Boston, MA](https://test.com/job/456)
         captured = capsys.readouterr()
         assert "LLM extraction failed" in captured.out
 
-    def test_scrape_jobs_llm_disabled_only_regex(self, mocker):
+    def test_scrape_jobs_llm_disabled_only_regex(self, mocker, tmp_path):
         """Test that only regex extraction runs when LLM is disabled"""
-        scraper = FirecrawlCareerScraper(enable_llm_extraction=False)
+        # Use temporary cache directory
+        cache_dir = tmp_path / "cache"
+        scraper = FirecrawlCareerScraper(enable_llm_extraction=False, cache_dir=str(cache_dir))
 
         # Mock Firecrawl scrape
         mock_result = {
@@ -687,6 +693,130 @@ Remote](https://test.com/job/789)
         job, method = jobs[0]
         assert method == "regex"
         assert "Principal Engineer" in job.title
+
+
+class TestCacheFunctionality:
+    """Test cache functionality in Firecrawl scraper"""
+
+    def test_cache_hit_skips_api_call(self, mocker, tmp_path):
+        """Test that cache hit prevents Firecrawl API call"""
+        # Create scraper with temporary cache directory
+        cache_dir = tmp_path / "cache"
+        scraper = FirecrawlCareerScraper(cache_dir=str(cache_dir))
+
+        # Create a fresh cache file (within TTL)
+        company_name = "TestCompany"
+        cache_file = scraper._get_cache_path(company_name)
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        cached_markdown = (
+            "# Cached Jobs\n\n[Director of Engineering\n\nRemote](https://test.com/job/123)"
+        )
+        cache_file.write_text(cached_markdown, encoding="utf-8")
+
+        # Mock _firecrawl_scrape to ensure it's NOT called
+        mock_scrape = mocker.patch.object(scraper, "_firecrawl_scrape")
+
+        jobs = scraper.scrape_jobs("https://test.com/careers", company_name)
+
+        # Should extract job from cached markdown
+        assert len(jobs) == 1
+        job, method = jobs[0]
+        assert job.title == "Director of Engineering"
+        assert method == "regex"
+
+        # API should NOT be called
+        mock_scrape.assert_not_called()
+
+    def test_cache_miss_makes_api_call(self, mocker, tmp_path):
+        """Test that cache miss triggers Firecrawl API call"""
+        cache_dir = tmp_path / "cache"
+        scraper = FirecrawlCareerScraper(cache_dir=str(cache_dir))
+
+        # Mock Firecrawl API response with proper markdown format
+        mock_result = {
+            "markdown": """[Product Manager
+
+San Francisco, CA](https://test.com/job/product-manager)"""
+        }
+        mock_scrape = mocker.patch.object(scraper, "_firecrawl_scrape", return_value=mock_result)
+
+        jobs = scraper.scrape_jobs("https://test.com/careers", "NewCompany")
+
+        # Should make API call
+        mock_scrape.assert_called_once_with("https://test.com/careers")
+
+        # Should extract job from API response
+        assert len(jobs) == 1
+        job, method = jobs[0]
+        assert job.title == "Product Manager"
+
+        # Should save to cache
+        cache_file = scraper._get_cache_path("NewCompany")
+        assert cache_file.exists()
+        assert "Product Manager" in cache_file.read_text()
+
+    def test_cache_expired_makes_api_call(self, mocker, tmp_path):
+        """Test that expired cache triggers fresh API call"""
+        cache_dir = tmp_path / "cache"
+        scraper = FirecrawlCareerScraper(cache_dir=str(cache_dir), cache_ttl_hours=24)
+
+        # Create an old cache file (older than TTL)
+        company_name = "OldCompany"
+        cache_file = scraper._get_cache_path(company_name)
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        cache_file.write_text("# Old Jobs", encoding="utf-8")
+
+        # Modify file timestamp to be 25 hours old (beyond TTL)
+        import time
+
+        old_time = time.time() - (25 * 3600)  # 25 hours ago
+        import os
+
+        os.utime(cache_file, (old_time, old_time))
+
+        # Mock Firecrawl API response with proper markdown format
+        mock_result = {
+            "markdown": """[Director of Engineering
+
+Boston, MA](https://test.com/job/456)"""
+        }
+        mock_scrape = mocker.patch.object(scraper, "_firecrawl_scrape", return_value=mock_result)
+
+        jobs = scraper.scrape_jobs("https://test.com/careers", company_name)
+
+        # Should make API call (cache expired)
+        mock_scrape.assert_called_once()
+
+        # Should get fresh data
+        assert len(jobs) == 1
+
+    def test_cache_path_normalization(self):
+        """Test that company names are normalized for cache filenames"""
+        scraper = FirecrawlCareerScraper()
+
+        # Test with special characters
+        cache_path1 = scraper._get_cache_path("Boston Dynamics")
+        assert "boston_dynamics" in str(cache_path1)
+
+        cache_path2 = scraper._get_cache_path("Company/With/Slashes")
+        assert "company_with_slashes" in str(cache_path2)
+
+    def test_cache_ttl_configurable(self, tmp_path):
+        """Test that cache TTL is configurable"""
+        cache_dir = tmp_path / "cache"
+        scraper = FirecrawlCareerScraper(cache_dir=str(cache_dir), cache_ttl_hours=48)
+
+        assert scraper.cache_ttl_hours == 48
+
+    def test_cache_directory_created_on_init(self, tmp_path):
+        """Test that cache directory is created on initialization"""
+        cache_dir = tmp_path / "new_cache"
+        assert not cache_dir.exists()
+
+        FirecrawlCareerScraper(cache_dir=str(cache_dir))
+
+        assert cache_dir.exists()
+        assert cache_dir.is_dir()
 
 
 class TestTimeoutFunctionality:

@@ -8,6 +8,8 @@ import os
 import re
 import signal
 import time
+from datetime import datetime
+from pathlib import Path
 
 from dotenv import load_dotenv
 from firecrawl import FirecrawlApp
@@ -38,14 +40,18 @@ class FirecrawlCareerScraper:
         requests_per_minute: int = 9,
         enable_llm_extraction: bool = False,
         timeout_seconds: int = 60,
+        cache_dir: str = "data/firecrawl_cache",
+        cache_ttl_hours: int = 24,
     ):
         """
-        Initialize scraper with rate limiting
+        Initialize scraper with rate limiting and caching
 
         Args:
             requests_per_minute: Max requests per minute (default 9 to stay under 10/min limit)
             enable_llm_extraction: Enable LLM extraction alongside regex (default: False)
             timeout_seconds: Timeout for each scrape request (default: 60 seconds)
+            cache_dir: Directory to store cached markdown files (default: data/firecrawl_cache)
+            cache_ttl_hours: Cache time-to-live in hours (default: 24)
         """
         self.name = "firecrawl_career_scraper"
         api_key = os.getenv("FIRECRAWL_API_KEY")
@@ -60,6 +66,11 @@ class FirecrawlCareerScraper:
 
         # Timeout
         self.timeout_seconds = timeout_seconds
+
+        # Cache configuration
+        self.cache_dir = Path(cache_dir)
+        self.cache_ttl_hours = cache_ttl_hours
+        self.cache_dir.mkdir(parents=True, exist_ok=True)  # Ensure cache dir exists
 
         # LLM extraction (optional)
         self.enable_llm_extraction = enable_llm_extraction
@@ -77,6 +88,64 @@ class FirecrawlCareerScraper:
                 )
                 self.enable_llm_extraction = False
 
+    def _get_cache_path(self, company_name: str) -> Path:
+        """
+        Get the cache file path for a company
+
+        Args:
+            company_name: Name of the company
+
+        Returns:
+            Path to cache file (company_name_YYYYMMDD.md)
+        """
+        # Normalize company name for filename
+        normalized_name = company_name.lower().replace(" ", "_").replace("/", "_")
+        today = datetime.now().strftime("%Y%m%d")
+        return self.cache_dir / f"{normalized_name}_{today}.md"
+
+    def _check_cache(self, company_name: str) -> str | None:
+        """
+        Check if cached markdown exists for today
+
+        Args:
+            company_name: Name of the company
+
+        Returns:
+            Cached markdown content if found and valid, None otherwise
+        """
+        cache_file = self._get_cache_path(company_name)
+
+        if not cache_file.exists():
+            logger.debug(f"Cache miss: {cache_file}")
+            return None
+
+        # Check if cache is still valid (within TTL)
+        cache_age_hours = (time.time() - cache_file.stat().st_mtime) / 3600
+
+        if cache_age_hours > self.cache_ttl_hours:
+            logger.info(f"Cache expired ({cache_age_hours:.1f}h old): {cache_file}")
+            return None
+
+        logger.info(f"Cache hit ({cache_age_hours:.1f}h old): {cache_file}")
+        print(f"  ✓ Using cached markdown (saved {cache_age_hours:.1f}h ago)")
+        return cache_file.read_text(encoding="utf-8")
+
+    def _save_cache(self, company_name: str, markdown: str) -> None:
+        """
+        Save markdown content to cache
+
+        Args:
+            company_name: Name of the company
+            markdown: Markdown content to save
+        """
+        cache_file = self._get_cache_path(company_name)
+
+        try:
+            cache_file.write_text(markdown, encoding="utf-8")
+            logger.info(f"Saved to cache: {cache_file}")
+        except Exception as e:
+            logger.warning(f"Failed to save cache: {e}")
+
     def scrape_jobs(self, careers_url: str, company_name: str) -> list[tuple[OpportunityData, str]]:
         """
         Scrape jobs from a career page using Firecrawl
@@ -89,17 +158,27 @@ class FirecrawlCareerScraper:
             List of tuples (OpportunityData, extraction_method) where extraction_method is 'regex' or 'llm'
         """
         print(f"\nScraping jobs from: {careers_url}")
-        print("Using Firecrawl MCP...")
 
         try:
-            # Use Firecrawl to scrape the page
-            result = self._firecrawl_scrape(careers_url)
+            # Check cache first
+            cached_markdown = self._check_cache(company_name)
 
-            if not result:
-                print("  ✗ Failed to scrape page")
-                return []
+            if cached_markdown:
+                markdown = cached_markdown
+            else:
+                # Cache miss - fetch via Firecrawl API
+                print("Using Firecrawl API...")
+                result = self._firecrawl_scrape(careers_url)
 
-            markdown = result.get("markdown", "")
+                if not result:
+                    print("  ✗ Failed to scrape page")
+                    return []
+
+                markdown = result.get("markdown", "")
+
+                # Save to cache for future use
+                if markdown:
+                    self._save_cache(company_name, markdown)
 
             # Extract jobs from markdown using regex (primary method)
             regex_jobs = self._extract_jobs_from_markdown(markdown, careers_url, company_name)
