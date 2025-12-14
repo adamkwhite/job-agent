@@ -2,6 +2,7 @@
 Job URL Validator - Validate job posting URLs before sending digest
 
 Checks:
+- Job age (>60 days = potentially stale)
 - HTTP status code (404 detection)
 - Generic career page detection (Ashby, Lever)
 - LinkedIn redirect detection (unverifiable but flagged)
@@ -11,6 +12,7 @@ Checks:
 
 import logging
 import time
+from datetime import datetime
 
 import requests
 from bs4 import BeautifulSoup
@@ -41,6 +43,7 @@ class JobValidator:
         max_retries: int = 3,
         base_backoff: float = 2.0,
         check_content: bool = True,
+        age_threshold_days: int = 60,
     ):
         """
         Args:
@@ -48,15 +51,19 @@ class JobValidator:
             max_retries: Maximum number of retry attempts for 429 rate limits
             base_backoff: Base delay in seconds for exponential backoff (2^attempt * base)
             check_content: Whether to fetch and check page content for staleness (slower)
+            age_threshold_days: Jobs older than this many days are considered potentially stale
         """
         self.timeout = timeout
         self.max_retries = max_retries
         self.base_backoff = base_backoff
         self.check_content = check_content
+        self.age_threshold_days = age_threshold_days
         self.session = requests.Session()
         self.session.headers.update(
             {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         )
+        # Cache for URL validation results (url -> (is_valid, reason, needs_review))
+        self._validation_cache: dict[str, tuple[bool, str, bool]] = {}
 
     def _check_content_for_staleness(self, url: str) -> tuple[bool, str | None]:
         """
@@ -328,3 +335,90 @@ class JobValidator:
                 valid_jobs.append(job)
 
         return (valid_jobs, flagged_jobs, invalid_jobs)
+
+    def validate_for_digest(self, job: dict, use_cache: bool = True) -> tuple[bool, str | None]:
+        """
+        Validate job is fresh and URL is accessible before adding to digest.
+
+        Combines age checking and URL validation with caching for performance.
+
+        Args:
+            job: Job dict with 'received_at' and 'link' fields
+            use_cache: Whether to use cached URL validation results (default: True)
+
+        Returns:
+            (is_valid, stale_reason) tuple:
+                - (True, None) = Fresh job, ready for digest
+                - (False, "stale_job_age") = Job too old (>threshold days)
+                - (False, "stale_*") = Job URL closed/invalid
+                - (False, "url_validation_failed") = URL check failed
+
+        Examples:
+            >>> validator = JobValidator(age_threshold_days=60)
+            >>> job = {"received_at": "2024-01-01", "link": "https://..."}
+            >>> is_valid, reason = validator.validate_for_digest(job)
+            >>> if not is_valid:
+            ...     print(f"Job rejected: {reason}")
+        """
+        # Check 1: Job age
+        received_at = job.get("received_at")
+        if received_at:
+            try:
+                # Parse timestamp (supports ISO format)
+                if isinstance(received_at, str):
+                    received_date = datetime.fromisoformat(received_at.replace("Z", "+00:00"))
+                else:
+                    received_date = received_at
+
+                # Calculate age
+                age_days = (datetime.now(received_date.tzinfo) - received_date).days
+
+                if age_days > self.age_threshold_days:
+                    logger.info(
+                        f"Job too old ({age_days} days, threshold: {self.age_threshold_days}): "
+                        f"{job.get('title', 'Unknown')} at {job.get('company', 'Unknown')}"
+                    )
+                    return (False, "stale_job_age")
+
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Could not parse received_at date: {received_at} ({e})")
+                # Don't filter on parse error, just log and continue to URL check
+
+        # Check 2: URL validation (with caching)
+        url = job.get("link", "")
+        if not url:
+            return (False, "missing_url")
+
+        # Check cache first
+        if use_cache and url in self._validation_cache:
+            is_valid, reason, _needs_review = self._validation_cache[url]
+            if not is_valid and reason.startswith("stale"):
+                return (False, reason)
+            return (is_valid, None if is_valid else reason)
+
+        # Not in cache, validate and cache result
+        is_valid, reason, needs_review = self.validate_url(url)
+
+        # Store in cache
+        if use_cache:
+            self._validation_cache[url] = (is_valid, reason, needs_review)
+
+        # Return result
+        if not is_valid:
+            # Job URL is invalid/stale
+            return (False, reason)
+
+        # URL is valid (may need review, but not filtered)
+        return (True, None)
+
+    def clear_cache(self) -> None:
+        """Clear the URL validation cache"""
+        self._validation_cache.clear()
+
+    def get_cache_stats(self) -> dict[str, int]:
+        """Get cache statistics for monitoring"""
+        return {
+            "total_cached": len(self._validation_cache),
+            "valid_count": sum(1 for v, _, _ in self._validation_cache.values() if v),
+            "invalid_count": sum(1 for v, _, _ in self._validation_cache.values() if not v),
+        }

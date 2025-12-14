@@ -692,3 +692,324 @@ class TestJobValidator:
         )
         assert is_valid is True
         assert reason == "valid"
+
+
+class TestJobValidatorDigestValidation:
+    """Test suite for validate_for_digest() method (Issue #163)"""
+
+    @pytest.fixture
+    def validator(self):
+        """Create validator with 60-day threshold"""
+        return JobValidator(timeout=5, age_threshold_days=60, check_content=True)
+
+    # Age Validation Tests
+
+    def test_fresh_job_passes(self, validator):
+        """Test that jobs <60 days old pass validation"""
+        from datetime import datetime, timedelta
+
+        job = {
+            "title": "VP Engineering",
+            "company": "Test Corp",
+            "link": "https://example.com/job",
+            "received_at": (datetime.now() - timedelta(days=30)).isoformat(),
+        }
+
+        with patch("requests.Session.head") as mock_head:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.url = job["link"]
+            mock_head.return_value = mock_response
+
+            is_valid, reason = validator.validate_for_digest(job)
+
+            assert is_valid is True
+            assert reason is None
+
+    def test_old_job_filtered_by_age(self, validator):
+        """Test that jobs >60 days old are filtered"""
+        from datetime import datetime, timedelta
+
+        job = {
+            "title": "VP Engineering",
+            "company": "Old Corp",
+            "link": "https://example.com/job",
+            "received_at": (datetime.now() - timedelta(days=70)).isoformat(),
+        }
+
+        is_valid, reason = validator.validate_for_digest(job)
+
+        assert is_valid is False
+        assert reason == "stale_job_age"
+
+    def test_exactly_threshold_age(self, validator):
+        """Test job exactly at threshold age"""
+        from datetime import datetime, timedelta
+
+        job = {
+            "title": "VP Engineering",
+            "company": "Edge Case Corp",
+            "link": "https://example.com/job",
+            "received_at": (datetime.now() - timedelta(days=60)).isoformat(),
+        }
+
+        # Should pass - not >60 days
+        with patch("requests.Session.head") as mock_head:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.url = job["link"]
+            mock_head.return_value = mock_response
+
+            is_valid, reason = validator.validate_for_digest(job)
+
+            assert is_valid is True
+            assert reason is None
+
+    def test_missing_received_at_skips_age_check(self, validator):
+        """Test jobs without received_at skip age validation"""
+        job = {
+            "title": "VP Engineering",
+            "company": "No Date Corp",
+            "link": "https://example.com/job",
+        }
+
+        with patch("requests.Session.head") as mock_head:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.url = job["link"]
+            mock_head.return_value = mock_response
+
+            is_valid, reason = validator.validate_for_digest(job)
+
+            # Should still validate URL
+            assert is_valid is True
+            assert reason is None
+
+    def test_invalid_date_format_continues_to_url_check(self, validator):
+        """Test that invalid date formats don't crash, just skip age check"""
+        job = {
+            "title": "VP Engineering",
+            "company": "Bad Date Corp",
+            "link": "https://example.com/job",
+            "received_at": "invalid-date-format",
+        }
+
+        with patch("requests.Session.head") as mock_head:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.url = job["link"]
+            mock_head.return_value = mock_response
+
+            is_valid, reason = validator.validate_for_digest(job)
+
+            # Should continue to URL validation
+            assert is_valid is True
+
+    # Caching Tests
+
+    @patch("requests.Session.get")
+    @patch("requests.Session.head")
+    def test_caching_prevents_duplicate_requests(self, mock_head, mock_get, validator):
+        """Test that caching prevents duplicate URL fetches"""
+        from datetime import datetime, timedelta
+
+        job = {
+            "title": "VP Engineering",
+            "company": "Cache Corp",
+            "link": "https://linkedin.com/jobs/view/12345",
+            "received_at": (datetime.now() - timedelta(days=30)).isoformat(),
+        }
+
+        mock_head_response = Mock()
+        mock_head_response.status_code = 200
+        mock_head_response.url = job["link"]
+        mock_head.return_value = mock_head_response
+
+        mock_get_response = Mock()
+        mock_get_response.status_code = 200
+        mock_get_response.text = "<html><body>Active job</body></html>"
+        mock_get.return_value = mock_get_response
+
+        # First call
+        is_valid1, reason1 = validator.validate_for_digest(job, use_cache=True)
+        assert is_valid1 is True
+
+        # Second call should use cache (no additional HEAD/GET)
+        call_count_before = mock_head.call_count + mock_get.call_count
+
+        is_valid2, reason2 = validator.validate_for_digest(job, use_cache=True)
+        assert is_valid2 is True
+        assert reason2 is None
+
+        call_count_after = mock_head.call_count + mock_get.call_count
+
+        # No additional calls should have been made
+        assert call_count_after == call_count_before
+
+    def test_cache_disabled_makes_requests(self, validator):
+        """Test that disabling cache makes fresh requests"""
+        from datetime import datetime, timedelta
+
+        job = {
+            "title": "VP Engineering",
+            "company": "No Cache Corp",
+            "link": "https://example.com/job",
+            "received_at": (datetime.now() - timedelta(days=30)).isoformat(),
+        }
+
+        with patch("requests.Session.head") as mock_head:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.url = job["link"]
+            mock_head.return_value = mock_response
+
+            # First call
+            validator.validate_for_digest(job, use_cache=True)
+            first_call_count = mock_head.call_count
+
+            # Second call with cache disabled
+            validator.validate_for_digest(job, use_cache=False)
+            second_call_count = mock_head.call_count
+
+            # Should make additional request
+            assert second_call_count > first_call_count
+
+    @patch("requests.Session.get")
+    @patch("requests.Session.head")
+    def test_stale_url_cached_and_returned(self, mock_head, mock_get, validator):
+        """Test that stale URLs are cached correctly"""
+        from datetime import datetime, timedelta
+
+        job = {
+            "title": "VP Engineering",
+            "company": "Stale Corp",
+            "link": "https://linkedin.com/jobs/view/stale123",
+            "received_at": (datetime.now() - timedelta(days=30)).isoformat(),
+        }
+
+        mock_head_response = Mock()
+        mock_head_response.status_code = 200
+        mock_head_response.url = job["link"]
+        mock_head.return_value = mock_head_response
+
+        mock_get_response = Mock()
+        mock_get_response.status_code = 200
+        mock_get_response.text = """
+        <html>
+            <body>
+                <div class="alert">No longer accepting applications</div>
+            </body>
+        </html>
+        """
+        mock_get.return_value = mock_get_response
+
+        # First call - should detect stale and cache
+        is_valid1, reason1 = validator.validate_for_digest(job, use_cache=True)
+        assert is_valid1 is False
+        assert "stale" in reason1
+
+        # Second call - should return cached stale result
+        is_valid2, reason2 = validator.validate_for_digest(job, use_cache=True)
+        assert is_valid2 is False
+        assert reason2 == reason1
+
+    def test_cache_clear(self, validator):
+        """Test that clear_cache() empties the cache"""
+        from datetime import datetime, timedelta
+
+        job = {
+            "title": "VP Engineering",
+            "company": "Clear Corp",
+            "link": "https://example.com/job",
+            "received_at": (datetime.now() - timedelta(days=30)).isoformat(),
+        }
+
+        with patch("requests.Session.head") as mock_head:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.url = job["link"]
+            mock_head.return_value = mock_response
+
+            # Validate to populate cache
+            validator.validate_for_digest(job, use_cache=True)
+
+            stats_before = validator.get_cache_stats()
+            assert stats_before["total_cached"] > 0
+
+            # Clear cache
+            validator.clear_cache()
+
+            stats_after = validator.get_cache_stats()
+            assert stats_after["total_cached"] == 0
+
+    def test_cache_stats(self, validator):
+        """Test cache statistics reporting"""
+        from datetime import datetime, timedelta
+
+        # Add valid job to cache
+        valid_job = {
+            "title": "VP Engineering",
+            "company": "Valid Corp",
+            "link": "https://example.com/valid",
+            "received_at": (datetime.now() - timedelta(days=30)).isoformat(),
+        }
+
+        with patch("requests.Session.head") as mock_head:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.url = valid_job["link"]
+            mock_head.return_value = mock_response
+
+            validator.validate_for_digest(valid_job, use_cache=True)
+
+            # Add invalid job to cache
+            invalid_job = {
+                "title": "Director Engineering",
+                "company": "Invalid Corp",
+                "link": "https://example.com/invalid",
+                "received_at": (datetime.now() - timedelta(days=30)).isoformat(),
+            }
+
+            mock_response.status_code = 404
+            validator.validate_for_digest(invalid_job, use_cache=True)
+
+            stats = validator.get_cache_stats()
+
+            assert stats["total_cached"] == 2
+            assert stats["valid_count"] == 1
+            assert stats["invalid_count"] == 1
+
+    # Integration Tests
+
+    def test_regression_issue_163_miovision_example(self, validator):
+        """Regression: Miovision stale job should be detected"""
+        from datetime import datetime, timedelta
+
+        job = {
+            "title": "Director of Engineering",
+            "company": "Miovision",
+            "link": "https://www.linkedin.com/jobs/view/4336860052",
+            "received_at": (datetime.now() - timedelta(days=30)).isoformat(),
+        }
+
+        with patch("requests.Session.get") as mock_get, patch("requests.Session.head") as mock_head:
+            mock_head_response = Mock()
+            mock_head_response.status_code = 200
+            mock_head_response.url = job["link"]
+            mock_head.return_value = mock_head_response
+
+            mock_get_response = Mock()
+            mock_get_response.status_code = 200
+            mock_get_response.text = """
+            <html>
+                <body>
+                    <div class="alert">No longer accepting applications</div>
+                </body>
+            </html>
+            """
+            mock_get.return_value = mock_get_response
+
+            is_valid, reason = validator.validate_for_digest(job)
+
+            assert is_valid is False
+            assert "stale" in reason
