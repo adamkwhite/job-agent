@@ -547,6 +547,30 @@ def send_digest_to_profile(
         f"  ✓ {len(valid_jobs)} verified jobs + {len(flagged_jobs)} flagged for review = {len(jobs)} total"
     )
 
+    # Filter for staleness (age + content check)
+    print("\n🗓️  Filtering stale jobs...")
+    fresh_jobs = []
+    stale_jobs = []
+
+    for job in jobs:
+        is_valid, stale_reason = validator.validate_for_digest(job, use_cache=True)
+        if is_valid:
+            fresh_jobs.append(job)
+        else:
+            stale_jobs.append((job, stale_reason))
+            # Update database with staleness reason
+            job_hash = job.get("job_hash")
+            if job_hash:
+                db.update_url_validation(job_hash, stale_reason or "stale")
+
+    if stale_jobs:
+        print(f"  ⛔ Filtered out {len(stale_jobs)} stale jobs:")
+        for job, reason in stale_jobs:
+            print(f"    - {job['company']} - {job['title'][:50]}... ({reason})")
+
+    jobs = fresh_jobs
+    print(f"  ✓ {len(jobs)} fresh jobs remaining")
+
     if len(jobs) == 0:
         print("\n⏸  No valid jobs to send after filtering")
         return False
