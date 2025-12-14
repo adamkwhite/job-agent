@@ -271,10 +271,11 @@ class TestProcessorV2HelperMethods:
         )
         processor.database.update_job_score = MagicMock()
 
-        score, grade = processor._score_and_update_job(123, job_dict, stats)
+        score, grade, breakdown = processor._score_and_update_job(123, job_dict, stats)
 
         assert score == 85
         assert grade == "A"
+        assert breakdown == {"seniority": 30, "domain": 30, "role_type": 25}
         assert stats["jobs_scored"] == 1
 
     def test_score_and_update_job_failure(self, processor):
@@ -285,10 +286,11 @@ class TestProcessorV2HelperMethods:
 
         processor.scorer.score_job = MagicMock(side_effect=Exception("Scoring failed"))
 
-        score, grade = processor._score_and_update_job(123, job_dict, stats)
+        score, grade, breakdown = processor._score_and_update_job(123, job_dict, stats)
 
         assert score is None
         assert grade is None
+        assert breakdown is None
         assert stats["jobs_scored"] == 0
         errors_list = stats["errors"]
         assert isinstance(errors_list, list)

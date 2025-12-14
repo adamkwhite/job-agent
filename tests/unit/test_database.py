@@ -133,6 +133,7 @@ class TestMarkJobFiltered:
         from src.database import JobDatabase
 
         db = JobDatabase()
+        db.run_migrations()  # Ensure migration #003 has run
 
         # Add a test job
         job_dict = {
@@ -173,6 +174,7 @@ class TestMarkJobFiltered:
         from src.database import JobDatabase
 
         db = JobDatabase()
+        db.run_migrations()  # Ensure migration #003 has run
 
         reasons = [
             "hard_filter_intern",
