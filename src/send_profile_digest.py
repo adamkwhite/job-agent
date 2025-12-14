@@ -554,24 +554,31 @@ def send_digest_to_profile(
     print("\n🗓️  Filtering stale jobs...")
     fresh_jobs = []
     stale_jobs = []
+    total = len(jobs)
 
-    for job in jobs:
+    for idx, job in enumerate(jobs, 1):
+        # Show progress
+        company = job.get("company", "Unknown")[:20]
+        title = job.get("title", "Unknown")[:30]
+        print(f"  [{idx}/{total}] {company} - {title}...", end="", flush=True)
+
         is_valid, stale_reason = validator.validate_for_digest(job, use_cache=True)
         if is_valid:
             fresh_jobs.append(job)
+            print(" ✓")
         else:
             stale_jobs.append((job, stale_reason))
+            print(f" ⛔ {stale_reason}")
             # Update database with staleness reason
             job_hash = job.get("job_hash")
             if job_hash:
                 db.update_url_validation(job_hash, stale_reason or "stale")
 
-    if stale_jobs:
-        print(f"  ⛔ Filtered out {len(stale_jobs)} stale jobs:")
-        for job, reason in stale_jobs:
-            print(f"    - {job['company']} - {job['title'][:50]}... ({reason})")
-
     jobs = fresh_jobs
+
+    # Summary
+    if stale_jobs:
+        print(f"\n  ⛔ Filtered {len(stale_jobs)} stale jobs")
     print(f"  ✓ {len(jobs)} fresh jobs remaining")
 
     if len(jobs) == 0:
