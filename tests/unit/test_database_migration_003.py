@@ -511,3 +511,23 @@ class TestMigration003FilterTracking:
         # Query plan should mention the index
         query_plan_str = " ".join([str(row) for row in query_plan])
         assert "idx_jobs_filter_reason" in query_plan_str or "USING INDEX" in query_plan_str
+
+    def test_migration_failure_handling(self, temp_db):
+        """Test that migration handles database errors gracefully"""
+        # Create database but don't initialize schema (will cause error)
+        db_path = temp_db
+
+        # Create a corrupt database by writing invalid data
+        with open(db_path, "w") as f:
+            f.write("not a valid database")
+
+        # Migration should fail gracefully
+        success = migration.migrate(db_path=db_path)
+        assert success is False
+
+    def test_rollback_function(self):
+        """Test that rollback function executes without errors"""
+        # Rollback doesn't actually do anything (SQLite limitation)
+        # but we need to test it runs successfully
+        success = migration.rollback()
+        assert success is True
