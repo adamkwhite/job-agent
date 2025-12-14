@@ -121,3 +121,89 @@ class TestJobDeduplication:
         # All should produce the same hash
         for i in range(1, len(hashes)):
             assert hashes[0] == hashes[i], f"URL variation {i} produced different hash"
+
+
+class TestMarkJobFiltered:
+    """Test mark_job_filtered method for filter pipeline integration"""
+
+    def test_mark_job_filtered_updates_fields(self):
+        """Should update filter_reason and filtered_at fields"""
+        import sqlite3
+
+        from src.database import JobDatabase
+
+        db = JobDatabase()
+
+        # Add a test job
+        job_dict = {
+            "source": "test",
+            "type": "direct_job",
+            "company": "Test Company",
+            "title": "Junior Director",
+            "location": "Remote",
+            "link": "https://test.com/job",
+            "keywords_matched": "[]",
+            "source_email": "",
+        }
+
+        job_id = db.add_job(job_dict)
+        assert job_id is not None
+
+        # Mark as filtered
+        db.mark_job_filtered(job_id, "hard_filter_junior")
+
+        # Verify fields were updated
+        conn = sqlite3.connect(db.db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT filter_reason, filtered_at FROM jobs WHERE id = ?", (job_id,))
+        result = cursor.fetchone()
+        conn.close()
+
+        assert result is not None
+        filter_reason, filtered_at = result
+        assert filter_reason == "hard_filter_junior"
+        assert filtered_at is not None
+        # Verify it's a valid ISO timestamp
+        from datetime import datetime
+
+        datetime.fromisoformat(filtered_at)  # Should not raise
+
+    def test_mark_job_filtered_different_reasons(self):
+        """Should handle different filter reasons"""
+        from src.database import JobDatabase
+
+        db = JobDatabase()
+
+        reasons = [
+            "hard_filter_intern",
+            "context_filter_software_engineering",
+            "context_filter_contract_low_seniority",
+        ]
+
+        for reason in reasons:
+            job_dict = {
+                "source": "test",
+                "type": "direct_job",
+                "company": "Test",
+                "title": f"Job {reason}",
+                "location": "Remote",
+                "link": f"https://test.com/{reason}",
+                "keywords_matched": "[]",
+                "source_email": "",
+            }
+
+            job_id = db.add_job(job_dict)
+            assert job_id is not None
+
+            db.mark_job_filtered(job_id, reason)
+
+            # Verify reason was stored
+            import sqlite3
+
+            conn = sqlite3.connect(db.db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT filter_reason FROM jobs WHERE id = ?", (job_id,))
+            result = cursor.fetchone()
+            conn.close()
+
+            assert result[0] == reason
