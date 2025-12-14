@@ -8,6 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Filter Pipeline Integration** (Dec 13, 2025 - Issues #161, #162, PR #167)
+  - Integrated 3-stage filtering into company_scraper.py and processor_v2.py
+  - Hard filters applied before scoring (junior/intern titles, excluded keywords)
+  - Context filters applied after scoring (low seniority + contract, etc.)
+  - Filtered jobs stored in database with `filter_reason` and `filtered_at` for audit
+  - New stats tracking: `jobs_hard_filtered` and `jobs_context_filtered`
+  - Database method `mark_job_filtered()` for tracking filtered jobs
+  - Stale job filtering in digest generation using `JobValidator.validate_for_digest()`
+  - Age-based filtering (jobs >60 days automatically excluded)
+  - LinkedIn content-based filtering ("no longer accepting applications")
+  - URL validation caching for performance
+  - `--max-age-days` flag added to `send_profile_digest.py` (default: 7 days)
+  - Progress indicators during URL validation and age checking phases
+  - Test coverage: 9 new tests across company_scraper, processor_v2, database
+- **Progress Indicators for Digest Validation** (Dec 13, 2025 - PR #169)
+  - Real-time progress during stale job filtering phase
+  - Shows `[N/total] Company - Job Title...` with ✓/⛔ status
+  - Matches URL validation phase style for consistency
+  - Provides user feedback during long-running validations
+
+### Added
 - **Firecrawl Integration for Robotics Career Pages** (Nov 29-30, 2025 - Issues #65-#69, PR #71)
   - Semi-automated workflow to scrape 10 priority robotics companies' generic career pages
   - Companies: Boston Dynamics, Figure, Sanctuary AI, Agility Robotics, 1X Technologies, Skydio, Skild AI, Dexterity, Covariant, Nuro
