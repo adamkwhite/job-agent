@@ -262,8 +262,8 @@ class WeeklyUnifiedScraper:
             """
 
             # Get email credentials
-            gmail_user = os.getenv("ADAM_GMAIL_USERNAME")
-            gmail_password = os.getenv("ADAM_GMAIL_APP_PASSWORD")
+            gmail_user = os.getenv("ADAMWHITE_GMAIL_USERNAME")
+            gmail_password = os.getenv("ADAMWHITE_GMAIL_APP_PASSWORD")
 
             if not gmail_user or not gmail_password:
                 print("  ⚠ Email credentials not found - skipping email notification")
