@@ -33,6 +33,9 @@ def temp_db():
             notes TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
+            consecutive_failures INTEGER DEFAULT 0,
+            last_failure_reason TEXT,
+            auto_disabled_at TEXT,
             UNIQUE(name, careers_url)
         )
     """)
@@ -263,3 +266,240 @@ def test_add_companies_batch_within_batch_deduplication(temp_db):
     # First Figure AI added, second skipped, Bright Machines added
     assert result["added"] == 2
     assert result["skipped_duplicates"] == 1
+
+
+# ===== Auto-Disable Failure Tracking Tests =====
+
+
+def test_increment_company_failures_first_failure(temp_db):
+    """Test incrementing failures from 0 to 1"""
+    result = temp_db.add_company("Test Co", "https://test.com/careers")
+    company_id = result["company"]["id"]
+
+    # Increment failures
+    new_count = temp_db.increment_company_failures(company_id, "0 jobs found")
+
+    assert new_count == 1
+
+    # Verify in database
+    company = temp_db.get_company(company_id)
+    assert company["consecutive_failures"] == 1
+    assert company["last_failure_reason"] == "0 jobs found"
+
+
+def test_increment_company_failures_multiple_times(temp_db):
+    """Test incrementing failures multiple times (simulating 5 consecutive failures)"""
+    result = temp_db.add_company("Failing Co", "https://failing.com/careers")
+    company_id = result["company"]["id"]
+
+    # Simulate 5 consecutive failures
+    count1 = temp_db.increment_company_failures(company_id, "timeout")
+    assert count1 == 1
+
+    count2 = temp_db.increment_company_failures(company_id, "404 not found")
+    assert count2 == 2
+
+    count3 = temp_db.increment_company_failures(company_id, "0 jobs found")
+    assert count3 == 3
+
+    count4 = temp_db.increment_company_failures(company_id, "parse error")
+    assert count4 == 4
+
+    count5 = temp_db.increment_company_failures(company_id, "0 jobs found")
+    assert count5 == 5
+
+    # Verify final state
+    company = temp_db.get_company(company_id)
+    assert company["consecutive_failures"] == 5
+    assert company["last_failure_reason"] == "0 jobs found"  # Most recent reason
+
+
+def test_reset_company_failures_after_success(temp_db):
+    """Test resetting failure counter after successful scrape"""
+    result = temp_db.add_company("Recovery Co", "https://recovery.com/careers")
+    company_id = result["company"]["id"]
+
+    # Increment to 3 failures
+    temp_db.increment_company_failures(company_id, "timeout")
+    temp_db.increment_company_failures(company_id, "0 jobs")
+    temp_db.increment_company_failures(company_id, "parse error")
+
+    # Verify failures incremented
+    company = temp_db.get_company(company_id)
+    assert company["consecutive_failures"] == 3
+    assert company["last_failure_reason"] is not None
+
+    # Reset after successful scrape
+    temp_db.reset_company_failures(company_id)
+
+    # Verify reset
+    company = temp_db.get_company(company_id)
+    assert company["consecutive_failures"] == 0
+    assert company["last_failure_reason"] is None
+
+
+def test_reset_company_failures_zero_to_zero(temp_db):
+    """Test resetting failures when already at 0 (edge case)"""
+    result = temp_db.add_company("Never Failed Co", "https://neverfailed.com/careers")
+    company_id = result["company"]["id"]
+
+    # Reset when already at 0
+    temp_db.reset_company_failures(company_id)
+
+    # Should still be 0
+    company = temp_db.get_company(company_id)
+    assert company["consecutive_failures"] == 0
+    assert company["last_failure_reason"] is None
+
+
+def test_disable_company_sets_inactive_and_timestamp(temp_db):
+    """Test that disable_company sets active=0 and records auto_disabled_at"""
+    result = temp_db.add_company("Disabled Co", "https://disabled.com/careers")
+    company_id = result["company"]["id"]
+
+    # Verify starts active
+    company = temp_db.get_company(company_id)
+    assert company["active"] == 1
+    assert company["auto_disabled_at"] is None
+
+    # Disable company
+    temp_db.disable_company(company_id)
+
+    # Verify disabled
+    company = temp_db.get_company(company_id)
+    assert company["active"] == 0
+    assert company["auto_disabled_at"] is not None
+    assert company["last_failure_reason"] == "auto_disabled_5_failures"
+
+
+def test_disable_company_custom_reason(temp_db):
+    """Test disabling company with custom reason"""
+    result = temp_db.add_company("Manual Disabled Co", "https://manual.com/careers")
+    company_id = result["company"]["id"]
+
+    # Disable with custom reason
+    temp_db.disable_company(company_id, reason="manually_disabled_by_admin")
+
+    # Verify custom reason stored
+    company = temp_db.get_company(company_id)
+    assert company["active"] == 0
+    assert company["last_failure_reason"] == "manually_disabled_by_admin"
+
+
+def test_get_auto_disabled_companies_empty(temp_db):
+    """Test get_auto_disabled_companies returns empty list when none disabled"""
+    # Add active companies
+    temp_db.add_company("Active 1", "https://active1.com/careers")
+    temp_db.add_company("Active 2", "https://active2.com/careers")
+
+    disabled = temp_db.get_auto_disabled_companies()
+
+    assert len(disabled) == 0
+
+
+def test_get_auto_disabled_companies_returns_disabled(temp_db):
+    """Test get_auto_disabled_companies returns only auto-disabled companies"""
+    # Add companies
+    result1 = temp_db.add_company("Disabled 1", "https://disabled1.com/careers")
+    temp_db.add_company("Active", "https://active.com/careers")
+    result3 = temp_db.add_company("Disabled 2", "https://disabled2.com/careers")
+
+    # Disable 2 companies
+    temp_db.disable_company(result1["company"]["id"])
+    temp_db.disable_company(result3["company"]["id"])
+
+    # Get auto-disabled list
+    disabled = temp_db.get_auto_disabled_companies()
+
+    assert len(disabled) == 2
+    assert disabled[0]["name"] in ["Disabled 1", "Disabled 2"]
+    assert disabled[1]["name"] in ["Disabled 1", "Disabled 2"]
+    assert all(company["auto_disabled_at"] is not None for company in disabled)
+
+
+def test_get_auto_disabled_companies_ordered_by_date(temp_db):
+    """Test that auto-disabled companies are ordered by auto_disabled_at DESC"""
+    import time
+
+    # Add and disable multiple companies with delay
+    result1 = temp_db.add_company("First Disabled", "https://first.com/careers")
+    temp_db.disable_company(result1["company"]["id"])
+
+    time.sleep(0.1)  # Small delay to ensure different timestamps
+
+    result2 = temp_db.add_company("Second Disabled", "https://second.com/careers")
+    temp_db.disable_company(result2["company"]["id"])
+
+    # Get auto-disabled list (should be ordered newest first)
+    disabled = temp_db.get_auto_disabled_companies()
+
+    assert len(disabled) == 2
+    # Most recently disabled should be first
+    assert disabled[0]["name"] == "Second Disabled"
+    assert disabled[1]["name"] == "First Disabled"
+
+
+def test_full_failure_to_disable_workflow(temp_db):
+    """Integration test: Full workflow from 0 failures → 5 failures → auto-disable"""
+    result = temp_db.add_company("Workflow Co", "https://workflow.com/careers")
+    company_id = result["company"]["id"]
+
+    # Verify starts at 0 failures, active
+    company = temp_db.get_company(company_id)
+    assert company["consecutive_failures"] == 0
+    assert company["active"] == 1
+    assert company["auto_disabled_at"] is None
+
+    # Simulate 4 failures (not yet disabled)
+    for i in range(4):
+        count = temp_db.increment_company_failures(company_id, f"failure_{i + 1}")
+        assert count == i + 1
+
+    company = temp_db.get_company(company_id)
+    assert company["consecutive_failures"] == 4
+    assert company["active"] == 1  # Still active
+
+    # 5th failure triggers auto-disable
+    count = temp_db.increment_company_failures(company_id, "failure_5")
+    assert count == 5
+
+    # Manually disable (simulating scraper auto-disable logic)
+    temp_db.disable_company(company_id)
+
+    # Verify final state
+    company = temp_db.get_company(company_id)
+    assert company["consecutive_failures"] == 5
+    assert company["active"] == 0  # Now disabled
+    assert company["auto_disabled_at"] is not None
+
+    # Verify appears in auto-disabled list
+    disabled = temp_db.get_auto_disabled_companies()
+    assert len(disabled) == 1
+    assert disabled[0]["name"] == "Workflow Co"
+
+
+def test_failure_then_success_then_failure_workflow(temp_db):
+    """Integration test: Failures → Success (reset) → Failures again"""
+    result = temp_db.add_company("Flaky Co", "https://flaky.com/careers")
+    company_id = result["company"]["id"]
+
+    # 2 failures
+    temp_db.increment_company_failures(company_id, "timeout")
+    temp_db.increment_company_failures(company_id, "parse error")
+
+    company = temp_db.get_company(company_id)
+    assert company["consecutive_failures"] == 2
+
+    # Success - reset counter
+    temp_db.reset_company_failures(company_id)
+
+    company = temp_db.get_company(company_id)
+    assert company["consecutive_failures"] == 0
+    assert company["last_failure_reason"] is None
+
+    # New failures start from 0 again
+    temp_db.increment_company_failures(company_id, "new failure")
+
+    company = temp_db.get_company(company_id)
+    assert company["consecutive_failures"] == 1
+    assert company["last_failure_reason"] == "new failure"

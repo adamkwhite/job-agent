@@ -270,6 +270,122 @@ class CompanyService:
 
         return bool(new_status)
 
+    def increment_company_failures(self, company_id: int, failure_reason: str) -> int:
+        """
+        Increment consecutive_failures counter and store failure reason
+
+        Args:
+            company_id: Company ID to update
+            failure_reason: Description of why scraping failed (e.g., "0 jobs found", "timeout", "404")
+
+        Returns:
+            New consecutive_failures count after increment
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        now = datetime.now().isoformat()
+
+        cursor.execute(
+            """
+            UPDATE companies
+            SET consecutive_failures = consecutive_failures + 1,
+                last_failure_reason = ?,
+                updated_at = ?
+            WHERE id = ?
+        """,
+            (failure_reason, now, company_id),
+        )
+
+        # Get the new count
+        cursor.execute("SELECT consecutive_failures FROM companies WHERE id = ?", (company_id,))
+        row = cursor.fetchone()
+        new_count = row[0] if row else 0
+
+        conn.commit()
+        conn.close()
+
+        return new_count
+
+    def reset_company_failures(self, company_id: int) -> None:
+        """
+        Reset consecutive_failures counter to 0 after successful scrape
+
+        Args:
+            company_id: Company ID to reset
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        now = datetime.now().isoformat()
+
+        cursor.execute(
+            """
+            UPDATE companies
+            SET consecutive_failures = 0,
+                last_failure_reason = NULL,
+                updated_at = ?
+            WHERE id = ?
+        """,
+            (now, company_id),
+        )
+
+        conn.commit()
+        conn.close()
+
+    def disable_company(self, company_id: int, reason: str = "auto_disabled_5_failures") -> None:
+        """
+        Disable a company (set active = 0) and record auto-disable timestamp
+
+        Args:
+            company_id: Company ID to disable
+            reason: Reason for disabling (default: auto-disabled after 5 failures)
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        now = datetime.now().isoformat()
+
+        cursor.execute(
+            """
+            UPDATE companies
+            SET active = 0,
+                auto_disabled_at = ?,
+                last_failure_reason = ?,
+                updated_at = ?
+            WHERE id = ?
+        """,
+            (now, reason, now, company_id),
+        )
+
+        conn.commit()
+        conn.close()
+
+    def get_auto_disabled_companies(self) -> list[dict]:
+        """
+        Get all companies that were auto-disabled (have auto_disabled_at timestamp)
+
+        Returns:
+            List of company dictionaries with auto-disable details
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT *
+            FROM companies
+            WHERE auto_disabled_at IS NOT NULL
+            ORDER BY auto_disabled_at DESC
+        """
+        )
+
+        companies = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+
+        return companies
+
 
 if __name__ == "__main__":
     # Test the service
