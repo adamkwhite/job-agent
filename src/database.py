@@ -193,6 +193,25 @@ class JobDatabase:
         conn.close()
         return count > 0
 
+    def get_job_id_by_hash(self, job_hash: str) -> int | None:
+        """
+        Get job ID by hash (for scoring duplicates across profiles)
+
+        Args:
+            job_hash: Hash of the job
+
+        Returns:
+            Job ID if found, None otherwise
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id FROM jobs WHERE job_hash = ?", (job_hash,))
+        result = cursor.fetchone()
+
+        conn.close()
+        return result[0] if result else None
+
     def add_job(self, job_data: dict) -> int | None:
         """
         Add job to database if it doesn't already exist

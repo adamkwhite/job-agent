@@ -1,5 +1,5 @@
 """
-Company Monitoring Scraper
+Company Monitoring Scraper - Refactored Version
 Scrapes monitored companies' career pages for leadership roles
 Integrates with unified weekly scraper
 """
@@ -190,60 +190,30 @@ class CompanyScraper:
         Returns:
             Stats dictionary
         """
-        stats: dict[str, Any] = {
-            "jobs_processed": 0,
-            "leadership_jobs": 0,
-            "jobs_hard_filtered": 0,
-            "jobs_context_filtered": 0,
-            "jobs_above_threshold": 0,
-            "jobs_stored": 0,
-            "notifications_sent": 0,
-            "duplicates_skipped": 0,
-        }
-
+        stats = self._init_job_stats()
         print(f"\nProcessing {len(jobs)} jobs from {company_name}")
 
         for job, extraction_method in jobs:
             stats["jobs_processed"] += 1
 
-            # Check if leadership role
+            # Filter non-leadership roles
             if not self.job_filter.is_leadership_role(job.title or ""):
                 continue
 
             stats["leadership_jobs"] += 1
 
             # Prepare job dictionary
-            job_dict = {
-                "title": job.title or "",
-                "company": job.company or "",
-                "location": job.location or "",
-                "link": job.link or "",
-            }
+            job_dict = self._prepare_job_dict(job)
 
             # Stage 1: Hard filters (before scoring)
             if self.filter_pipeline:
                 should_score, filter_reason = self.filter_pipeline.apply_hard_filters(job_dict)
                 if not should_score:
-                    stats["jobs_hard_filtered"] += 1
-                    print(f"  ⊘ Hard filtered: {job.title}")
-                    print(f"    Reason: {filter_reason}")
-                    # Store filtered job in database
-                    job_dict.update(
-                        {
-                            "source": "company_monitoring",
-                            "type": "direct_job",
-                            "received_at": job.received_at,
-                            "filter_reason": filter_reason,
-                            "filtered_at": datetime.now().isoformat(),
-                            "keywords_matched": json.dumps([]),
-                            "source_email": "",
-                        }
-                    )
-                    self.database.add_job(job_dict)
+                    self._handle_hard_filtered_job(job, job_dict, filter_reason, stats)
                     continue
 
             # Stage 2: Scoring
-            score, grade, breakdown, _classification_metadata = self.scorer.score_job(job_dict)
+            score, grade, breakdown, classification_metadata = self.scorer.score_job(job_dict)
 
             # Stage 3: Context filters (after scoring)
             if self.filter_pipeline:
@@ -251,29 +221,19 @@ class CompanyScraper:
                     job_dict, score, breakdown
                 )
                 if not should_keep:
-                    stats["jobs_context_filtered"] += 1
-                    print(f"  ⊘ Context filtered: {job.title}")
-                    print(f"    Reason: {filter_reason}")
-                    # Store with score but mark as filtered
-                    job_dict.update(
-                        {
-                            "source": "company_monitoring",
-                            "type": "direct_job",
-                            "received_at": job.received_at,
-                            "fit_score": score,
-                            "fit_grade": grade,
-                            "score_breakdown": json.dumps(breakdown),
-                            "filter_reason": filter_reason,
-                            "filtered_at": datetime.now().isoformat(),
-                            "keywords_matched": json.dumps([]),
-                            "source_email": "",
-                        }
+                    self._handle_context_filtered_job(
+                        job,
+                        job_dict,
+                        score,
+                        grade,
+                        breakdown,
+                        classification_metadata,
+                        filter_reason,
+                        stats,
                     )
-                    job_id = self.database.add_job(job_dict)
-                    if job_id:
-                        self.database.update_job_score(job_id, score, grade, json.dumps(breakdown))
                     continue
 
+            # Check minimum score threshold
             if score < min_score:
                 print(f"  ⊘ Skipped (below threshold): {job.title}")
                 print(f"    Score: {grade} ({score}/115) - Min: {min_score}")
@@ -292,7 +252,7 @@ class CompanyScraper:
                     "score_breakdown": json.dumps(breakdown),
                     "keywords_matched": json.dumps([]),
                     "source_email": "",
-                    "extraction_method": extraction_method,  # Store extraction method
+                    "extraction_method": extraction_method,
                 }
             )
 
@@ -300,57 +260,266 @@ class CompanyScraper:
             job_id = self.database.add_job(job_dict)
 
             if job_id:
-                stats["jobs_stored"] += 1
-
-                # Update score
-                self.database.update_job_score(job_id, score, grade, json.dumps(breakdown))
-
-                # Format breakdown for display
-                breakdown_str = f"Seniority={breakdown.get('seniority', 0)}, Domain={breakdown.get('domain', 0)}, Role={breakdown.get('role_type', 0)}"
-
-                method_label = "🤖 LLM" if extraction_method == "llm" else "📝 Regex"
-                print(f"\n✓ New Job Stored [{method_label}]:")
-                print(f"  Title: {job.title}")
-                print(f"  Company: {job.company}")
-                print(f"  Location: {job.location or 'N/A'}")
-                print(f"  Link: {job.link}")
-                print(f"  ✓ Scored: {grade} ({score}/115)")
-                print(f"    Breakdown: {breakdown_str}")
-
-                # Multi-profile scoring
-                try:
-                    from agents.multi_profile_scorer import get_multi_scorer
-
-                    multi_scorer = get_multi_scorer()
-                    profile_scores = multi_scorer.score_job_for_all(job_dict, job_id)
-                    print("  ✓ Multi-profile scores:")
-                    for pid, (s, g) in profile_scores.items():
-                        print(f"    {pid}: {s}/{g}")
-                except Exception as mp_error:
-                    print(f"  ⚠ Multi-profile scoring failed: {mp_error}")
-
-                # Send notification if above threshold
-                if score >= notify_threshold:
-                    try:
-                        notification_job = job_dict.copy()
-                        notification_job["title"] = f"[{grade} {score}] {job.title}"
-
-                        notification_results = self.notifier.notify_job(notification_job)
-
-                        if notification_results.get("email") or notification_results.get("sms"):
-                            stats["notifications_sent"] += 1
-                            self.database.mark_notified(job_id)
-                            print("  ✓ Notification sent")
-
-                    except Exception as e:
-                        print(f"  ✗ Notification failed: {e}")
-                else:
-                    print(f"  ⊘ Notification skipped: Low score ({grade} {score}/115)")
+                # New job
+                self._handle_new_job(
+                    job,
+                    job_dict,
+                    job_id,
+                    score,
+                    grade,
+                    breakdown,
+                    extraction_method,
+                    notify_threshold,
+                    stats,
+                )
             else:
-                stats["duplicates_skipped"] += 1
-                print(f"\n- Duplicate: {job.title} at {job.company}")
+                # Duplicate job
+                self._handle_duplicate_job(
+                    job, job_dict, score, grade, breakdown, classification_metadata, stats
+                )
 
         return stats
+
+    # ==================== Extracted Helper Methods ====================
+
+    def _init_job_stats(self) -> dict[str, Any]:
+        """Initialize job processing statistics dictionary"""
+        return {
+            "jobs_processed": 0,
+            "leadership_jobs": 0,
+            "jobs_hard_filtered": 0,
+            "jobs_context_filtered": 0,
+            "jobs_above_threshold": 0,
+            "jobs_stored": 0,
+            "notifications_sent": 0,
+            "duplicates_skipped": 0,
+        }
+
+    def _prepare_job_dict(self, job: OpportunityData) -> dict[str, str]:
+        """Convert OpportunityData to dictionary for processing"""
+        return {
+            "title": job.title or "",
+            "company": job.company or "",
+            "location": job.location or "",
+            "link": job.link or "",
+        }
+
+    def _handle_hard_filtered_job(
+        self, job: OpportunityData, job_dict: dict, filter_reason: str, stats: dict
+    ) -> None:
+        """Handle job that failed hard filters"""
+        stats["jobs_hard_filtered"] += 1
+        print(f"  ⊘ Hard filtered: {job.title}")
+        print(f"    Reason: {filter_reason}")
+
+        # Store filtered job in database
+        job_dict.update(
+            {
+                "source": "company_monitoring",
+                "type": "direct_job",
+                "received_at": job.received_at,
+                "filter_reason": filter_reason,
+                "filtered_at": datetime.now().isoformat(),
+                "keywords_matched": json.dumps([]),
+                "source_email": "",
+            }
+        )
+        self.database.add_job(job_dict)
+
+    def _handle_context_filtered_job(
+        self,
+        job: OpportunityData,
+        job_dict: dict,
+        score: int,
+        grade: str,
+        breakdown: dict,
+        classification_metadata: dict,
+        filter_reason: str,
+        stats: dict,
+    ) -> None:
+        """Handle job that failed context filters"""
+        stats["jobs_context_filtered"] += 1
+        print(f"  ⊘ Context filtered: {job.title}")
+        print(f"    Reason: {filter_reason}")
+
+        # Store with score but mark as filtered
+        job_dict.update(
+            {
+                "source": "company_monitoring",
+                "type": "direct_job",
+                "received_at": job.received_at,
+                "fit_score": score,
+                "fit_grade": grade,
+                "score_breakdown": json.dumps(breakdown),
+                "filter_reason": filter_reason,
+                "filtered_at": datetime.now().isoformat(),
+                "keywords_matched": json.dumps([]),
+                "source_email": "",
+            }
+        )
+
+        job_id = self.database.add_job(job_dict)
+        if job_id:
+            self.database.update_job_score(job_id, score, grade, json.dumps(breakdown))
+        else:
+            # Duplicate filtered job - still score for current profile
+            self._score_duplicate_for_profile(
+                job_dict, score, grade, breakdown, classification_metadata
+            )
+
+    def _score_duplicate_for_profile(
+        self,
+        job_dict: dict,
+        score: int,
+        grade: str,
+        breakdown: dict,
+        classification_metadata: dict | None,
+    ) -> int | None:
+        """
+        Score a duplicate job for the current profile
+
+        Returns:
+            Job ID if found, None otherwise
+        """
+        job_hash = self.database.generate_job_hash(
+            job_dict["title"], job_dict["company"], job_dict["link"]
+        )
+        existing_job_id = self.database.get_job_id_by_hash(job_hash)
+
+        if existing_job_id:
+            self.database.upsert_job_score(
+                job_id=existing_job_id,
+                profile_id=self.profile,
+                score=score,
+                grade=grade,
+                breakdown=json.dumps(breakdown),
+                classification_metadata=json.dumps(classification_metadata)
+                if classification_metadata
+                else None,
+            )
+
+        return existing_job_id
+
+    def _handle_new_job(
+        self,
+        job: OpportunityData,
+        job_dict: dict,
+        job_id: int,
+        score: int,
+        grade: str,
+        breakdown: dict,
+        extraction_method: str,
+        notify_threshold: int,
+        stats: dict,
+    ) -> None:
+        """Handle storage and processing of a new job"""
+        stats["jobs_stored"] += 1
+
+        # Update score
+        self.database.update_job_score(job_id, score, grade, json.dumps(breakdown))
+
+        # Display job information
+        self._display_new_job_info(job, score, grade, breakdown, extraction_method)
+
+        # Multi-profile scoring
+        self._run_multi_profile_scoring(job_dict, job_id)
+
+        # Send notification if above threshold
+        self._send_notification_if_needed(
+            job, job_dict, job_id, score, grade, notify_threshold, stats
+        )
+
+    def _display_new_job_info(
+        self, job: OpportunityData, score: int, grade: str, breakdown: dict, extraction_method: str
+    ) -> None:
+        """Display information about a newly stored job"""
+        breakdown_str = f"Seniority={breakdown.get('seniority', 0)}, Domain={breakdown.get('domain', 0)}, Role={breakdown.get('role_type', 0)}"
+        method_label = "🤖 LLM" if extraction_method == "llm" else "📝 Regex"
+
+        print(f"\n✓ New Job Stored [{method_label}]:")
+        print(f"  Title: {job.title}")
+        print(f"  Company: {job.company}")
+        print(f"  Location: {job.location or 'N/A'}")
+        print(f"  Link: {job.link}")
+        print(f"  ✓ Scored: {grade} ({score}/115)")
+        print(f"    Breakdown: {breakdown_str}")
+
+    def _run_multi_profile_scoring(self, job_dict: dict, job_id: int) -> None:
+        """Run multi-profile scoring for a job"""
+        try:
+            from utils.multi_scorer import get_multi_scorer
+
+            multi_scorer = get_multi_scorer()
+            profile_scores = multi_scorer.score_job_for_all(job_dict, job_id)
+            print("  ✓ Multi-profile scores:")
+            for pid, (s, g) in profile_scores.items():
+                print(f"    {pid}: {s}/{g}")
+        except Exception as mp_error:
+            print(f"  ⚠ Multi-profile scoring failed: {mp_error}")
+
+    def _send_notification_if_needed(
+        self,
+        job: OpportunityData,
+        job_dict: dict,
+        job_id: int,
+        score: int,
+        grade: str,
+        notify_threshold: int,
+        stats: dict,
+    ) -> None:
+        """Send notification if job score meets threshold"""
+        if score >= notify_threshold:
+            try:
+                notification_job = job_dict.copy()
+                notification_job["title"] = f"[{grade} {score}] {job.title}"
+
+                notification_results = self.notifier.notify_job(notification_job)
+
+                if notification_results.get("email") or notification_results.get("sms"):
+                    stats["notifications_sent"] += 1
+                    self.database.mark_notified(job_id)
+                    print("  ✓ Notification sent")
+
+            except Exception as e:
+                print(f"  ✗ Notification failed: {e}")
+        else:
+            print(f"  ⊘ Notification skipped: Low score ({grade} {score}/115)")
+
+    def _handle_duplicate_job(
+        self,
+        job: OpportunityData,
+        job_dict: dict,
+        score: int,
+        grade: str,
+        breakdown: dict,
+        classification_metadata: dict,
+        stats: dict,
+    ) -> None:
+        """Handle processing of a duplicate job"""
+        stats["duplicates_skipped"] += 1
+        print(f"\n- Duplicate: {job.title} at {job.company}")
+
+        # Score duplicate for current profile
+        existing_job_id = self._score_duplicate_for_profile(
+            job_dict, score, grade, breakdown, classification_metadata
+        )
+
+        if existing_job_id:
+            print(f"  ✓ Scored for {self.profile}: {grade} ({score}/115)")
+
+            # Also try multi-profile scoring for duplicates
+            try:
+                from utils.multi_scorer import get_multi_scorer
+
+                multi_scorer = get_multi_scorer()
+                profile_scores = multi_scorer.score_job_for_all(job_dict, existing_job_id)
+                if profile_scores:
+                    print("  ✓ Multi-profile scores:")
+                    for pid, (s, g) in profile_scores.items():
+                        if pid != self.profile:  # Don't repeat current profile
+                            print(f"    {pid}: {s}/{g}")
+            except Exception:
+                pass  # Multi-profile scoring is optional
 
 
 def main():
