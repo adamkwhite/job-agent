@@ -83,7 +83,12 @@ def _generate_job_table_rows(
         validation_warning = ""
         if job.get("needs_review") or job.get("validation_reason"):
             reason = job.get("validation_reason", "unverified")
-            validation_warning = f' <span style="color: #e67e22; font-size: 11px; background: #fef5e7; padding: 2px 6px; border-radius: 3px;" title="{reason}">⚠️ Couldn\'t verify freshness</span>'
+
+            # Different messages for LinkedIn vs other validation issues
+            if reason in ["linkedin_unverifiable", "linkedin"]:
+                validation_warning = f' <span style="color: #3498db; font-size: 11px; background: #ebf5fb; padding: 2px 6px; border-radius: 3px;" title="{reason}">🔒 Requires login to verify</span>'
+            else:
+                validation_warning = f' <span style="color: #e67e22; font-size: 11px; background: #fef5e7; padding: 2px 6px; border-radius: 3px;" title="{reason}">⚠️ Couldn\'t verify freshness</span>'
 
         rows += f"""
                 <tr>
