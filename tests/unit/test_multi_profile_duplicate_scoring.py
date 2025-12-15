@@ -51,6 +51,14 @@ class TestMultiProfileDuplicateScoring:
         # Cleanup
         Path(db_path).unlink(missing_ok=True)
 
+    @pytest.fixture(autouse=True)
+    def mock_firecrawl_scraper(self, mocker):
+        """Mock FirecrawlCareerScraper to avoid needing FIRECRAWL_API_KEY in tests"""
+        # Mock the FirecrawlCareerScraper initialization to avoid API key requirement
+        mocker.patch("jobs.company_scraper.FirecrawlCareerScraper.__init__", return_value=None)
+        # Mock the scrape_jobs method to return empty list (not used in these unit tests)
+        mocker.patch("jobs.company_scraper.FirecrawlCareerScraper.scrape_jobs", return_value=[])
+
     def test_duplicate_job_scored_for_second_profile(self, temp_db, mocker):
         """Test that when a job is a duplicate, it still gets scored for the current profile"""
         # Setup: Create a job as Wes
