@@ -30,6 +30,7 @@ from parsers.parser_registry import ParserRegistry
 from parsers.recruiter_wrapper import RecruiterParser
 from parsers.supra_parser import SupraParser
 from parsers.workintech_wrapper import WorkInTechParser
+from utils.job_validator import JobValidator
 from utils.multi_scorer import get_multi_scorer
 from utils.profile_manager import get_profile_manager
 
@@ -130,6 +131,10 @@ class JobProcessorV2:
             "jobs_passed_filter": 0,
             "jobs_hard_filtered": 0,
             "jobs_context_filtered": 0,
+            "jobs_validated": 0,
+            "jobs_valid": 0,
+            "jobs_flagged": 0,
+            "jobs_invalid": 0,
             "jobs_stored": 0,
             "jobs_scored": 0,
             "notifications_sent": 0,
@@ -161,8 +166,11 @@ class JobProcessorV2:
             # Step 2: Enrich and filter
             included_opps = self._enrich_and_filter_opportunities(parse_result, stats)
 
+            # Step 2.5: Validate job URLs
+            valid_jobs = self._validate_job_urls(included_opps, stats)
+
             # Step 3: Process each job
-            for job_dict in included_opps:
+            for job_dict in valid_jobs:
                 self._store_and_process_job(job_dict, stats)
 
             self._increment_stat(stats, "emails_processed")
@@ -203,6 +211,58 @@ class JobProcessorV2:
         print(f"  ✗ Excluded: {len(excluded_opps)}")
 
         return included_opps
+
+    def _validate_job_urls(self, jobs: list[dict], stats: dict[str, int | list[str]]) -> list[dict]:
+        """
+        Validate job URLs to filter out stale/invalid jobs before storing.
+
+        Args:
+            jobs: List of job dictionaries after keyword filtering
+            stats: Statistics dictionary to update
+
+        Returns:
+            List of valid + flagged jobs (excludes invalid/stale jobs)
+        """
+        if not jobs:
+            return []
+
+        print("\n🔍 Validating job URLs...")
+        validator = JobValidator(timeout=5, check_content=True)
+        valid_jobs, flagged_jobs, invalid_jobs = validator.filter_valid_jobs(
+            jobs,
+            show_progress=False,  # Don't spam progress for each job
+        )
+
+        # Update statistics
+        self._increment_stat(stats, "jobs_validated", len(jobs))
+        self._increment_stat(stats, "jobs_valid", len(valid_jobs))
+        self._increment_stat(stats, "jobs_flagged", len(flagged_jobs))
+        self._increment_stat(stats, "jobs_invalid", len(invalid_jobs))
+
+        # Log validation results
+        print(f"  ✓ Valid: {len(valid_jobs)}")
+        if flagged_jobs:
+            print(f"  ⚠ Flagged: {len(flagged_jobs)} (included, needs review)")
+            for job in flagged_jobs:
+                reason = job.get("validation_reason", "unknown")
+                print(
+                    f"    - {job.get('company', 'Unknown')} - {job.get('title', '')[:40]}... ({reason})"
+                )
+
+        if invalid_jobs:
+            print(f"  ⛔ Invalid: {len(invalid_jobs)} (filtered out)")
+            for job in invalid_jobs:
+                reason = job.get("validation_reason", "unknown")
+                print(
+                    f"    - {job.get('company', 'Unknown')} - {job.get('title', '')[:40]}... ({reason})"
+                )
+
+        # Mark flagged jobs with needs_review flag
+        for job in flagged_jobs:
+            job["needs_review"] = True
+
+        # Return valid + flagged jobs (exclude invalid)
+        return valid_jobs + flagged_jobs
 
     def _store_and_process_job(self, job_dict: dict, stats: dict[str, int | list[str]]) -> None:
         """Store a job and process it (score + notify)"""

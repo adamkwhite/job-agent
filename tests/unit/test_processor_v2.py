@@ -337,3 +337,210 @@ class TestProcessorV2HelperMethods:
         errors_list = stats["errors"]
         assert isinstance(errors_list, list)
         assert len(errors_list) == 1
+
+    def test_validate_job_urls_empty_list(self, processor):
+        """Test _validate_job_urls returns empty list for empty input"""
+        stats: dict[str, int | list[str]] = {}
+
+        result = processor._validate_job_urls([], stats)
+
+        assert result == []
+        assert stats == {}  # No stats updated for empty input
+
+    @patch("src.processor_v2.JobValidator")
+    def test_validate_job_urls_all_valid(self, mock_validator_class, processor):
+        """Test _validate_job_urls with all valid jobs"""
+        stats: dict[str, int | list[str]] = {
+            "jobs_validated": 0,
+            "jobs_valid": 0,
+            "jobs_flagged": 0,
+            "jobs_invalid": 0,
+        }
+
+        jobs = [
+            {"title": "Software Engineer", "company": "Test Corp", "link": "https://test.com/job1"},
+            {"title": "Product Manager", "company": "Acme Inc", "link": "https://acme.com/job2"},
+        ]
+
+        # Mock validator to return all jobs as valid
+        mock_validator = MagicMock()
+        mock_validator.filter_valid_jobs.return_value = (jobs, [], [])
+        mock_validator_class.return_value = mock_validator
+
+        result = processor._validate_job_urls(jobs, stats)
+
+        # Should return all jobs
+        assert len(result) == 2
+        assert result == jobs
+
+        # Should update stats correctly
+        assert stats["jobs_validated"] == 2
+        assert stats["jobs_valid"] == 2
+        assert stats["jobs_flagged"] == 0
+        assert stats["jobs_invalid"] == 0
+
+        # Should have called validator with correct params
+        mock_validator.filter_valid_jobs.assert_called_once_with(jobs, show_progress=False)
+
+    @patch("src.processor_v2.JobValidator")
+    def test_validate_job_urls_with_flagged(self, mock_validator_class, processor):
+        """Test _validate_job_urls with flagged jobs (needs review)"""
+        stats: dict[str, int | list[str]] = {
+            "jobs_validated": 0,
+            "jobs_valid": 0,
+            "jobs_flagged": 0,
+            "jobs_invalid": 0,
+        }
+
+        valid_job = {
+            "title": "Software Engineer",
+            "company": "Test Corp",
+            "link": "https://test.com/job1",
+        }
+        flagged_job = {
+            "title": "Product Manager",
+            "company": "Acme Inc",
+            "link": "https://linkedin.com/jobs/123",
+            "validation_reason": "linkedin_unverifiable",
+        }
+
+        # Mock validator to return 1 valid, 1 flagged
+        mock_validator = MagicMock()
+        mock_validator.filter_valid_jobs.return_value = ([valid_job], [flagged_job], [])
+        mock_validator_class.return_value = mock_validator
+
+        result = processor._validate_job_urls([valid_job, flagged_job], stats)
+
+        # Should return valid + flagged jobs
+        assert len(result) == 2
+        assert valid_job in result
+        assert flagged_job in result
+
+        # Flagged job should have needs_review flag added
+        assert flagged_job.get("needs_review") is True
+
+        # Should update stats correctly
+        assert stats["jobs_validated"] == 2
+        assert stats["jobs_valid"] == 1
+        assert stats["jobs_flagged"] == 1
+        assert stats["jobs_invalid"] == 0
+
+    @patch("src.processor_v2.JobValidator")
+    def test_validate_job_urls_with_invalid(self, mock_validator_class, processor):
+        """Test _validate_job_urls filters out invalid/stale jobs"""
+        stats: dict[str, int | list[str]] = {
+            "jobs_validated": 0,
+            "jobs_valid": 0,
+            "jobs_flagged": 0,
+            "jobs_invalid": 0,
+        }
+
+        valid_job = {
+            "title": "Software Engineer",
+            "company": "Test Corp",
+            "link": "https://test.com/job1",
+        }
+        invalid_job = {
+            "title": "Stale Job",
+            "company": "Old Corp",
+            "link": "https://old.com/job2",
+            "validation_reason": "stale_no_longer_accepting",
+        }
+
+        # Mock validator to return 1 valid, 0 flagged, 1 invalid
+        mock_validator = MagicMock()
+        mock_validator.filter_valid_jobs.return_value = ([valid_job], [], [invalid_job])
+        mock_validator_class.return_value = mock_validator
+
+        result = processor._validate_job_urls([valid_job, invalid_job], stats)
+
+        # Should return only valid jobs (invalid filtered out)
+        assert len(result) == 1
+        assert result == [valid_job]
+        assert invalid_job not in result
+
+        # Should update stats correctly
+        assert stats["jobs_validated"] == 2
+        assert stats["jobs_valid"] == 1
+        assert stats["jobs_flagged"] == 0
+        assert stats["jobs_invalid"] == 1
+
+    @patch("src.processor_v2.JobValidator")
+    def test_validate_job_urls_mixed_results(self, mock_validator_class, processor):
+        """Test _validate_job_urls with mix of valid, flagged, and invalid jobs"""
+        stats: dict[str, int | list[str]] = {
+            "jobs_validated": 0,
+            "jobs_valid": 0,
+            "jobs_flagged": 0,
+            "jobs_invalid": 0,
+        }
+
+        valid_job1 = {"title": "Job 1", "company": "Corp A", "link": "https://a.com/job1"}
+        valid_job2 = {"title": "Job 2", "company": "Corp B", "link": "https://b.com/job2"}
+        flagged_job = {
+            "title": "Job 3",
+            "company": "Corp C",
+            "link": "https://linkedin.com/jobs/123",
+            "validation_reason": "generic_page",
+        }
+        invalid_job = {
+            "title": "Job 4",
+            "company": "Corp D",
+            "link": "https://d.com/job4",
+            "validation_reason": "404_not_found",
+        }
+
+        # Mock validator
+        mock_validator = MagicMock()
+        mock_validator.filter_valid_jobs.return_value = (
+            [valid_job1, valid_job2],
+            [flagged_job],
+            [invalid_job],
+        )
+        mock_validator_class.return_value = mock_validator
+
+        result = processor._validate_job_urls(
+            [valid_job1, valid_job2, flagged_job, invalid_job], stats
+        )
+
+        # Should return valid + flagged (exclude invalid)
+        assert len(result) == 3
+        assert valid_job1 in result
+        assert valid_job2 in result
+        assert flagged_job in result
+        assert invalid_job not in result
+
+        # Flagged job should have needs_review flag
+        assert flagged_job.get("needs_review") is True
+        assert valid_job1.get("needs_review") is None
+        assert valid_job2.get("needs_review") is None
+
+        # Should update stats correctly
+        assert stats["jobs_validated"] == 4
+        assert stats["jobs_valid"] == 2
+        assert stats["jobs_flagged"] == 1
+        assert stats["jobs_invalid"] == 1
+
+    @patch("src.processor_v2.JobValidator")
+    def test_validate_job_urls_initializes_validator_correctly(
+        self, mock_validator_class, processor
+    ):
+        """Test _validate_job_urls creates JobValidator with correct params"""
+        stats: dict[str, int | list[str]] = {
+            "jobs_validated": 0,
+            "jobs_valid": 0,
+            "jobs_flagged": 0,
+            "jobs_invalid": 0,
+        }
+
+        job = {"title": "Test", "company": "Test", "link": "https://test.com"}
+
+        # Mock validator
+        mock_validator = MagicMock()
+        mock_validator.filter_valid_jobs.return_value = ([job], [], [])
+        mock_validator_class.return_value = mock_validator
+
+        processor._validate_job_urls([job], stats)
+
+        # Should create validator with timeout=5, check_content=True
+        mock_validator_class.assert_called_once_with(timeout=5, check_content=True)

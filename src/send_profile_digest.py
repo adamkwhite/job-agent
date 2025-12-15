@@ -79,6 +79,12 @@ def _generate_job_table_rows(
 
         linkedin_search_url = f"https://www.linkedin.com/search/results/people/?keywords={urllib.parse.quote(job['company'])}&network=%5B%22F%22%5D"
 
+        # Check if job needs review (validation warning)
+        validation_warning = ""
+        if job.get("needs_review") or job.get("validation_reason"):
+            reason = job.get("validation_reason", "unverified")
+            validation_warning = f' <span style="color: #e67e22; font-size: 11px; background: #fef5e7; padding: 2px 6px; border-radius: 3px;" title="{reason}">⚠️ Couldn\'t verify freshness</span>'
+
         rows += f"""
                 <tr>
                     <td>
@@ -86,7 +92,7 @@ def _generate_job_table_rows(
                         <div class="company">📌 {location}</div>
                     </td>
                     <td class="job-title">
-                        <a href="{job["link"]}" target="_blank">{job["title"]}</a>
+                        <a href="{job["link"]}" target="_blank">{job["title"]}</a>{validation_warning}
                     </td>
                     <td class="score-cell">{connections_cell}</td>
                     <td class="score-cell">{breakdown.get("seniority", 0)}</td>
