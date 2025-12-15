@@ -113,8 +113,12 @@ class JobProcessorV2:
         assert isinstance(errors_list, list)
         errors_list.append(error)
 
-    def fetch_unread_emails(self, limit: int = 50) -> list[email.message.Message]:
-        """Fetch unread emails from inbox"""
+    def fetch_unread_emails(self, limit: int | None = None) -> list[email.message.Message]:
+        """Fetch unread emails from inbox
+
+        Args:
+            limit: Maximum number of emails to fetch (None = fetch all)
+        """
         return self.imap_client.fetch_unread_emails(limit)
 
     def process_emails(self, emails: list[email.message.Message]) -> dict[str, int | list[str]]:
@@ -331,8 +335,13 @@ class JobProcessorV2:
             "raw_email_content": opp.raw_content or "",
         }
 
-    def run(self, fetch_emails: bool = True, limit: int = 50) -> dict:
-        """Main entry point - run the full pipeline"""
+    def run(self, fetch_emails: bool = True, limit: int | None = None) -> dict:
+        """Main entry point - run the full pipeline
+
+        Args:
+            fetch_emails: Whether to fetch emails from IMAP
+            limit: Maximum number of emails to fetch (None = fetch all)
+        """
         print(f"\n{'=' * 70}")
         print("Job Alert Processor V2 Starting")
         print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -386,7 +395,9 @@ def main():
 
     parser = argparse.ArgumentParser(description="Process job alert emails (V2)")
     parser.add_argument("--test", action="store_true", help="Test mode (no IMAP fetch)")
-    parser.add_argument("--limit", type=int, default=50, help="Max emails to process")
+    parser.add_argument(
+        "--limit", type=int, default=None, help="Max emails to process (default: all unread)"
+    )
 
     args = parser.parse_args()
 
