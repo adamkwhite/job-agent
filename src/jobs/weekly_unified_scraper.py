@@ -30,17 +30,25 @@ class WeeklyUnifiedScraper:
     2. Company monitoring (68 companies)
     """
 
-    def __init__(self, profile: str | None = None, enable_llm_extraction: bool = False):
+    def __init__(self, profile: str | None = None):
         # Store profile for logging and sub-components
         self.profile = profile
 
         # Email processor (handles all email parsers)
         self.email_processor = JobProcessorV2(profile=profile)
 
-        # Company monitoring scraper
-        self.company_scraper = CompanyScraper(
-            profile=profile, enable_llm_extraction=enable_llm_extraction
+        # Read LLM extraction config
+        config_path = (
+            Path(__file__).parent.parent.parent / "config" / "llm-extraction-settings.json"
         )
+        llm_enabled = False
+        if config_path.exists():
+            with open(config_path) as f:
+                llm_config = json.load(f)
+                llm_enabled = llm_config.get("enabled", False)
+
+        # Company monitoring scraper
+        self.company_scraper = CompanyScraper(profile=profile, enable_llm_extraction=llm_enabled)
 
     def run_all(
         self,
@@ -302,11 +310,6 @@ def main():
         help="Filter companies by notes (e.g., 'From Wes')",
     )
     parser.add_argument(
-        "--llm-extraction",
-        action="store_true",
-        help="Enable LLM extraction in parallel with regex for company monitoring (requires OpenRouter API key)",
-    )
-    parser.add_argument(
         "--skip-recent-hours",
         type=int,
         help="Skip companies checked within this many hours (saves API credits)",
@@ -326,7 +329,7 @@ def main():
         run_emails = True
         run_companies = True
 
-    scraper = WeeklyUnifiedScraper(profile=args.profile, enable_llm_extraction=args.llm_extraction)
+    scraper = WeeklyUnifiedScraper(profile=args.profile)
     stats = scraper.run_all(
         fetch_emails=run_emails,
         email_limit=args.email_limit,

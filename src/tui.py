@@ -470,66 +470,9 @@ def _skip_all_failures(db, failures):  # pragma: no cover
         input("\n[dim]Press Enter to continue...[/dim]")
 
 
-def select_advanced_options(sources: list[str]) -> dict:
-    """Select advanced options for company scraping"""
-    console.print("\n[bold yellow]Step 3:[/bold yellow] Advanced Options\n")
-
-    options = {"llm_extraction": False}
-
-    # Only show if Companies source is selected
-    if "companies" not in sources:
-        return options
-
-    table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
-    table.add_column("Feature", style="cyan", width=25)
-    table.add_column("Status", style="green", width=12)
-    table.add_column("Description", style="white")
-
-    # LLM Extraction option
-    table.add_row(
-        "🤖 LLM Extraction",
-        "Experimental",
-        "Use Claude 3.5 Sonnet for job extraction (OpenRouter API)",
-    )
-
-    console.print(table)
-
-    info = """[bold yellow]About LLM Extraction:[/bold yellow]
-
-[cyan]What it does:[/cyan]
-  • Runs Claude 3.5 Sonnet alongside regex extraction
-  • Compares LLM vs regex results for validation
-  • Stores extraction method for each job ('llm' vs 'regex')
-
-[cyan]Requirements:[/cyan]
-  • OpenRouter API key in .env (OPENROUTER_API_KEY)
-  • Budget: $5/month limit (tracked automatically)
-  • Each company extraction uses ~1-2 cents
-
-[cyan]Status:[/cyan]
-  • Both methods run in parallel (dual extraction)
-  • LLM failures gracefully fall back to regex
-  • Budget exceeded = auto-switches to regex only
-
-[yellow]Note: This is experimental. Regex is the production method.[/yellow]"""
-
-    console.print(Panel(info, border_style="yellow", padding=(0, 1)))
-
-    # Ask user
-    enable_llm = Confirm.ask("\n[bold]Enable LLM extraction for this run?[/bold]", default=False)
-    options["llm_extraction"] = enable_llm
-
-    if enable_llm:
-        console.print("\n[green]✓ LLM extraction enabled (dual extraction mode)[/green]")
-    else:
-        console.print("\n[dim]Using regex extraction only (production mode)[/dim]")
-
-    return options
-
-
 def select_action() -> str | None:
     """Select what action to perform"""
-    console.print("\n[bold yellow]Step 4:[/bold yellow] Select Action\n")
+    console.print("\n[bold yellow]Step 3:[/bold yellow] Select Action\n")
 
     table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
     table.add_column("Option", style="cyan", width=8)
@@ -568,7 +511,7 @@ def select_action() -> str | None:
 
 def select_digest_options() -> dict:
     """Select digest options (dry-run, force-resend)"""
-    console.print("\n[bold yellow]Step 5:[/bold yellow] Digest Options\n")
+    console.print("\n[bold yellow]Step 4:[/bold yellow] Digest Options\n")
 
     table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
     table.add_column("Option", style="cyan", width=8)
@@ -596,7 +539,6 @@ def confirm_execution(
     profile: str,
     sources: list[str],
     action: str,
-    advanced_options: dict | None = None,
     digest_options: dict | None = None,
 ) -> bool:
     """Show summary and confirm execution"""
@@ -623,10 +565,6 @@ def confirm_execution(
         f"[bold]Action:[/bold] {action_text}"
     )
 
-    # Add advanced options if applicable
-    if advanced_options and advanced_options.get("llm_extraction"):
-        summary_text += "\n[bold]Advanced:[/bold] 🤖 LLM Extraction Enabled"
-
     # Add digest mode if applicable
     if digest_options and action in ["digest", "both"]:
         if digest_options.get("dry_run"):
@@ -649,7 +587,7 @@ def confirm_execution(
     return Confirm.ask("\n[bold green]Proceed with execution?[/bold green]", default=True)
 
 
-def run_scraper(profile: str, sources: list[str], advanced_options: dict | None = None) -> int:
+def run_scraper(profile: str, sources: list[str]) -> int:
     """Execute the unified scraper"""
     console.print("\n[bold green]Running Job Scraper...[/bold green]\n")
 
@@ -662,11 +600,6 @@ def run_scraper(profile: str, sources: list[str], advanced_options: dict | None 
             cmd.append("--email-only")
         elif "companies" in sources and len(sources) == 1:
             cmd.append("--companies-only")
-
-    # Add advanced options
-    if advanced_options and advanced_options.get("llm_extraction"):
-        cmd.append("--llm-extraction")
-        console.print("[yellow]🤖 LLM Extraction: ENABLED (dual extraction mode)[/yellow]")
 
     # Profile-specific email inbox
     pm = get_profile_manager()
@@ -729,10 +662,7 @@ def main():
                 console.print("\n[red]No valid sources selected. Please try again.[/red]")
                 continue
 
-            # Step 3: Advanced options (if applicable)
-            advanced_options = select_advanced_options(sources)
-
-            # Step 4: Select action
+            # Step 3: Select action
             action = select_action()
             if action is None:
                 console.print("\n[yellow]Goodbye![/yellow]\n")
@@ -746,13 +676,13 @@ def main():
                 review_llm_failures()
                 continue
 
-            # Step 5: Select digest options (if sending digest)
+            # Step 4: Select digest options (if sending digest)
             digest_options = {}
             if action in ["digest", "both"]:
                 digest_options = select_digest_options()
 
-            # Step 6: Confirm and execute
-            if not confirm_execution(profile, sources, action, advanced_options, digest_options):
+            # Step 5: Confirm and execute
+            if not confirm_execution(profile, sources, action, digest_options):
                 console.print("\n[yellow]Cancelled. Returning to menu...[/yellow]\n")
                 input("Press Enter to continue...")
                 continue
@@ -761,7 +691,7 @@ def main():
             success = True
 
             if action in ["scrape", "both"]:
-                returncode = run_scraper(profile, sources, advanced_options)
+                returncode = run_scraper(profile, sources)
                 if returncode != 0:
                     console.print("\n[red]✗ Scraper failed![/red]")
                     success = False
