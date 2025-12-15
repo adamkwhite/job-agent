@@ -308,6 +308,31 @@ Jobs in digest: 687 (78.6%)
 - Issue #122: Software engineering role filter (foundation for context-aware filters)
 - Issue #132: Country-restricted remote job filtering (similar filtering pattern)
 
+## Job Link Verification PRD (Absorbed)
+
+**Related PRD:** `prd-job-link-verification.md` (moved from standalone file)
+**Related Issue:** #42 (Job links pointing to closed/expired postings)
+
+The job-link-verification PRD's requirements were **80% implemented** as part of digest quality improvements:
+
+**✅ Implemented (from original PRD):**
+- Link verification service (JobValidator)
+- LinkedIn-specific detection ("No longer accepting applications")
+- Redirect detection (job removed)
+- 404 error handling
+- Digest integration (filter before sending)
+- Fail-open reliability (unknown status = include)
+- Logging and observability
+- Performance optimization (parallel validation)
+- Age-based filtering (60 days vs original 14 days)
+
+**⏭️ Deferred Optimizations (not critical for v1):**
+- 24-hour caching of verification results
+- Rate limiting (10 req/min to LinkedIn)
+- Background job status updates
+
+**Current Status:** Core problem solved (dead links filtered from digest). Issue #42 tracks remaining optimizations if needed.
+
 ## Lessons Learned
 
 **What worked well:**
