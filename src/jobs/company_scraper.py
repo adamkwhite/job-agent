@@ -22,6 +22,9 @@ from notifier import JobNotifier
 from scrapers.firecrawl_career_scraper import FirecrawlCareerScraper
 from utils.profile_manager import get_profile_manager
 
+# Auto-disable threshold: companies with this many consecutive failures will be auto-disabled
+AUTO_DISABLE_THRESHOLD = 5
+
 
 class CompanyScraper:
     """
@@ -87,6 +90,7 @@ class CompanyScraper:
             "notifications_sent": 0,
             "duplicates_skipped": 0,
             "scraping_errors": 0,
+            "companies_auto_disabled": 0,
             "failed_extractions": [],  # Companies where both regex and LLM failed
         }
 
@@ -160,6 +164,25 @@ class CompanyScraper:
                     stats["jobs_stored"] += job_stats["jobs_stored"]
                     stats["notifications_sent"] += job_stats["notifications_sent"]
                     stats["duplicates_skipped"] += job_stats["duplicates_skipped"]
+
+                    # Reset failure counter on successful scrape (>0 jobs found)
+                    self.company_service.reset_company_failures(company["id"])
+                else:
+                    # Increment failure counter and check for auto-disable
+                    failure_count = self.company_service.increment_company_failures(
+                        company["id"], "0 jobs extracted"
+                    )
+                    print(
+                        f"  ⚠ No jobs extracted (failure {failure_count}/{AUTO_DISABLE_THRESHOLD})"
+                    )
+
+                    if failure_count >= AUTO_DISABLE_THRESHOLD:
+                        # Auto-disable company after 5 consecutive failures
+                        self.company_service.disable_company(company["id"])
+                        stats["companies_auto_disabled"] += 1
+                        print(
+                            f"  🚫 Auto-disabled {company['name']} after {AUTO_DISABLE_THRESHOLD} consecutive failures"
+                        )
 
                 # Update last checked timestamp
                 self.company_service.update_last_checked(company["id"])
@@ -560,6 +583,8 @@ def main():
     print(f"Jobs context filtered: {stats['jobs_context_filtered']}")
     print(f"Jobs stored: {stats['jobs_stored']}")
     print(f"Notifications sent: {stats['notifications_sent']}")
+    if stats.get("companies_auto_disabled", 0) > 0:
+        print(f"🚫 Companies auto-disabled: {stats['companies_auto_disabled']}")
 
     print("\n" + json.dumps(stats, indent=2))
 
