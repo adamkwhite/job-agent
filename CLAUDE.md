@@ -197,8 +197,8 @@ PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py
 - Tracks last_checked timestamps
 - Sends notifications for A/B grade jobs (80+)
 
-### 8. LLM Extraction Pipeline (`src/extractors/llm_extractor.py`) **EXPERIMENTAL**
-**Status:** IN PROGRESS - Core pipeline complete, validation ongoing
+### 8. LLM Extraction Pipeline (`src/extractors/llm_extractor.py`) **PRODUCTION**
+**Status:** PRODUCTION - Automatically enabled via config file
 
 Dual extraction system running regex AND LLM-based job extraction in parallel:
 - **Model:** Claude 3.5 Sonnet via OpenRouter API
@@ -211,21 +211,24 @@ Dual extraction system running regex AND LLM-based job extraction in parallel:
 **Key Features:**
 - Finds jobs regex misses (e.g., Figure AI's `[Title](url)` format)
 - Budget tracking via `logs/llm-budget-YYYY-MM.json`
-- TUI "Advanced Options" step for user-friendly enablement
+- Automatically enabled when `config/llm-extraction-settings.json` has `enabled: true`
 - Visual indicators: 📝 Regex vs 🤖 LLM in output
 
 **Configuration:**
-- `config/llm-extraction-settings.json` - Model, prompts, budget, timeout
+- `config/llm-extraction-settings.json` - Model, prompts, budget, timeout, and enabled flag
 - `OPENROUTER_API_KEY` environment variable required
+- Set `"enabled": false` in config file to disable
 
 **Usage:**
 ```bash
-# Via TUI (recommended)
-./run-tui.sh
-# Select "Companies" source, then enable in Advanced Options
+# LLM extraction is automatically enabled/disabled via config file
+# No CLI flags or TUI prompts needed
 
-# Via CLI flag
-PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --profile wes --llm-extraction
+# Check config status
+cat config/llm-extraction-settings.json | grep enabled
+
+# Disable if needed
+# Edit config/llm-extraction-settings.json and set "enabled": false
 ```
 
 **Production Validation (2025-12-07):**
