@@ -61,8 +61,12 @@ class IMAPEmailClient:
         mail.login(self.username, self.password)
         return mail
 
-    def fetch_unread_emails(self, limit: int = 50) -> list[email.message.Message]:
-        """Fetch unread emails from inbox"""
+    def fetch_unread_emails(self, limit: int | None = None) -> list[email.message.Message]:
+        """Fetch unread emails from inbox
+
+        Args:
+            limit: Maximum number of emails to fetch (None = fetch all)
+        """
         mail = self.connect_imap()
         mail.select("INBOX")
 
@@ -75,7 +79,10 @@ class IMAPEmailClient:
         email_ids = messages[0].split()
         print(f"Found {len(email_ids)} unread emails")
 
-        email_ids = email_ids[:limit]
+        # Apply limit only if specified
+        if limit is not None:
+            email_ids = email_ids[:limit]
+            print(f"Limiting to {limit} emails")
 
         emails = []
         for email_id in email_ids:
