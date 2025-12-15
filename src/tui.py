@@ -111,8 +111,7 @@ def select_sources(profile: str) -> list[str]:
         email_inbox = "No inbox configured"
 
     sources_table.add_row("Email", f"{email_inbox} (LinkedIn, etc.)", "~50-100")
-    sources_table.add_row("Robotics", "Sheet (1,092 jobs)", "~10-20")
-    sources_table.add_row("Companies", "68 pages (15 robotics)", "~20-40")
+    sources_table.add_row("Companies", "68 monitored companies", "~20-40")
 
     sources_panel = Panel(
         sources_table,
@@ -168,18 +167,16 @@ def select_sources(profile: str) -> list[str]:
     console.print(sources_panel)
     console.print(criteria_panel)
 
-    console.print(
-        "\n[dim]Enter comma-separated options (e.g., 'email,robotics,companies' or 'all')[/dim]"
-    )
+    console.print("\n[dim]Enter comma-separated options (e.g., 'email,companies' or 'all')[/dim]")
     choice = Prompt.ask("\n[bold]Select sources[/bold]", default="all").lower().strip()
 
     if choice == "all":
-        return ["email", "robotics", "companies"]
+        return ["email", "companies"]
     else:
         sources = [s.strip() for s in choice.split(",")]
         valid_sources = []
         for s in sources:
-            if s in ["email", "robotics", "companies"]:
+            if s in ["email", "companies"]:
                 valid_sources.append(s)
         return valid_sources if valid_sources else ["email"]
 
@@ -234,8 +231,7 @@ def show_criteria():
     source_table.add_column("Reasoning", style="white")
 
     source_table.add_row("Email newsletters", "All", "High signal newsletters")
-    source_table.add_row("Robotics sheet", "70+ (B)", "1,092 jobs need quality filter")
-    source_table.add_row("Company monitoring", "50+ (D)", "68 companies (15 robotics)")
+    source_table.add_row("Company monitoring", "50+ (D)", "68 monitored companies")
 
     console.print(source_table)
 
@@ -599,11 +595,9 @@ def run_scraper(profile: str, sources: list[str]) -> int:
     cmd = ["job-agent-venv/bin/python", "src/jobs/weekly_unified_scraper.py", "--profile", profile]
 
     # Add source-specific flags
-    if len(sources) < 3:  # Not "all"
+    if len(sources) < 2:  # Not "all" (only 2 sources now: email + companies)
         if "email" in sources and len(sources) == 1:
             cmd.append("--email-only")
-        elif "robotics" in sources and len(sources) == 1:
-            cmd.append("--robotics-only")
         elif "companies" in sources and len(sources) == 1:
             cmd.append("--companies-only")
 
@@ -625,61 +619,6 @@ def run_scraper(profile: str, sources: list[str]) -> int:
 
     result = subprocess.run(cmd, env=env)
     return result.returncode
-
-
-def prompt_firecrawl_scraping() -> bool:
-    """Ask user if they want to run Firecrawl scraping for career pages (DEPRECATED - now automatic)"""
-    console.print("\n[bold yellow]Note: Robotics Companies Integrated[/bold yellow]\n")
-
-    info_text = """[cyan]✓ 15 priority robotics companies have been added to the database![/cyan]
-
-[yellow]What happens now:[/yellow]
-  • Robotics companies are automatically scraped when you select "Companies" source
-  • Uses Firecrawl to handle JavaScript-heavy pages
-  • Extracts job listings, scores, and stores in database
-  • No separate manual step needed!
-
-[yellow]Robotics companies in database:[/yellow]
-  • Humanoid: Figure, Sanctuary AI, 1X Technologies, Apptronik
-  • Warehouse: Robust AI, Dexterity, Veo, Covariant, RightHand, Nimble
-  • Specialized: Chef Robotics, Gecko Robotics, Machina Labs, Nuro, Skild AI
-
-[green]Everything is now automated via the "Companies" source![/green]"""
-
-    console.print(Panel(info_text, border_style="green"))
-
-    input("\n[dim]Press Enter to continue...[/dim]")
-    return False  # Don't show Firecrawl instructions anymore
-
-
-def show_firecrawl_instructions():
-    """Display instructions for running Firecrawl via Claude Code"""
-    console.print("\n[bold green]Firecrawl Scraping Queued[/bold green]\n")
-
-    instructions = """[bold yellow]📋 Next Steps:[/bold yellow]
-
-[cyan]1. Return to your Claude Code conversation[/cyan]
-
-[cyan]2. Ask Claude:[/cyan]
-   [white]"Run Firecrawl scraping for the 20 robotics career pages"[/white]
-
-[cyan]3. Claude will:[/cyan]
-   • Execute Firecrawl MCP commands for 20 companies
-   • Save markdown outputs to data/firecrawl_cache/
-   • Process markdown to extract job listings
-   • Score and store jobs in database
-   • Send notifications for A/B grade jobs
-
-[yellow]After Firecrawl completes, you can return to TUI to send digest[/yellow]
-
-[dim]Press Enter to continue with current workflow...[/dim]"""
-
-    console.print(
-        Panel(
-            instructions, title="[bold cyan]Firecrawl Instructions[/bold cyan]", border_style="cyan"
-        )
-    )
-    input()
 
 
 def send_digest(profile: str, dry_run: bool = False, force_resend: bool = False) -> int:
@@ -758,10 +697,6 @@ def main():
                     success = False
                 else:
                     console.print("\n[green]✓ Scraper completed successfully![/green]")
-
-                    # Prompt for Firecrawl scraping if robotics source was used
-                    if success and "robotics" in sources and prompt_firecrawl_scraping():
-                        show_firecrawl_instructions()
 
             if action in ["digest", "both"] and success:
                 returncode = send_digest(

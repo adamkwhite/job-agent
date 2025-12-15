@@ -1,6 +1,6 @@
 """
 Unified Weekly Scraper
-Combines all job sources: emails, robotics sheet, and company monitoring
+Combines all job sources: emails and company monitoring
 Runs weekly to find new opportunities across all channels
 """
 
@@ -18,7 +18,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from dotenv import load_dotenv
 
 from jobs.company_scraper import CompanyScraper
-from jobs.weekly_robotics_scraper import WeeklyRoboticsJobChecker
 from processor_v2 import JobProcessorV2
 
 load_dotenv()
@@ -28,8 +27,7 @@ class WeeklyUnifiedScraper:
     """
     Unified weekly scraper combining all job sources:
     1. Email-based sources (LinkedIn, Supra, F6S, Artemis, Built In, etc.)
-    2. Robotics/Deeptech Google Sheet
-    3. Company monitoring (Wes's 26+ companies)
+    2. Company monitoring (68 companies)
     """
 
     def __init__(self, profile: str | None = None):
@@ -38,9 +36,6 @@ class WeeklyUnifiedScraper:
 
         # Email processor (handles all email parsers)
         self.email_processor = JobProcessorV2(profile=profile)
-
-        # Robotics sheet scraper
-        self.robotics_checker = WeeklyRoboticsJobChecker(profile=profile)
 
         # Read LLM extraction config
         config_path = (
@@ -58,9 +53,7 @@ class WeeklyUnifiedScraper:
     def run_all(
         self,
         fetch_emails: bool = True,
-        email_limit: int = 50,
-        scrape_robotics: bool = True,
-        robotics_min_score: int = 70,
+        email_limit: int | None = None,
         scrape_companies: bool = True,
         companies_min_score: int = 50,
         company_filter: str | None = None,
@@ -71,9 +64,7 @@ class WeeklyUnifiedScraper:
 
         Args:
             fetch_emails: Whether to fetch and process emails
-            email_limit: Max emails to process
-            scrape_robotics: Whether to scrape robotics sheet
-            robotics_min_score: Minimum score for robotics jobs
+            email_limit: Max emails to process (None = process all unread emails)
             scrape_companies: Whether to scrape monitored companies
             companies_min_score: Minimum score for company jobs (default: 50 for D+ grade)
             company_filter: Filter companies by notes (e.g., "From Wes")
@@ -87,13 +78,11 @@ class WeeklyUnifiedScraper:
         print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print("=" * 80)
         print(f"📧 Email processing: {fetch_emails}")
-        print(f"🤖 Robotics scraping: {scrape_robotics}")
         print(f"🏢 Company monitoring: {scrape_companies}")
         print("=" * 80 + "\n")
 
         all_stats = {
             "email": {},
-            "robotics": {},
             "companies": {},
             "total_jobs_found": 0,
             "total_jobs_stored": 0,
@@ -113,25 +102,10 @@ class WeeklyUnifiedScraper:
             all_stats["total_jobs_stored"] += email_stats.get("jobs_stored", 0)
             all_stats["total_notifications"] += email_stats.get("notifications_sent", 0)
 
-        # PART 2: Robotics/Deeptech sheet
-        if scrape_robotics:
-            print("\n" + "=" * 80)
-            print("PART 2: ROBOTICS/DEEPTECH WEB SCRAPING")
-            print("=" * 80 + "\n")
-
-            robotics_stats = self.robotics_checker.run(
-                min_score=robotics_min_score, leadership_only=True
-            )
-
-            all_stats["robotics"] = robotics_stats
-            all_stats["total_jobs_found"] += robotics_stats.get("jobs_scraped", 0)
-            all_stats["total_jobs_stored"] += robotics_stats.get("jobs_stored", 0)
-            all_stats["total_notifications"] += robotics_stats.get("notifications_sent", 0)
-
-        # PART 3: Company monitoring
+        # PART 2: Company monitoring
         if scrape_companies:
             print("\n" + "=" * 80)
-            print("PART 3: COMPANY MONITORING (FIRECRAWL)")
+            print("PART 2: COMPANY MONITORING (FIRECRAWL)")
             print("=" * 80 + "\n")
 
             company_stats = self._scrape_monitored_companies(
@@ -146,7 +120,7 @@ class WeeklyUnifiedScraper:
             all_stats["total_notifications"] += company_stats.get("notifications_sent", 0)
 
         # Final summary
-        self._print_summary(all_stats, fetch_emails, scrape_robotics, scrape_companies)
+        self._print_summary(all_stats, fetch_emails, scrape_companies)
 
         return all_stats
 
@@ -178,7 +152,6 @@ class WeeklyUnifiedScraper:
         self,
         all_stats: dict,
         ran_emails: bool,
-        ran_robotics: bool,
         ran_companies: bool,
     ) -> None:
         """Print final summary"""
@@ -193,14 +166,6 @@ class WeeklyUnifiedScraper:
             print(f"  Jobs found: {email_stats.get('opportunities_found', 0)}")
             print(f"  Jobs stored: {email_stats.get('jobs_stored', 0)}")
             print(f"  Notifications: {email_stats.get('notifications_sent', 0)}")
-
-        if ran_robotics:
-            robotics_stats = all_stats["robotics"]
-            print("\n🤖 Robotics Sheet:")
-            print(f"  Jobs scraped: {robotics_stats.get('jobs_scraped', 0)}")
-            print(f"  High-scoring (B+): {robotics_stats.get('jobs_above_threshold', 0)}")
-            print(f"  Jobs stored: {robotics_stats.get('jobs_stored', 0)}")
-            print(f"  Notifications: {robotics_stats.get('notifications_sent', 0)}")
 
         if ran_companies:
             company_stats = all_stats["companies"]
@@ -320,17 +285,16 @@ def main():
 
     # Source toggles
     parser.add_argument("--email-only", action="store_true", help="Only process emails")
-    parser.add_argument("--robotics-only", action="store_true", help="Only scrape robotics sheet")
     parser.add_argument(
         "--companies-only", action="store_true", help="Only scrape monitored companies"
     )
 
     # Email options
-    parser.add_argument("--email-limit", type=int, default=50, help="Max emails to process")
-
-    # Robotics options
     parser.add_argument(
-        "--robotics-min-score", type=int, default=70, help="Min score for robotics jobs"
+        "--email-limit",
+        type=int,
+        default=None,
+        help="Max emails to process (default: all unread emails)",
     )
 
     # Company options
@@ -356,28 +320,19 @@ def main():
     # Determine what to run
     if args.email_only:
         run_emails = True
-        run_robotics = False
-        run_companies = False
-    elif args.robotics_only:
-        run_emails = False
-        run_robotics = True
         run_companies = False
     elif args.companies_only:
         run_emails = False
-        run_robotics = False
         run_companies = True
     else:
         # Run all sources by default
         run_emails = True
-        run_robotics = True
         run_companies = True
 
     scraper = WeeklyUnifiedScraper(profile=args.profile)
     stats = scraper.run_all(
         fetch_emails=run_emails,
         email_limit=args.email_limit,
-        scrape_robotics=run_robotics,
-        robotics_min_score=args.robotics_min_score,
         scrape_companies=run_companies,
         companies_min_score=args.companies_min_score,
         company_filter=args.company_filter,
