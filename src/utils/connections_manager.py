@@ -57,6 +57,25 @@ class ConnectionsManager:
         " Corporation",
     ]
 
+    # Minimum length for substring matching to avoid false positives with generic words
+    MIN_SUBSTRING_LENGTH = 4
+
+    # Generic company words that should NOT use substring matching
+    # These are too common and cause false positives
+    GENERIC_COMPANY_WORDS = [
+        "company",
+        "inc",
+        "llc",
+        "corp",
+        "corporation",
+        "ltd",
+        "limited",
+        "group",
+        "solutions",
+        "services",
+        "technologies",
+    ]
+
     def __init__(
         self,
         profile_name: str,
@@ -240,9 +259,20 @@ class ConnectionsManager:
             is_match = False
 
             # Strategy 1: Exact substring match (e.g., "Meta" in "Meta Platforms")
+            # Only use substring matching for meaningful company names (4+ chars)
+            # Skip substring matching for generic company words to prevent false positives
+            is_generic_job = job_company_normalized in self.GENERIC_COMPANY_WORDS
+            is_generic_conn = conn_company_normalized in self.GENERIC_COMPANY_WORDS
+
             if (
-                job_company_normalized in conn_company_normalized
-                or conn_company_normalized in job_company_normalized
+                len(job_company_normalized) >= self.MIN_SUBSTRING_LENGTH
+                and len(conn_company_normalized) >= self.MIN_SUBSTRING_LENGTH
+                and not is_generic_job
+                and not is_generic_conn
+                and (
+                    job_company_normalized in conn_company_normalized
+                    or conn_company_normalized in job_company_normalized
+                )
             ):
                 is_match = True
 

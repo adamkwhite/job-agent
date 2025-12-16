@@ -553,8 +553,8 @@ def main():
     parser.add_argument(
         "--profile",
         type=str,
-        choices=["wes", "adam", "eli"],
-        help="Profile to use for scoring (wes, adam, eli)",
+        choices=["wes", "adam", "eli", "mario"],
+        help="Profile to use for scoring (wes, adam, eli, mario)",
     )
     parser.add_argument(
         "--min-score",
