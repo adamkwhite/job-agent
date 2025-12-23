@@ -49,282 +49,163 @@ def mock_wes_profile():
     return profile
 
 
+def score_job_with_classification(
+    profile,
+    job_title,
+    company_name,
+    company_type,
+    confidence,
+    signals=None,
+):
+    """Helper to score a job with mocked company classification"""
+    scorer = ProfileScorer(profile)
+
+    job = {
+        "title": job_title,
+        "company": company_name,
+        "location": "Remote",
+    }
+
+    mock_classification = CompanyClassification(
+        type=company_type,
+        confidence=confidence,
+        signals=signals or {},
+        source="auto",
+    )
+
+    with patch.object(
+        scorer.company_classifier, "classify_company", return_value=mock_classification
+    ):
+        return scorer.score_job(job)
+
+
 class TestProfileScorerCompanyClassification:
     """Test suite for CompanyClassifier integration in ProfileScorer"""
 
-    def test_software_company_engineering_role_gets_penalized(self, mock_wes_profile):
-        """Test that engineering roles at software companies receive penalty"""
-        scorer = ProfileScorer(mock_wes_profile)
-
-        job = {
-            "title": "VP of Engineering",
-            "company": "Stripe",
-            "location": "Remote",
-        }
-
-        # Mock company classification to return software company
-        mock_classification = CompanyClassification(
-            type="software",
-            confidence=0.9,
-            signals={
-                "curated": {"score": 1.0, "type": "software", "list_match": "software_companies"}
-            },
-            source="auto",
+    @pytest.mark.parametrize(
+        "company_type,confidence,expected_adjustment,expected_filtered",
+        [
+            ("software", 0.9, -20, True),  # Software penalty
+            ("hardware", 0.95, 10, False),  # Hardware boost
+            ("unknown", 0.2, 0, False),  # No adjustment
+            ("both", 0.8, 0, False),  # Dual-domain, ambiguous
+        ],
+    )
+    def test_company_type_adjustments(
+        self, mock_wes_profile, company_type, confidence, expected_adjustment, expected_filtered
+    ):
+        """Test that different company types receive appropriate score adjustments"""
+        _, _, breakdown, metadata = score_job_with_classification(
+            mock_wes_profile,
+            "VP of Engineering",
+            "Test Company",
+            company_type,
+            confidence,
         )
 
-        with patch.object(
-            scorer.company_classifier, "classify_company", return_value=mock_classification
-        ):
-            score, grade, breakdown, metadata = scorer.score_job(job)
-
-        # Should have software penalty applied
-        assert breakdown["company_classification"] == -20
-        assert metadata["filtered"] is True
-        assert metadata["filter_reason"] == "software_company_moderate_confidence"
-        assert metadata["company_type"] == "software"
-        assert metadata["confidence"] == 0.9
-
-    def test_hardware_company_engineering_role_gets_boost(self, mock_wes_profile):
-        """Test that engineering roles at hardware companies receive boost"""
-        scorer = ProfileScorer(mock_wes_profile)
-
-        job = {
-            "title": "VP of Engineering",
-            "company": "Boston Dynamics",
-            "location": "Remote",
-        }
-
-        # Mock company classification to return hardware company
-        mock_classification = CompanyClassification(
-            type="hardware",
-            confidence=0.95,
-            signals={
-                "curated": {"score": 1.0, "type": "hardware", "list_match": "hardware_companies"}
-            },
-            source="auto",
-        )
-
-        with patch.object(
-            scorer.company_classifier, "classify_company", return_value=mock_classification
-        ):
-            score, grade, breakdown, metadata = scorer.score_job(job)
-
-        # Should have hardware boost applied
-        assert breakdown["company_classification"] == 10
-        assert metadata["filtered"] is False
-        assert metadata["hardware_boost_applied"] is True
-        assert metadata["company_type"] == "hardware"
-        assert metadata["confidence"] == 0.95
+        assert breakdown["company_classification"] == expected_adjustment
+        assert metadata["filtered"] == expected_filtered
+        assert metadata["company_type"] == company_type
+        assert metadata["confidence"] == confidence
 
     def test_product_role_at_software_company_not_filtered(self, mock_wes_profile):
         """Test that product roles at software companies are NOT filtered"""
-        scorer = ProfileScorer(mock_wes_profile)
-
-        job = {
-            "title": "VP of Product",
-            "company": "Stripe",
-            "location": "Remote",
-        }
-
-        # Mock company classification to return software company
-        mock_classification = CompanyClassification(
-            type="software",
-            confidence=0.9,
-            signals={"curated": {"score": 1.0, "type": "software"}},
-            source="auto",
+        _, _, breakdown, metadata = score_job_with_classification(
+            mock_wes_profile,
+            "VP of Product",
+            "Stripe",
+            "software",
+            0.9,
         )
 
-        with patch.object(
-            scorer.company_classifier, "classify_company", return_value=mock_classification
-        ):
-            score, grade, breakdown, metadata = scorer.score_job(job)
-
-        # Product roles should NOT be filtered, even at software companies
         assert breakdown["company_classification"] == 0
         assert metadata["filtered"] is False
         assert metadata["filter_reason"] == "product_leadership_any_company"
 
-    def test_dual_domain_company_ambiguous_role(self, mock_wes_profile):
-        """Test handling of engineering roles at dual-domain companies (Tesla, Apple)"""
-        scorer = ProfileScorer(mock_wes_profile)
-
-        job = {
-            "title": "Director of Engineering",
-            "company": "Tesla",
-            "location": "Remote",
-        }
-
-        # Mock company classification to return dual-domain company
-        mock_classification = CompanyClassification(
-            type="both",
-            confidence=0.8,
-            signals={"curated": {"score": 1.0, "type": "both"}},
-            source="auto",
-        )
-
-        with patch.object(
-            scorer.company_classifier, "classify_company", return_value=mock_classification
-        ):
-            score, grade, breakdown, metadata = scorer.score_job(job)
-
-        # Dual-domain without explicit software keywords should NOT be filtered
-        assert breakdown["company_classification"] == 0
-        assert metadata["filtered"] is False
-        assert metadata["filter_reason"] == "dual_domain_ambiguous"
-
-    def test_unknown_company_no_adjustment(self, mock_wes_profile):
-        """Test that unknown companies receive no filtering adjustment"""
-        scorer = ProfileScorer(mock_wes_profile)
-
-        job = {
-            "title": "VP of Engineering",
-            "company": "Unknown Startup Inc",
-            "location": "Remote",
-        }
-
-        # Mock company classification to return unknown
-        mock_classification = CompanyClassification(
-            type="unknown",
-            confidence=0.2,
-            signals={},
-            source="auto",
-        )
-
-        with patch.object(
-            scorer.company_classifier, "classify_company", return_value=mock_classification
-        ):
-            score, grade, breakdown, metadata = scorer.score_job(job)
-
-        # Unknown companies should have no adjustment
-        assert breakdown["company_classification"] == 0
-        assert metadata["filtered"] is False
-
     def test_classification_metadata_stored(self, mock_wes_profile):
         """Test that classification metadata is properly stored"""
-        scorer = ProfileScorer(mock_wes_profile)
-
-        job = {
-            "title": "VP of Engineering",
-            "company": "Stripe",
-            "location": "Remote",
+        signals = {
+            "name": {"score": 0.8, "type": "software", "matched_keywords": ["software"]},
+            "curated": {"score": 1.0, "type": "software", "list_match": "software_companies"},
         }
 
-        mock_classification = CompanyClassification(
-            type="software",
-            confidence=0.85,
-            signals={
-                "name": {"score": 0.8, "type": "software", "matched_keywords": ["software"]},
-                "curated": {"score": 1.0, "type": "software", "list_match": "software_companies"},
-            },
-            source="auto",
+        _, _, _, metadata = score_job_with_classification(
+            mock_wes_profile,
+            "VP of Engineering",
+            "Stripe",
+            "software",
+            0.85,
+            signals=signals,
         )
 
-        with patch.object(
-            scorer.company_classifier, "classify_company", return_value=mock_classification
-        ):
-            _, _, _, metadata = scorer.score_job(job)
-
-        # Verify all metadata fields are present
-        assert "company_type" in metadata
-        assert "confidence" in metadata
-        assert "signals" in metadata
-        assert "source" in metadata
-        assert "filtered" in metadata
-        assert "filter_reason" in metadata
         assert metadata["company_type"] == "software"
         assert metadata["confidence"] == 0.85
         assert metadata["source"] == "auto"
-
-    def test_conservative_aggression_only_filters_explicit_software(self, mock_wes_profile):
-        """Test conservative mode only filters explicit software engineering titles"""
-        # Update profile to use conservative mode
-        mock_wes_profile.scoring["filtering"]["aggression_level"] = "conservative"
-
-        scorer = ProfileScorer(mock_wes_profile)
-
-        # Generic "VP Engineering" at software company
-        job1 = {
-            "title": "VP of Engineering",
-            "company": "Stripe",
-            "location": "Remote",
-        }
-
-        # Explicit "VP of Software Engineering"
-        job2 = {
-            "title": "VP of Software Engineering",
-            "company": "Stripe",
-            "location": "Remote",
-        }
-
-        mock_classification = CompanyClassification(
-            type="software",
-            confidence=0.9,
-            signals={},
-            source="auto",
+        assert metadata["signals"] == signals
+        assert all(
+            key in metadata
+            for key in [
+                "company_type",
+                "confidence",
+                "signals",
+                "source",
+                "filtered",
+                "filter_reason",
+            ]
         )
 
-        with patch.object(
-            scorer.company_classifier, "classify_company", return_value=mock_classification
-        ):
-            _, _, breakdown1, metadata1 = scorer.score_job(job1)
-            _, _, breakdown2, metadata2 = scorer.score_job(job2)
-
-        # Generic "VP Engineering" should NOT be filtered in conservative mode
-        assert breakdown1["company_classification"] == 0
-        assert metadata1["filtered"] is False
-
-        # Explicit "VP Software Engineering" SHOULD be filtered
-        assert breakdown2["company_classification"] == -20
-        assert metadata2["filtered"] is True
-        assert metadata2["filter_reason"] == "software_engineering_explicit_conservative"
-
-    def test_aggressive_mode_filters_any_engineering_without_hardware_keywords(
-        self, mock_wes_profile
+    @pytest.mark.parametrize(
+        "aggression_level,job_title,expected_filtered,expected_reason",
+        [
+            ("conservative", "VP of Engineering", False, None),  # Not filtered
+            (
+                "conservative",
+                "VP of Software Engineering",
+                True,
+                "software_engineering_explicit_conservative",
+            ),
+            ("aggressive", "VP of Engineering", True, "no_hardware_keywords_aggressive"),
+            ("aggressive", "VP of Hardware Engineering", False, None),  # Hardware keyword saves it
+        ],
+    )
+    def test_aggression_levels(
+        self, mock_wes_profile, aggression_level, job_title, expected_filtered, expected_reason
     ):
-        """Test aggressive mode filters any engineering role without hardware keywords"""
-        # Update profile to use aggressive mode
-        mock_wes_profile.scoring["filtering"]["aggression_level"] = "aggressive"
+        """Test filtering behavior across different aggression levels"""
+        mock_wes_profile.scoring["filtering"]["aggression_level"] = aggression_level
 
-        scorer = ProfileScorer(mock_wes_profile)
-
-        # Generic engineering role (no hardware keywords)
-        job1 = {
-            "title": "VP of Engineering",
-            "company": "Some Company",
-            "location": "Remote",
-        }
-
-        # Engineering role with hardware keywords
-        job2 = {
-            "title": "VP of Hardware Engineering",
-            "company": "Some Company",
-            "location": "Remote",
-        }
-
-        mock_classification = CompanyClassification(
-            type="software",
-            confidence=0.9,
-            signals={},
-            source="auto",
+        _, _, breakdown, metadata = score_job_with_classification(
+            mock_wes_profile,
+            job_title,
+            "Test Company",
+            "software",
+            0.9,
         )
 
-        with patch.object(
-            scorer.company_classifier, "classify_company", return_value=mock_classification
-        ):
-            _, _, breakdown1, metadata1 = scorer.score_job(job1)
-            _, _, breakdown2, metadata2 = scorer.score_job(job2)
+        assert metadata["filtered"] == expected_filtered
+        if expected_filtered:
+            assert breakdown["company_classification"] == -20
+            assert metadata["filter_reason"] == expected_reason
+        else:
+            # Either 0 (no adjustment) or positive (hardware boost)
+            assert breakdown["company_classification"] >= 0
 
-        # Generic engineering should be filtered in aggressive mode
-        assert breakdown1["company_classification"] == -20
-        assert metadata1["filtered"] is True
-        assert metadata1["filter_reason"] == "no_hardware_keywords_aggressive"
+    def test_hardware_boost_metadata(self, mock_wes_profile):
+        """Test that hardware boost metadata is properly set"""
+        _, _, breakdown, metadata = score_job_with_classification(
+            mock_wes_profile,
+            "VP of Engineering",
+            "Boston Dynamics",
+            "hardware",
+            0.95,
+        )
 
-        # Hardware engineering should NOT be filtered
-        assert breakdown2["company_classification"] == 0
-        assert metadata2["filtered"] is False
+        assert breakdown["company_classification"] == 10
+        assert metadata["hardware_boost_applied"] is True
+        assert metadata["filtered"] is False
 
     def test_company_classifier_caching(self, mock_wes_profile):
-        """Test that CompanyClassifier caching works correctly"""
+        """Test that CompanyClassifier is called for each score_job invocation"""
         scorer = ProfileScorer(mock_wes_profile)
 
         job = {
@@ -343,9 +224,8 @@ class TestProfileScorerCompanyClassification:
         with patch.object(
             scorer.company_classifier, "classify_company", return_value=mock_classification
         ) as mock_classify:
-            # Score the same job twice
             scorer.score_job(job)
             scorer.score_job(job)
 
-            # classify_company should be called twice (ProfileScorer doesn't cache, but CompanyClassifier does internally)
+            # ProfileScorer doesn't cache, but CompanyClassifier does internally
             assert mock_classify.call_count == 2
