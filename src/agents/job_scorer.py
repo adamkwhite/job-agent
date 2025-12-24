@@ -150,15 +150,11 @@ class JobScorer:
         location_score = self._score_location(location, description)
         breakdown["location"] = location_score
 
-        # 5. Company Stage Match (0-15 points) - Limited info available
-        stage_score = self._score_company_stage(company)
-        breakdown["company_stage"] = stage_score
-
-        # 6. Technical Keywords (0-10 points)
+        # 5. Technical Keywords (0-10 points)
         tech_score = self._score_technical_keywords(title, company)
         breakdown["technical"] = tech_score
 
-        # 7. Company Classification Adjustment (filtering penalties/boosts)
+        # 6. Company Classification Adjustment (filtering penalties/boosts)
         company_adjustment, classification_metadata = classify_and_score_company(
             company_classifier=self.company_classifier,
             company_name=company_display,
@@ -170,7 +166,7 @@ class JobScorer:
 
         breakdown["company_classification"] = company_adjustment
 
-        # Total score (max 115 + adjustments)
+        # Total score (max 100 + adjustments)
         total_score = sum(breakdown.values())
 
         # Grade
@@ -381,12 +377,6 @@ class JobScorer:
             bonus_score = (must_matches + nice_matches) * 2
 
         return base_score + bonus_score
-
-    def _score_company_stage(self, _company: str) -> int:
-        """Score based on company stage (0-15) - Limited info"""
-        # Note: We don't have much company data, so this is basic
-        # Could be enhanced with company research later
-        return 10  # Default neutral score
 
     def _is_country_restricted(self, location: str, description: str = "") -> bool:
         """

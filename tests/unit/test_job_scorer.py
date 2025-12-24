@@ -1,7 +1,7 @@
 """
 Tests for JobScorer
 
-Tests the 115-point scoring system that evaluates jobs against candidate profile.
+Tests the 100-point scoring system that evaluates jobs against candidate profile.
 """
 
 from src.agents.job_scorer import JobScorer
@@ -399,18 +399,6 @@ class TestLocationScoring:
         assert score == 0
 
 
-class TestCompanyStageScoring:
-    """Test company stage scoring (0-15 points)"""
-
-    def test_company_stage_returns_default(self):
-        """Test company stage returns default 10 points"""
-        scorer = JobScorer()
-
-        # Currently returns default since we don't have stage data
-        score = scorer._score_company_stage("any company")
-        assert score == 10
-
-
 class TestTechnicalKeywordsScoring:
     """Test technical keywords scoring (0-10 points)"""
 
@@ -512,7 +500,6 @@ class TestFullJobScoring:
         assert "domain" in breakdown
         assert "role_type" in breakdown
         assert "location" in breakdown
-        assert "company_stage" in breakdown
         assert "technical" in breakdown
 
     def test_score_with_none_location(self):
@@ -598,19 +585,6 @@ class TestJobScorerEdgeCases:
         # Toronto scores 12, but other cities may score differently
         assert scorer._score_location("toronto, on") >= 8
         assert scorer._score_location("ottawa, ontario") >= 0
-
-    def test_company_stage_series_a(self):
-        """Should detect Series A stage"""
-        scorer = JobScorer()
-        # Test method exists and returns a score
-        score = scorer._score_company_stage("We just closed our Series A round")
-        assert score >= 0
-
-    def test_company_stage_growth(self):
-        """Should detect growth stage"""
-        scorer = JobScorer()
-        score = scorer._score_company_stage("Fast-growing startup")
-        assert score >= 0
 
     def test_technical_keywords_scoring(self):
         """Should score technical keywords"""

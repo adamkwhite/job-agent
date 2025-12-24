@@ -46,11 +46,11 @@ class TestDigestJobDisplay:
         }
 
     def test_all_excellent_matches_displayed_no_limit(self):
-        """Test that ALL excellent matches (80+) are displayed, not just 10"""
+        """Test that ALL excellent matches (70+) are displayed, not just 10"""
         profile = self._create_mock_profile()
 
         # Create 15 excellent matches (more than old limit of 10)
-        jobs = [self._create_mock_job(score=80 + i, title=f"Job {i}") for i in range(15)]
+        jobs = [self._create_mock_job(score=70 + i, title=f"Job {i}") for i in range(15)]
 
         html = generate_email_html(jobs, profile)
 
@@ -61,7 +61,7 @@ class TestDigestJobDisplay:
         # Each job has a unique link with its score in the URL
         excellent_jobs_in_html = 0
         for i in range(15):
-            expected_link = f"https://example.com/jobs/{80 + i}"
+            expected_link = f"https://example.com/jobs/{70 + i}"
             if expected_link in html:
                 excellent_jobs_in_html += 1
 
@@ -71,26 +71,26 @@ class TestDigestJobDisplay:
         )
 
     def test_all_good_matches_displayed_no_limit(self):
-        """Test that ALL good matches (70-79) are displayed, not just 5"""
+        """Test that ALL good matches (55-69) are displayed, not just 5"""
         profile = self._create_mock_profile()
 
-        # Create 10 excellent (80+) and 8 good (70-79) matches
+        # Create 10 excellent (70+) and 8 good (55-69) matches
         jobs = []
         jobs.extend(
-            [self._create_mock_job(score=80 + i, title=f"Excellent {i}") for i in range(10)]
+            [self._create_mock_job(score=70 + i, title=f"Excellent {i}") for i in range(10)]
         )
-        jobs.extend([self._create_mock_job(score=70 + i, title=f"Good {i}") for i in range(8)])
+        jobs.extend([self._create_mock_job(score=55 + i, title=f"Good {i}") for i in range(8)])
 
         html = generate_email_html(jobs, profile)
 
-        # Verify summary says 10 excellent, 8 good (70-79 only)
+        # Verify summary says 10 excellent, 8 good (55-69 only)
         assert "10</strong> excellent matches" in html
-        assert "8</strong> good matches (70-79 score)" in html
+        assert "8</strong> good matches (55-69 score)" in html
 
-        # Count good matches (70-79 only) in the HTML
+        # Count good matches (55-69 only) in the HTML
         good_jobs_in_html = 0
         for i in range(8):
-            expected_link = f"https://example.com/jobs/{70 + i}"
+            expected_link = f"https://example.com/jobs/{55 + i}"
             if expected_link in html:
                 good_jobs_in_html += 1
 
@@ -101,11 +101,11 @@ class TestDigestJobDisplay:
         """Test that summary counts exactly match displayed job counts"""
         profile = self._create_mock_profile()
 
-        # Create 12 excellent (80+) and 5 good (70-79) matches
+        # Create 12 excellent (70+) and 5 good (55-69) matches
         jobs = []
         jobs.extend([self._create_mock_job(score=85, company=f"Company {i}") for i in range(12)])
         jobs.extend(
-            [self._create_mock_job(score=73, company=f"Company {i + 12}") for i in range(5)]
+            [self._create_mock_job(score=60, company=f"Company {i + 12}") for i in range(5)]
         )
 
         html = generate_email_html(jobs, profile)
@@ -121,7 +121,7 @@ class TestDigestJobDisplay:
         summary_good = int(good_match.group(1))
 
         assert summary_excellent == 12
-        assert summary_good == 5  # 5 good (70-79 only)
+        assert summary_good == 5  # 5 good (55-69 only)
 
         # Count actual job entries in HTML
         # Each job has a table row with company name
@@ -138,7 +138,7 @@ class TestDigestJobDisplay:
         )
 
     def test_no_good_section_if_all_excellent(self):
-        """Test that good section doesn't appear if all jobs are 80+"""
+        """Test that good section doesn't appear if all jobs are 70+"""
         profile = self._create_mock_profile()
 
         # Create only excellent matches
@@ -147,25 +147,25 @@ class TestDigestJobDisplay:
         html = generate_email_html(jobs, profile)
 
         # Should have excellent section
-        assert "Top Matches (80+ Score)" in html
+        assert "Top Matches (70+ Score)" in html
 
-        # Should NOT have good section (no 70-79 jobs)
-        assert "Also Worth Considering (70-79 Score)" not in html
+        # Should NOT have good section (no 55-69 jobs)
+        assert "Also Worth Considering (55-69 Score)" not in html
 
     def test_good_section_appears_when_70_79_jobs_exist(self):
-        """Test that good section appears when there are 70-79 jobs"""
+        """Test that good section appears when there are 55-69 jobs"""
         profile = self._create_mock_profile()
 
         # Create mix of excellent and good
         jobs = []
         jobs.extend([self._create_mock_job(score=85) for _ in range(5)])
-        jobs.extend([self._create_mock_job(score=72) for _ in range(3)])
+        jobs.extend([self._create_mock_job(score=60) for _ in range(3)])
 
         html = generate_email_html(jobs, profile)
 
         # Should have both sections
-        assert "Top Matches (80+ Score)" in html
-        assert "Also Worth Considering (70-79 Score)" in html
+        assert "Top Matches (70+ Score)" in html
+        assert "Also Worth Considering (55-69 Score)" in html
 
     def test_empty_jobs_list(self):
         """Test handling of empty jobs list"""
@@ -184,7 +184,7 @@ class TestDigestJobDisplay:
         Regression test for Issue #135 - Eli's specific case
 
         Eli's digest said:
-        - 15 excellent matches (80+)
+        - 15 excellent matches (70+)
         - 17 good matches (70+)
 
         But only showed:
@@ -200,18 +200,18 @@ class TestDigestJobDisplay:
 
         # 15 excellent matches (80-94)
         jobs.extend(
-            [self._create_mock_job(score=80 + i, title=f"Excellent {i}") for i in range(15)]
+            [self._create_mock_job(score=70 + i, title=f"Excellent {i}") for i in range(15)]
         )
 
-        # 2 good matches (70-79) - only 2 in 70-79 range
-        jobs.extend([self._create_mock_job(score=75, title="Good 1")])
-        jobs.extend([self._create_mock_job(score=72, title="Good 2")])
+        # 2 good matches (55-69) - only 2 in 55-69 range
+        jobs.extend([self._create_mock_job(score=60, title="Good 1")])
+        jobs.extend([self._create_mock_job(score=57, title="Good 2")])
 
         html = generate_email_html(jobs, profile)
 
         # Verify summary
         assert "15</strong> excellent matches" in html
-        assert "2</strong> good matches (70-79 score)" in html  # 2 in 70-79 range only
+        assert "2</strong> good matches (55-69 score)" in html  # 2 in 55-69 range only
 
         # Verify ALL 15 excellent jobs are in HTML
         for i in range(15):

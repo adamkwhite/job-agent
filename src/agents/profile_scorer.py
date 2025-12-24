@@ -76,15 +76,11 @@ class ProfileScorer:
         location_score = self._score_location(location)
         breakdown["location"] = location_score
 
-        # 5. Company Stage Match (0-15 points)
-        stage_score = self._score_company_stage(company)
-        breakdown["company_stage"] = stage_score
-
-        # 6. Technical Keywords (0-10 points)
+        # 5. Technical Keywords (0-10 points)
         tech_score = self._score_technical_keywords(title, company)
         breakdown["technical"] = tech_score
 
-        # 7. Company Classification Adjustment (filtering penalties/boosts)
+        # 6. Company Classification Adjustment (filtering penalties/boosts)
         company_adjustment, classification_metadata = classify_and_score_company(
             company_classifier=self.company_classifier,
             company_name=company_display,
@@ -96,7 +92,7 @@ class ProfileScorer:
 
         breakdown["company_classification"] = company_adjustment
 
-        # Total score (max 115 + adjustments)
+        # Total score (max 100 + adjustments)
         total_score = sum(breakdown.values())
 
         # Grade (using shared utility)
@@ -193,11 +189,6 @@ class ProfileScorer:
         # No fallback points - only award points for explicit role type matches
         # This prevents "Performance Marketing Director" from scoring 10 points
         return 0
-
-    def _score_company_stage(self, _company: str) -> int:
-        """Score based on company stage (0-15)"""
-        # Limited info available - default neutral score
-        return 10
 
     def _score_location(self, location: str) -> int:
         """Score based on location match (0-15 points)"""

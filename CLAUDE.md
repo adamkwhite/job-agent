@@ -11,11 +11,11 @@ This is a job discovery and application automation system for Wesley van Ooyen (
 ### Current Implementation (V2 - Enhanced Intelligence)
 - **Python-based email processors** for LinkedIn, Supra, F6S, Artemis newsletters
 - **Automated web scraping** of robotics/deeptech job boards (1,092 jobs weekly)
-- **Intelligent job scoring** (115-point system) against candidate profile
+- **Intelligent job scoring** (100-point system) against candidate profile
 - **LLM extraction pipeline** (experimental) - Dual regex+LLM extraction via Claude 3.5 Sonnet
 - **Location-aware filtering** (Remote, Hybrid Ontario, Ontario cities)
 - **SQLite database** with deduplication and scoring history
-- **Multi-channel notifications** for A/B grade jobs only (80+)
+- **Multi-channel notifications** for A/B grade jobs only (70+)
 - **Weekly email digests** with interactive HTML job tables
 - **Cron-based automation** (Monday 9am scraper runs)
 
@@ -41,16 +41,15 @@ This is a job discovery and application automation system for Wesley van Ooyen (
 
 ⚠️ **When updating scoring criteria, follow the checklist:** `docs/development/SCORING_UPDATE_CHECKLIST.md`
 
-Multi-factor scoring system (0-115 points) evaluating jobs against Wesley's profile:
+Multi-factor scoring system (0-100 points) evaluating jobs against Wesley's profile:
 - **Seniority** (0-30): VP/Director/Head of roles score highest
 - **Domain** (0-25): Robotics, hardware, automation, IoT, MedTech
 - **Role Type** (0-20): Engineering leadership > Product leadership
 - **Location** (0-15): Remote (+15), Hybrid Ontario (+15), Ontario cities (+12)
-- **Company Stage** (0-15): Series A-C, growth stage preferred
 - **Company Fit** (±20): Hardware boost (+10) or software penalty (-20)
 - **Technical Keywords** (0-10): Mechatronics, embedded, manufacturing
 
-**Grading**: A (98+), B (80+), C (63+), D (46+), F (<46)
+**Grading**: A (85+), B (70+), C (55+), D (40+), F (<40)
 
 #### Company Classification Filtering (Issue #122)
 
@@ -379,10 +378,10 @@ tail -f logs/unified_weekly_scraper.log
 
 ## Success Metrics (V2 - Achieved)
 
-- **Intelligent Scoring**: 115-point system with A/B/C/D/F grading
+- **Intelligent Scoring**: 100-point system with A/B/C/D/F grading
 - **High-Quality Sources**: Robotics source yields 10 B+ grade jobs vs 0 from LinkedIn/Supra
 - **Location Filtering**: Remote/Hybrid Ontario jobs prioritized (+15 points)
-- **Noise Reduction**: Notifications only for A/B grade jobs (80+)
+- **Noise Reduction**: Notifications only for A/B grade jobs (70+)
 - **Weekly Automation**: Cron job scrapes 1,092 robotics jobs every Monday
 - **Email Digests**: Beautiful HTML email with interactive job table (56KB attachment)
 - **Coverage**: 5 excellent matches, 11 good matches in latest digest
@@ -391,9 +390,9 @@ tail -f logs/unified_weekly_scraper.log
 
 **Latest Digest (Oct 22, 2025)**:
 - 50 total jobs processed
-- 5 excellent matches (80+ score)
-- 11 good matches (70+ score)
-- Top match: 87/115 (A grade) - Director of Engineering @ Robotics Company
+- 5 excellent matches (70+ score)
+- 11 good matches (55+ score)
+- Top match: 80/100 (B grade) - Director of Engineering @ Robotics Company
 - Email delivered to wesvanooyen@gmail.com with full HTML attachment
 
 ## Future Roadmap
@@ -419,7 +418,7 @@ CREATE TABLE jobs (
     link TEXT,
     keywords_matched TEXT, -- JSON array
     received_at TEXT,
-    fit_score INTEGER,     -- 0-115 points
+    fit_score INTEGER,     -- 0-100 points
     fit_grade TEXT,        -- A, B, C, D, F
     score_breakdown TEXT,  -- JSON object with category scores
     research_notes TEXT,

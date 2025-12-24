@@ -4,7 +4,7 @@ Unit tests for Adam's profile Anthropic/Claude keyword additions
 Tests that Adam's profile correctly scores developer tools and AI company jobs
 after adding "anthropic", "claude", "developer tools", "ide" keywords.
 
-Use Case: "Product Manager, Claude Code" @ Anthropic should score B grade (80+)
+Use Case: "Product Manager, Claude Code" @ Anthropic should score B grade (70+)
 for Adam, not C grade (67).
 """
 
@@ -58,7 +58,7 @@ class TestAnthropicJobScoring:
     """Test actual job scoring for Anthropic positions"""
 
     def test_product_manager_claude_code_scores_b_grade(self, adam_profile):
-        """Product Manager, Claude Code @ Anthropic should score B grade (80+)"""
+        """Product Manager, Claude Code @ Anthropic should score B grade (70+)"""
         scorer = ProfileScorer(adam_profile)
         job = {
             "title": "Product Manager, Claude Code",
@@ -68,10 +68,10 @@ class TestAnthropicJobScoring:
 
         score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
-        # Should score B grade (80+) for Adam
-        assert score >= 80, (
-            f"Product Manager, Claude Code @ Anthropic should score at least 80 for Adam, "
-            f"got {score}/115 ({grade})"
+        # Should score B grade (70+) for Adam
+        assert score >= 70, (
+            f"Product Manager, Claude Code @ Anthropic should score at least 70 for Adam, "
+            f"got {score}/100 ({grade})"
         )
         assert grade == "B", f"Expected B grade, got {grade}"
 
@@ -126,11 +126,12 @@ class TestAnthropicJobScoring:
 
         score, grade, breakdown, _classification_metadata = scorer.score_job(job)
 
-        # Should score B+ grade (85+) with senior keyword
-        assert score >= 85, (
-            f"Senior PM, Claude Code @ Anthropic should score at least 85 for Adam, "
-            f"got {score}/115 ({grade})"
+        # Should score B+ grade (75+) with senior keyword
+        assert score >= 75, (
+            f"Senior PM, Claude Code @ Anthropic should score at least 75 for Adam, "
+            f"got {score}/100 ({grade})"
         )
+        assert grade in ["A", "B"], f"Expected A or B grade, got {grade}"
 
         # Seniority should be 15 (senior-level)
         assert breakdown["seniority"] == 15, (

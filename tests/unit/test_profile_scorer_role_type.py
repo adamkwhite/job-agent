@@ -98,7 +98,7 @@ class TestRoleTypeWordBoundaries:
         )
 
         # Total score should be very low (no role_type OR seniority points)
-        assert score < 63, f"Marketing role scored too high: {score}/115"
+        assert score < 55, f"Marketing role scored too high: {score}/100"
         assert grade in ["D", "F"], f"Marketing role should be D or F grade, got {grade}"
 
     def test_director_engineering_matches(self, engineering_profile):

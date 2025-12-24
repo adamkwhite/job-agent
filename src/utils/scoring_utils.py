@@ -114,22 +114,22 @@ def classify_and_score_company(
 
 def calculate_grade(score: int) -> str:
     """
-    Convert score to letter grade (out of 115 total)
+    Convert score to letter grade (out of 100 total)
 
     Thresholds (percentage of max):
-    - A: 85%+ (98+)
-    - B: 70%+ (80+)
-    - C: 55%+ (63+)
-    - D: 40%+ (46+)
-    - F: <40% (<46)
+    - A: 85%+ (85+)
+    - B: 70%+ (70+)
+    - C: 55%+ (55+)
+    - D: 40%+ (40+)
+    - F: <40% (<40)
     """
-    if score >= 98:
+    if score >= 85:
         return "A"
-    elif score >= 80:
+    elif score >= 70:
         return "B"
-    elif score >= 63:
+    elif score >= 55:
         return "C"
-    elif score >= 46:
+    elif score >= 40:
         return "D"
     else:
         return "F"
@@ -137,10 +137,10 @@ def calculate_grade(score: int) -> str:
 
 # Grade thresholds for filtering
 GRADE_THRESHOLDS = {
-    "A": 98,
-    "B": 80,
-    "C": 63,
-    "D": 46,
+    "A": 85,
+    "B": 70,
+    "C": 55,
+    "D": 40,
     "F": 0,
 }
 
