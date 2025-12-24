@@ -75,12 +75,14 @@ class ParserRegistry:
             print(f"Using parser: {parser.name}")
             return parser.parse(email_message)
         else:
-            # No parser found - return empty result
+            # No parser found - return empty result with from/subject info
+            from_addr = email_message.get("From", "Unknown")
+            subject = email_message.get("Subject", "Unknown")
             return ParserResult(
                 parser_name="unknown",
                 success=False,
                 opportunities=[],
-                error=f"No parser found for email: {email_message.get('Subject', 'Unknown')}",
+                error=f"No parser found for email from '{from_addr}' with subject '{subject}'",
             )
 
     def get_enabled_parsers(self) -> list[str]:
