@@ -7,6 +7,7 @@ instead of hardcoded Wesley preferences.
 """
 
 import json
+import logging
 import re
 import sys
 from pathlib import Path
@@ -14,8 +15,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from database import JobDatabase
+from utils.company_classifier import CompanyClassifier
 from utils.profile_manager import Profile, get_profile_manager
-from utils.scoring_utils import calculate_grade
+from utils.scoring_utils import calculate_grade, classify_and_score_company
+
+logger = logging.getLogger(__name__)
 
 
 def load_role_category_keywords() -> dict:
@@ -33,19 +37,22 @@ class ProfileScorer:
         self.profile = profile
         self.db = JobDatabase()
         self.role_category_keywords = load_role_category_keywords()
+        self.company_classifier = CompanyClassifier()  # Multi-signal company classification
 
     def score_job(self, job: dict) -> tuple[int, str, dict, dict]:
         """
         Score a job from 0-115 with grade and breakdown
 
-        NOTE: ProfileScorer does not yet include company classification filtering.
-        It returns empty classification_metadata for API compatibility.
+        Includes company classification and software role filtering logic.
+        Filtered software engineering roles receive penalty from profile config.
+        Hardware company engineering roles receive boost from profile config.
 
         Returns:
             (score, grade, breakdown_dict, classification_metadata)
         """
         title = job["title"].lower()
         company = job["company"].lower()
+        company_display = job["company"]  # Keep original case for classification
         location = (job.get("location") or "").lower()
 
         breakdown = {}
@@ -77,14 +84,23 @@ class ProfileScorer:
         tech_score = self._score_technical_keywords(title, company)
         breakdown["technical"] = tech_score
 
-        # Total score (max 115)
+        # 7. Company Classification Adjustment (filtering penalties/boosts)
+        company_adjustment, classification_metadata = classify_and_score_company(
+            company_classifier=self.company_classifier,
+            company_name=company_display,
+            job_title=job["title"],
+            domain_keywords=self.profile.get_domain_keywords(),
+            role_types=self.profile.scoring.get("role_types", {}),
+            filtering_config=self.profile.scoring.get("filtering", {}),
+        )
+
+        breakdown["company_classification"] = company_adjustment
+
+        # Total score (max 115 + adjustments)
         total_score = sum(breakdown.values())
 
         # Grade (using shared utility)
         grade = calculate_grade(total_score)
-
-        # Placeholder classification metadata (ProfileScorer doesn't use CompanyClassifier yet)
-        classification_metadata: dict = {}
 
         return total_score, grade, breakdown, classification_metadata
 

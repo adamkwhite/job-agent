@@ -79,14 +79,14 @@ class TestWesRoboticsKeywords:
             f"Head of should get 25+ seniority points, got {breakdown['seniority']}"
         )
 
-        # Should score B grade overall
-        assert score >= 80, (
-            f"Head of Robotics should score at least 80 for Wes, got {score}/115 ({grade})"
+        # Should score A grade overall (with hardware company boost)
+        assert score >= 90, (
+            f"Head of Robotics should score at least 90 for Wes (with hardware boost), got {score}/115 ({grade})"
         )
-        assert grade == "B", f"Expected B grade, got {grade}"
+        assert grade in ["A", "B"], f"Expected A or B grade, got {grade}"
 
     def test_director_of_automation_scores_b_grade(self, wes_profile):
-        """Director of Automation should score B grade (80+)"""
+        """Director of Automation should score A or B grade (with hardware boost)"""
         scorer = ProfileScorer(wes_profile)
         job = {
             "title": "Director of Automation",
@@ -98,11 +98,11 @@ class TestWesRoboticsKeywords:
 
         assert breakdown["role_type"] > 0, "Should match automation role_type"
         assert breakdown["seniority"] >= 25, "Director should get 25+ seniority"
-        assert score >= 80, f"Should score 80+, got {score}/115"
-        assert grade == "B", f"Expected B grade, got {grade}"
+        assert score >= 80, f"Should score 80+ (with hardware boost), got {score}/115"
+        assert grade in ["A", "B"], f"Expected A or B grade (with hardware boost), got {grade}"
 
     def test_vp_of_manufacturing_scores_b_grade(self, wes_profile):
-        """VP of Manufacturing should score B grade (80+)"""
+        """VP of Manufacturing should score A or B grade (with hardware boost)"""
         scorer = ProfileScorer(wes_profile)
         job = {
             "title": "VP of Manufacturing",
@@ -114,8 +114,8 @@ class TestWesRoboticsKeywords:
 
         assert breakdown["role_type"] > 0, "Should match manufacturing role_type"
         assert breakdown["seniority"] == 30, "VP should get 30 seniority points"
-        assert score >= 80, f"Should score 80+, got {score}/115"
-        assert grade == "B", f"Expected B grade, got {grade}"
+        assert score >= 80, f"Should score 80+ (with hardware boost), got {score}/115"
+        assert grade in ["A", "B"], f"Expected A or B grade (with hardware boost), got {grade}"
 
 
 class TestEliDomainKeywords:
