@@ -15,9 +15,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from database import JobDatabase
-from utils.company_classifier import CompanyClassifier, should_filter_job
+from utils.company_classifier import CompanyClassifier
 from utils.profile_manager import Profile, get_profile_manager
-from utils.scoring_utils import calculate_grade
+from utils.scoring_utils import calculate_grade, classify_and_score_company
 
 logger = logging.getLogger(__name__)
 
@@ -56,27 +56,6 @@ class ProfileScorer:
         location = (job.get("location") or "").lower()
 
         breakdown = {}
-        classification_metadata = {}
-
-        # Classify company domain (software/hardware/both/unknown)
-        company_classification = self.company_classifier.classify_company(
-            company_name=company_display,
-            job_title=job["title"],
-            domain_keywords=self.profile.get_domain_keywords(),
-        )
-
-        # Store classification metadata for transparency
-        classification_metadata = {
-            "company_type": company_classification.type,
-            "confidence": company_classification.confidence,
-            "signals": company_classification.signals,
-            "source": company_classification.source,
-        }
-
-        logger.debug(
-            f"Company classification for '{company_display}': "
-            f"type={company_classification.type}, confidence={company_classification.confidence:.2f}"
-        )
 
         # 1. Role Type Match (0-20 points) - MUST MATCH FIRST
         # Check role type before seniority to prevent "Marketing Director" from scoring
@@ -106,54 +85,14 @@ class ProfileScorer:
         breakdown["technical"] = tech_score
 
         # 7. Company Classification Adjustment (filtering penalties/boosts)
-        # Get filtering config from profile (defaults if not present)
-        filtering_config = self.profile.scoring.get("filtering", {})
-        aggression_level = filtering_config.get("aggression_level", "moderate")
-        software_penalty = filtering_config.get("software_company_penalty", -20)
-        hardware_boost = filtering_config.get("hardware_company_boost", 10)
-
-        # Convert profile to dict for should_filter_job (it expects dict)
-        profile_dict = {
-            "role_types": self.profile.scoring.get("role_types", {}),
-            "filtering": filtering_config,
-        }
-
-        # Check if job should be filtered
-        should_filter, filter_reason = should_filter_job(
-            job_title=job["title"],
+        company_adjustment, classification_metadata = classify_and_score_company(
+            company_classifier=self.company_classifier,
             company_name=company_display,
-            company_classification=company_classification,
-            profile=profile_dict,
-            aggression_level=aggression_level,
+            job_title=job["title"],
+            domain_keywords=self.profile.get_domain_keywords(),
+            role_types=self.profile.scoring.get("role_types", {}),
+            filtering_config=self.profile.scoring.get("filtering", {}),
         )
-
-        # Apply filtering penalty or boost
-        company_adjustment = 0
-        if should_filter:
-            company_adjustment = software_penalty
-            classification_metadata["filtered"] = True
-            classification_metadata["filter_reason"] = filter_reason
-            logger.info(
-                f"Applying software role filter to '{job['title']}' at '{company_display}': "
-                f"{software_penalty} points (reason: {filter_reason})"
-            )
-        elif company_classification.type == "hardware":
-            # Hardware company boost for engineering roles
-            company_adjustment = hardware_boost
-            classification_metadata["filtered"] = False
-            classification_metadata["filter_reason"] = filter_reason
-            classification_metadata["hardware_boost_applied"] = True
-            logger.info(
-                f"Applying hardware company boost to '{job['title']}' at '{company_display}': "
-                f"+{hardware_boost} points"
-            )
-        else:
-            classification_metadata["filtered"] = False
-            classification_metadata["filter_reason"] = filter_reason
-            logger.debug(
-                f"No filtering adjustment for '{job['title']}' at '{company_display}' "
-                f"(reason: {filter_reason})"
-            )
 
         breakdown["company_classification"] = company_adjustment
 
