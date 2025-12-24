@@ -226,11 +226,11 @@ def generate_email_html(
 ) -> str:
     """Generate HTML email with top jobs for a specific profile"""
 
-    # Filter for B+ and good grade jobs
-    high_scoring = [j for j in jobs if j.get("fit_score", 0) >= 80]
-    good_scoring = [j for j in jobs if 70 <= j.get("fit_score", 0) < 80]
+    # Filter for B+ and C grade jobs
+    high_scoring = [j for j in jobs if j.get("fit_score", 0) >= 70]
+    good_scoring = [j for j in jobs if 55 <= j.get("fit_score", 0) < 70]
 
-    # Calculate total displayable jobs (70+)
+    # Calculate total displayable jobs (55+)
     total_displayed = len(high_scoring) + len(good_scoring)
 
     # Get profile-specific targeting info
@@ -350,14 +350,14 @@ def generate_email_html(
 
         <div class="summary">
             <strong>📊 Summary:</strong><br>
-            • <strong>{len(high_scoring)}</strong> excellent matches (80+ score)<br>
-            • <strong>{len(good_scoring)}</strong> good matches (70-79 score)<br>
+            • <strong>{len(high_scoring)}</strong> excellent matches (70+ score)<br>
+            • <strong>{len(good_scoring)}</strong> good matches (55-69 score)<br>
             • Scored on: Seniority (30), Domain (25), Role Type (20), Location (15 if unrestricted remote/Canada-friendly), Technical (10), Company Fit (±20)
         </div>
     """
 
     if high_scoring:
-        html += "<h2>⭐ Top Matches (80+ Score)</h2>"
+        html += "<h2>⭐ Top Matches (70+ Score)</h2>"
         html += """
         <table>
             <thead>
@@ -371,7 +371,7 @@ def generate_email_html(
                     <th style="text-align: center;">Location<br>/15</th>
                     <th style="text-align: center;">Tech<br>/10</th>
                     <th style="text-align: center;">Company<br>Fit</th>
-                    <th style="text-align: center;">Total<br>/115</th>
+                    <th style="text-align: center;">Total<br>/100</th>
                 </tr>
             </thead>
             <tbody>
@@ -383,7 +383,7 @@ def generate_email_html(
         """
 
     if good_scoring:
-        html += "<h2>✅ Also Worth Considering (70-79 Score)</h2>"
+        html += "<h2>✅ Also Worth Considering (55-69 Score)</h2>"
         html += """
         <table>
             <thead>
@@ -397,7 +397,7 @@ def generate_email_html(
                     <th style="text-align: center;">Location<br>/15</th>
                     <th style="text-align: center;">Tech<br>/10</th>
                     <th style="text-align: center;">Company<br>Fit</th>
-                    <th style="text-align: center;">Total<br>/115</th>
+                    <th style="text-align: center;">Total<br>/100</th>
                 </tr>
             </thead>
             <tbody>
@@ -597,11 +597,11 @@ def send_digest_to_profile(
         return False
 
     # Count by grade
-    high_scoring = [j for j in jobs if j.get("fit_score", 0) >= 80]
-    good_scoring = [j for j in jobs if j.get("fit_score", 0) >= 70]
+    high_scoring = [j for j in jobs if j.get("fit_score", 0) >= 70]
+    good_scoring = [j for j in jobs if j.get("fit_score", 0) >= 55]
 
-    print(f"  - {len(high_scoring)} excellent matches (80+)")
-    print(f"  - {len(good_scoring)} good matches (70+)")
+    print(f"  - {len(high_scoring)} excellent matches (70+)")
+    print(f"  - {len(good_scoring)} good matches (55+)")
 
     if dry_run:
         print(f"\n🧪 DRY RUN - Would send to {profile.email}")
@@ -658,7 +658,7 @@ def send_digest_to_profile(
     text_body = f"""
 Hi {profile.name.split()[0]},
 
-I've found {len(high_scoring)} excellent job matches (80+ score) and {len(good_scoring)} good matches (70-79 score).
+I've found {len(high_scoring)} excellent job matches (70+ score) and {len(good_scoring)} good matches (55-69 score).
 
 Open the HTML email to see full details and apply links.
 

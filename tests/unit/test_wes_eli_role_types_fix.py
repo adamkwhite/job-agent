@@ -4,8 +4,8 @@ Unit tests for Wes and Eli role_types domain keyword fixes
 Tests that domain-specific leadership titles properly match role_types
 across all profiles, preventing critical scoring failures.
 
-Bug: "Head of Robotics" scored 42/F for Wes (should be 92/B)
-      "Head of FinTech" scored F for Eli (should be 92/B)
+Bug: "Head of Robotics" scored 42/F for Wes (should be 80/B)
+      "Head of FinTech" scored F for Eli (should be 80/B)
 
 Root Cause: role_types didn't include domain keywords like "robotics", "fintech"
 Result: 0 role_type + 0 seniority = automatic FAIL
@@ -61,7 +61,7 @@ class TestWesRoboticsKeywords:
         assert "automation" in all_keywords, "Wes's role_types should include 'automation' keyword"
 
     def test_head_of_robotics_scores_b_grade(self, wes_profile):
-        """Head of Robotics should score B grade (80+), not F (42)"""
+        """Head of Robotics should score B grade (70+), not F (42)"""
         scorer = ProfileScorer(wes_profile)
         job = {
             "title": "Head of Robotics",
@@ -80,8 +80,8 @@ class TestWesRoboticsKeywords:
         )
 
         # Should score A grade overall (with hardware company boost)
-        assert score >= 90, (
-            f"Head of Robotics should score at least 90 for Wes (with hardware boost), got {score}/115 ({grade})"
+        assert score >= 85, (
+            f"Head of Robotics should score at least 85 for Wes (with hardware boost), got {score}/100 ({grade})"
         )
         assert grade in ["A", "B"], f"Expected A or B grade, got {grade}"
 
@@ -98,7 +98,7 @@ class TestWesRoboticsKeywords:
 
         assert breakdown["role_type"] > 0, "Should match automation role_type"
         assert breakdown["seniority"] >= 25, "Director should get 25+ seniority"
-        assert score >= 80, f"Should score 80+ (with hardware boost), got {score}/115"
+        assert score >= 70, f"Should score 70+ (with hardware boost), got {score}/100"
         assert grade in ["A", "B"], f"Expected A or B grade (with hardware boost), got {grade}"
 
     def test_vp_of_manufacturing_scores_b_grade(self, wes_profile):
@@ -114,7 +114,7 @@ class TestWesRoboticsKeywords:
 
         assert breakdown["role_type"] > 0, "Should match manufacturing role_type"
         assert breakdown["seniority"] == 30, "VP should get 30 seniority points"
-        assert score >= 80, f"Should score 80+ (with hardware boost), got {score}/115"
+        assert score >= 70, f"Should score 70+ (with hardware boost), got {score}/100"
         assert grade in ["A", "B"], f"Expected A or B grade (with hardware boost), got {grade}"
 
 
@@ -149,7 +149,7 @@ class TestEliDomainKeywords:
         assert "saas" in all_keywords, "Eli's role_types should include 'saas' keyword"
 
     def test_head_of_fintech_scores_b_grade(self, eli_profile):
-        """Head of FinTech should score B grade (80+), not F"""
+        """Head of FinTech should score B grade (70+), not F"""
         scorer = ProfileScorer(eli_profile)
         job = {
             "title": "Head of FinTech",
@@ -161,11 +161,11 @@ class TestEliDomainKeywords:
 
         assert breakdown["role_type"] > 0, "Should match fintech role_type"
         assert breakdown["seniority"] >= 25, "Head of should get 25+ seniority"
-        assert score >= 80, f"Should score 80+, got {score}/115"
+        assert score >= 70, f"Should score 70+, got {score}/100"
         assert grade == "B", f"Expected B grade, got {grade}"
 
     def test_director_of_healthtech_scores_b_grade(self, eli_profile):
-        """Director of HealthTech should score B grade (80+)"""
+        """Director of HealthTech should score B grade (70+)"""
         scorer = ProfileScorer(eli_profile)
         job = {
             "title": "Director of HealthTech",
@@ -177,11 +177,11 @@ class TestEliDomainKeywords:
 
         assert breakdown["role_type"] > 0, "Should match healthtech role_type"
         assert breakdown["seniority"] >= 25, "Director should get 25+ seniority"
-        assert score >= 80, f"Should score 80+, got {score}/115"
+        assert score >= 70, f"Should score 70+, got {score}/100"
         assert grade == "B", f"Expected B grade, got {grade}"
 
     def test_vp_of_saas_scores_b_grade(self, eli_profile):
-        """VP of SaaS should score B grade (80+)"""
+        """VP of SaaS should score B grade (70+)"""
         scorer = ProfileScorer(eli_profile)
         job = {
             "title": "VP of SaaS",
@@ -193,7 +193,7 @@ class TestEliDomainKeywords:
 
         assert breakdown["role_type"] > 0, "Should match saas role_type"
         assert breakdown["seniority"] == 30, "VP should get 30 seniority points"
-        assert score >= 80, f"Should score 80+, got {score}/115"
+        assert score >= 70, f"Should score 70+, got {score}/100"
         assert grade == "B", f"Expected B grade, got {grade}"
 
 

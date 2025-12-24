@@ -163,15 +163,16 @@ class TestProfileScorer:
         """Test grade calculation thresholds (using shared utility)"""
         from src.utils.scoring_utils import calculate_grade
 
-        # Test grade boundaries
-        assert calculate_grade(98) == "A"
-        assert calculate_grade(97) == "B"
-        assert calculate_grade(80) == "B"
-        assert calculate_grade(79) == "C"
-        assert calculate_grade(63) == "C"
-        assert calculate_grade(62) == "D"
-        assert calculate_grade(46) == "D"
-        assert calculate_grade(45) == "F"
+        # Test grade boundaries (100-point system)
+        assert calculate_grade(100) == "A"  # Perfect score
+        assert calculate_grade(85) == "A"  # A threshold
+        assert calculate_grade(84) == "B"  # Just below A
+        assert calculate_grade(70) == "B"  # B threshold
+        assert calculate_grade(69) == "C"  # Just below B
+        assert calculate_grade(55) == "C"  # C threshold
+        assert calculate_grade(54) == "D"  # Just below C
+        assert calculate_grade(40) == "D"  # D threshold
+        assert calculate_grade(39) == "F"  # Just below D
         assert calculate_grade(0) == "F"
 
     def test_location_scoring_remote(self, adam_style_profile):
