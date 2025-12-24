@@ -10,7 +10,7 @@ This is a job discovery and application automation system for Wesley van Ooyen (
 
 ### Current Implementation (V2 - Enhanced Intelligence)
 - **Python-based email processors** for LinkedIn, Supra, F6S, Artemis newsletters
-- **Automated web scraping** of robotics/deeptech job boards (1,092 jobs weekly)
+- **Automated company monitoring** via Firecrawl (26+ robotics/deeptech companies)
 - **Intelligent job scoring** (100-point system) against candidate profile
 - **LLM extraction pipeline** (experimental) - Dual regex+LLM extraction via Claude 3.5 Sonnet
 - **Location-aware filtering** (Remote, Hybrid Ontario, Ontario cities)
@@ -112,30 +112,13 @@ Each scored job includes classification metadata:
 
 **Supported Sources**: LinkedIn, Supra Product Leadership Jobs, F6S, Artemis, Built In
 
-### 3. Robotics Web Scraper (`src/jobs/weekly_robotics_scraper.py`)
-**Phase 1: Google Sheets**
-- Scrapes 1,092 jobs from robotics/deeptech Google Sheets
-- Filters for Director+ leadership roles
-- Scores and stores B+ grade jobs (70+)
-- Runs weekly via cron (Monday 9am)
-
-**Phase 2: Firecrawl Generic Career Pages** (Issue #65, PR #71)
-- Semi-automated workflow for 10 priority companies with generic career pages
-- Priority companies: Boston Dynamics, Figure, Sanctuary AI, Agility Robotics, 1X Technologies, Skydio, Skild AI, Dexterity, Covariant, Nuro
-- Outputs Firecrawl MCP commands for manual execution
-- Markdown processor extracts leadership jobs from scraped pages
-- Budget tracking: 50 credits/week (~$20/month)
-- Failure monitoring with 50% threshold
-- Expected to discover 25-50+ additional leadership jobs/week
-- Config: `config/robotics_priority_companies.json`
-
-### 4. Email Digest System (`src/send_profile_digest.py`)
+### 3. Email Digest System (`src/send_profile_digest.py`)
 - Generates HTML email with top-scoring jobs
 - Attaches interactive jobs.html file (56KB)
 - Location-based filtering buttons (Remote/Hybrid/Ontario)
 - Sent to wesvanooyen@gmail.com with scoring breakdowns
 
-### 5. LinkedIn Connections Matching (`src/utils/connections_manager.py`)
+### 4. LinkedIn Connections Matching (`src/utils/connections_manager.py`)
 **Status:** COMPLETED (Issue #134)
 
 Automatically surface LinkedIn connections at companies in job digests to help leverage professional networks for referrals and insights.
@@ -167,11 +150,10 @@ PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile w
 2. Select 'Connections'
 3. Download Connections.csv file
 
-### 6. Unified Weekly Scraper (`src/jobs/weekly_unified_scraper.py`) **RECOMMENDED**
+### 5. Unified Weekly Scraper (`src/jobs/weekly_unified_scraper.py`) **RECOMMENDED**
 Combines ALL job sources into one automated workflow:
 - **Email processing** (LinkedIn, Supra, F6S, Artemis, Built In, etc.)
-- **Robotics/Deeptech sheet** (1,092 jobs from Google Sheets)
-- **Company monitoring** (Wes's 26+ companies via Firecrawl)
+- **Company monitoring** (26+ robotics/deeptech companies via Firecrawl)
 
 ```bash
 PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py
@@ -186,17 +168,16 @@ PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py
 
 **Scoring thresholds**:
 - Emails: All passing filter
-- Robotics: B+ grade (70+)
 - Companies: D+ grade (50+) ← Lower threshold for more options
 
-### 7. Company Monitoring (`src/jobs/company_scraper.py`)
+### 6. Company Monitoring (`src/jobs/company_scraper.py`)
 - Scrapes 26+ companies' career pages for leadership roles
 - Uses Firecrawl MCP for JavaScript-heavy pages
 - Stores D+ grade jobs (50+) to capture more opportunities
 - Tracks last_checked timestamps
 - Sends notifications for A/B grade jobs (80+)
 
-### 8. LLM Extraction Pipeline (`src/extractors/llm_extractor.py`) **PRODUCTION**
+### 7. LLM Extraction Pipeline (`src/extractors/llm_extractor.py`) **PRODUCTION**
 **Status:** PRODUCTION - Automatically enabled via config file
 
 Dual extraction system running regex AND LLM-based job extraction in parallel:
@@ -353,7 +334,7 @@ job-agent-venv/bin/python src/tui.py
 
 **Features**:
 - Select profile (Wes or Adam)
-- Choose sources to scrape (Email, Robotics sheet, Company monitoring)
+- Choose sources to scrape (Email, Company monitoring)
 - Pick action (Scrape only, Send digest, or Both)
 - View scoring criteria for each profile
 - Profile-specific email inbox display
@@ -379,10 +360,10 @@ tail -f logs/unified_weekly_scraper.log
 ## Success Metrics (V2 - Achieved)
 
 - **Intelligent Scoring**: 100-point system with A/B/C/D/F grading
-- **High-Quality Sources**: Robotics source yields 10 B+ grade jobs vs 0 from LinkedIn/Supra
+- **High-Quality Sources**: Company monitoring yields high-quality leadership roles
 - **Location Filtering**: Remote/Hybrid Ontario jobs prioritized (+15 points)
 - **Noise Reduction**: Notifications only for A/B grade jobs (70+)
-- **Weekly Automation**: Cron job scrapes 1,092 robotics jobs every Monday
+- **Weekly Automation**: Cron job monitors 26+ companies via Firecrawl
 - **Email Digests**: Beautiful HTML email with interactive job table (56KB attachment)
 - **Coverage**: 5 excellent matches, 11 good matches in latest digest
 
@@ -410,7 +391,7 @@ tail -f logs/unified_weekly_scraper.log
 ```sql
 CREATE TABLE jobs (
     id INTEGER PRIMARY KEY,
-    source TEXT,           -- linkedin, supra_newsletter, robotics_deeptech_sheet
+    source TEXT,           -- linkedin, supra_newsletter, builtin, f6s, artemis, company_monitoring
     type TEXT,             -- direct_job, funding_lead
     company TEXT,
     title TEXT,
