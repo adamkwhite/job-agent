@@ -10,7 +10,7 @@ This is a job discovery and application automation system for Wesley van Ooyen (
 
 ### Current Implementation (V2 - Enhanced Intelligence)
 - **Python-based email processors** for LinkedIn, Supra, F6S, Artemis newsletters
-- **Automated company monitoring** via Firecrawl (26+ robotics/deeptech companies)
+- **Automated company monitoring** via Firecrawl (robotics/deeptech companies)
 - **Intelligent job scoring** (100-point system) against candidate profile
 - **LLM extraction pipeline** (experimental) - Dual regex+LLM extraction via Claude 3.5 Sonnet
 - **Location-aware filtering** (Remote, Hybrid Ontario, Ontario cities)
@@ -153,7 +153,7 @@ PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile w
 ### 5. Unified Weekly Scraper (`src/jobs/weekly_unified_scraper.py`) **RECOMMENDED**
 Combines ALL job sources into one automated workflow:
 - **Email processing** (LinkedIn, Supra, F6S, Artemis, Built In, etc.)
-- **Company monitoring** (26+ robotics/deeptech companies via Firecrawl)
+- **Company monitoring** (robotics/deeptech companies via Firecrawl)
 
 ```bash
 PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py
@@ -171,7 +171,7 @@ PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py
 - Companies: D+ grade (50+) ← Lower threshold for more options
 
 ### 6. Company Monitoring (`src/jobs/company_scraper.py`)
-- Scrapes 26+ companies' career pages for leadership roles
+- Scrapes robotics/deeptech companies' career pages for leadership roles
 - Uses Firecrawl MCP for JavaScript-heavy pages
 - Stores D+ grade jobs (50+) to capture more opportunities
 - Tracks last_checked timestamps
@@ -363,7 +363,7 @@ tail -f logs/unified_weekly_scraper.log
 - **High-Quality Sources**: Company monitoring yields high-quality leadership roles
 - **Location Filtering**: Remote/Hybrid Ontario jobs prioritized (+15 points)
 - **Noise Reduction**: Notifications only for A/B grade jobs (70+)
-- **Weekly Automation**: Cron job monitors 26+ companies via Firecrawl
+- **Weekly Automation**: Cron job monitors companies via Firecrawl
 - **Email Digests**: Beautiful HTML email with interactive job table (56KB attachment)
 - **Coverage**: 5 excellent matches, 11 good matches in latest digest
 
