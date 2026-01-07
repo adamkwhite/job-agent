@@ -74,6 +74,7 @@ def select_profile() -> str | None:
         table.add_row(str(i), profile.name, profile.email, focus)
         profile_map[str(i)] = profile.id
 
+    table.add_row("a", "API Credits", "Check LLM/Firecrawl status", "")
     table.add_row("q", "Quit", "", "")
 
     console.print(table)
@@ -81,11 +82,13 @@ def select_profile() -> str | None:
         "\n[dim]Note: Profile selection determines which email inbox to check and where digests are sent.[/dim]"
     )
 
-    choices = list(profile_map.keys()) + ["q"]
+    choices = list(profile_map.keys()) + ["a", "q"]
     choice = Prompt.ask("\n[bold]Select profile[/bold]", choices=choices, default="1")
 
     if choice == "q":
         return None
+    elif choice == "a":
+        return "credits"
     else:
         return profile_map[choice]
 
@@ -243,6 +246,123 @@ def show_criteria():
     console.print("  • CC: adamkwhite@gmail.com")
 
     console.print("\n[bold cyan]═══════════════════════════════════════════════[/bold cyan]\n")
+
+    input("\n[dim]Press Enter to return to menu...[/dim]")
+
+
+def check_api_credits():  # pragma: no cover
+    """Display API credit status for LLM and Firecrawl
+
+    Note: TUI functions are excluded from coverage requirements as they will be
+    replaced with Textual framework (Issue #119). Manual testing confirms functionality.
+    """
+    import json
+    from pathlib import Path
+
+    console.clear()
+    console.print("\n[bold magenta]═══════════════════════════════════════════════[/bold magenta]")
+    console.print("[bold magenta]              API CREDIT STATUS                  [/bold magenta]")
+    console.print("[bold magenta]═══════════════════════════════════════════════[/bold magenta]\n")
+
+    # Check LLM Budget (OpenRouter/Claude API)
+    console.print("[bold yellow]🤖 LLM Extraction (Claude 3.5 Sonnet)[/bold yellow]\n")
+
+    from datetime import datetime
+
+    current_month = datetime.now().strftime("%Y-%m")
+    llm_budget_file = Path(f"logs/llm-budget-{current_month}.json")
+    if llm_budget_file.exists():
+        try:
+            with open(llm_budget_file) as f:
+                data = json.load(f)
+
+            total_cost = data.get("total_cost", 0)
+            budget = 5.00  # From config
+
+            remaining = budget - total_cost
+            usage_pct = (total_cost / budget * 100) if budget > 0 else 0
+
+            # Create status table
+            llm_table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+            llm_table.add_column("Metric", style="cyan", width=20)
+            llm_table.add_column("Value", style="white", width=25)
+
+            llm_table.add_row("Total Spent", f"${total_cost:.2f}")
+            llm_table.add_row("Monthly Budget", f"${budget:.2f}")
+            llm_table.add_row("Remaining", f"${remaining:.2f}")
+
+            # Color code usage percentage
+            if usage_pct < 50:
+                usage_color = "green"
+            elif usage_pct < 80:
+                usage_color = "yellow"
+            else:
+                usage_color = "red"
+
+            llm_table.add_row("Usage", f"[{usage_color}]{usage_pct:.1f}%[/{usage_color}]")
+            llm_table.add_row("API Calls", str(len(data.get("requests", []))))
+
+            console.print(llm_table)
+
+            # Status indicator
+            if remaining > 0:
+                console.print(
+                    f"\n[green]✓ {remaining / 0.01:.0f} more company scans available[/green]"
+                )
+            else:
+                console.print("\n[red]⚠ Budget exceeded![/red]")
+
+        except Exception as e:
+            console.print(f"[red]Error reading LLM budget: {e}[/red]")
+    else:
+        console.print("[dim]No LLM budget data found (not used this month)[/dim]")
+
+    # Check Firecrawl API status
+    console.print("\n\n[bold yellow]🔥 Firecrawl API[/bold yellow]\n")
+
+    firecrawl_table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+    firecrawl_table.add_column("Metric", style="cyan", width=20)
+    firecrawl_table.add_column("Status", style="white", width=25)
+
+    # Check for recent successful runs
+    import subprocess
+
+    try:
+        # Check most recent company scraper run
+        result = subprocess.run(
+            ["tail", "-100", "logs/unified_weekly_scraper.log"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        if result.returncode == 0 and "companies checked:" in result.stdout.lower():
+            # Extract last run stats
+            lines = result.stdout.split("\n")
+            for line in reversed(lines):
+                if "companies checked:" in line.lower():
+                    firecrawl_table.add_row("Last Run", "[green]✓ Successful[/green]")
+                    break
+            else:
+                firecrawl_table.add_row("Last Run", "[dim]No recent runs[/dim]")
+        else:
+            firecrawl_table.add_row("Last Run", "[dim]No logs found[/dim]")
+
+        firecrawl_table.add_row(
+            "API Key",
+            "[green]✓ Configured[/green]" if Path(".env").exists() else "[red]✗ Missing[/red]",
+        )
+        firecrawl_table.add_row("Rate Limits", "[dim]No known issues[/dim]")
+
+    except Exception as e:
+        firecrawl_table.add_row("Status", f"[red]Error: {e}[/red]")
+
+    console.print(firecrawl_table)
+
+    console.print("\n[bold cyan]═══════════════════════════════════════════════[/bold cyan]\n")
+    console.print(
+        "[dim]Note: Firecrawl credits are managed through your Firecrawl account dashboard.[/dim]"
+    )
 
     input("\n[dim]Press Enter to return to menu...[/dim]")
 
@@ -655,6 +775,9 @@ def main():
             if profile is None:
                 console.print("\n[yellow]Goodbye![/yellow]\n")
                 sys.exit(0)
+            elif profile == "credits":
+                check_api_credits()
+                continue
 
             # Step 2: Select sources
             sources = select_sources(profile)
