@@ -33,6 +33,64 @@ from utils.profile_manager import Profile, get_profile_manager
 load_dotenv()
 
 
+def _normalize_job_title(title: str) -> str:
+    """Normalize job title for deduplication (lowercase, remove extra whitespace)"""
+    import re
+
+    # Convert to lowercase and remove extra whitespace
+    normalized = " ".join(title.lower().split())
+    # Remove common variations that don't change the role
+    normalized = re.sub(r"\s*-\s*(remote|hybrid|on-?site)\s*$", "", normalized)
+    return normalized
+
+
+def _deduplicate_jobs(jobs: list[dict]) -> list[dict]:
+    """
+    Remove duplicate jobs (same company + normalized title).
+
+    When duplicates exist, keep the one with:
+    1. Best location score (Remote/Hybrid Ontario preferred)
+    2. Most recent received_at if location scores are equal
+
+    Args:
+        jobs: List of job dictionaries
+
+    Returns:
+        Deduplicated list of jobs
+    """
+    from collections import defaultdict
+
+    # Group jobs by company + normalized title
+    job_groups = defaultdict(list)
+    for job in jobs:
+        company = job.get("company", "").strip()
+        title = _normalize_job_title(job.get("title", ""))
+        key = (company, title)
+        job_groups[key].append(job)
+
+    # For each group, keep the best job
+    deduplicated = []
+    for (_company, _title), group in job_groups.items():
+        if len(group) == 1:
+            deduplicated.append(group[0])
+        else:
+            # Sort by: location score (desc), then received_at (desc)
+            def get_location_score(job):
+                breakdown = json.loads(job.get("score_breakdown", "{}"))
+                return breakdown.get("location", 0)
+
+            best_job = max(
+                group,
+                key=lambda j: (
+                    get_location_score(j),
+                    j.get("received_at", ""),
+                ),
+            )
+            deduplicated.append(best_job)
+
+    return deduplicated
+
+
 def _generate_job_table_rows(
     jobs: list[dict], connections_manager: ConnectionsManager | None = None
 ) -> str:
@@ -81,7 +139,7 @@ def _generate_job_table_rows(
 
         # Check if job needs review (validation warning)
         validation_warning = ""
-        if job.get("needs_review") or job.get("validation_reason"):
+        if job.get("needs_review"):
             reason = job.get("validation_reason", "unverified")
 
             # Different messages for LinkedIn vs other validation issues
@@ -561,6 +619,32 @@ def send_digest_to_profile(
         f"  ✓ {len(valid_jobs)} verified jobs + {len(flagged_jobs)} flagged for review = {len(jobs)} total"
     )
 
+    # Apply hard filters to catch any jobs that shouldn't have made it to database
+    print("\n🚫 Applying hard filters...")
+    from agents.job_filter_pipeline import JobFilterPipeline
+
+    filter_pipeline = JobFilterPipeline(profile.scoring)
+    filtered_out = []
+
+    jobs_after_hard_filter = []
+    for job in jobs:
+        passed, filter_reason = filter_pipeline.apply_hard_filters(job)
+        if passed:
+            jobs_after_hard_filter.append(job)
+        else:
+            filtered_out.append((job, filter_reason))
+
+    jobs = jobs_after_hard_filter
+
+    if filtered_out:
+        print(f"  ✓ Removed {len(filtered_out)} jobs by hard filter:")
+        for job, reason in filtered_out[:5]:  # Show first 5
+            print(f"    - {job.get('company')} - {job.get('title')[:50]}... ({reason})")
+        if len(filtered_out) > 5:
+            print(f"    ... and {len(filtered_out) - 5} more")
+    else:
+        print("  ✓ All jobs passed hard filters")
+
     # Filter for staleness (age + content check)
     print("\n🗓️  Filtering stale jobs...")
     fresh_jobs = []
@@ -595,6 +679,16 @@ def send_digest_to_profile(
     if len(jobs) == 0:
         print("\n⏸  No valid jobs to send after filtering")
         return False
+
+    # Deduplicate jobs (same company + title)
+    print("\n🔄 Deduplicating jobs...")
+    jobs_before_dedup = len(jobs)
+    jobs = _deduplicate_jobs(jobs)
+    duplicates_removed = jobs_before_dedup - len(jobs)
+    if duplicates_removed > 0:
+        print(f"  ✓ Removed {duplicates_removed} duplicate job(s)")
+    else:
+        print("  ✓ No duplicates found")
 
     # Count by grade
     high_scoring = [j for j in jobs if j.get("fit_score", 0) >= 70]
