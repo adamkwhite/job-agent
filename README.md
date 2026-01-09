@@ -4,7 +4,7 @@ An intelligent job discovery and scoring system for robotics/hardware executives
 
 ## Project Overview
 
-This system automates job discovery for Wesley van Ooyen (robotics/hardware executive) using a 115-point intelligent scoring system, automated web scraping of 1,092+ robotics jobs weekly, and multi-source email processing. The system filters noise by notifying only on A/B grade matches (80+ points) and delivers weekly email digests with top opportunities.
+This system automates job discovery for Wesley van Ooyen (robotics/hardware executive) using a 100-point intelligent scoring system (max 110 with bonuses), automated web scraping of 1,092+ robotics jobs weekly, and multi-source email processing. The system filters noise by notifying only on A/B grade matches (80+ points) and delivers weekly email digests with top opportunities.
 
 **Key Achievement**: Latest digest delivered 5 excellent matches (80+) and 11 good matches (70+) from 50+ processed jobs.
 
@@ -22,14 +22,13 @@ This system automates job discovery for Wesley van Ooyen (robotics/hardware exec
 ## Architecture (V2 - Current)
 
 ### 1. Job Scoring Engine (`src/agents/job_scorer.py`)
-Multi-factor 115-point scoring system evaluating jobs against Wesley's profile:
+Multi-factor 100-point base scoring system (max 110 with bonuses) evaluating jobs against Wesley's profile:
 - **Seniority** (0-30): VP/Director/Head of roles score highest
 - **Domain** (0-25): Robotics, hardware, automation, IoT, MedTech
-- **Role Type** (0-20): Engineering leadership > Product leadership
+- **Role Type** (0-20): Engineering leadership, with +2 bonuses per matched keyword
 - **Location** (0-15): Remote (+15), Hybrid Ontario (+15), Ontario cities (+12)
-- **Company Stage** (0-15): Series A-C, growth stage preferred
-- **Company Fit** (±20): Hardware boost (+10) or software penalty (-20)
 - **Technical Keywords** (0-10): Mechatronics, embedded, manufacturing
+- **Company Classification** (±20): Hardware boost (+10) or software penalty (-20)
 
 **Grading**: A (98+), B (80+), C (63+), D (46+), F (<46)
 
@@ -236,7 +235,7 @@ CREATE TABLE jobs (
     link TEXT,
     keywords_matched TEXT, -- JSON array
     received_at TEXT,
-    fit_score INTEGER,     -- 0-115 points
+    fit_score INTEGER,     -- 0-110 points (100 base + adjustments)
     fit_grade TEXT,        -- A, B, C, D, F
     score_breakdown TEXT,  -- JSON object with category scores
     digest_sent_at TEXT,   -- Track sent jobs
@@ -255,7 +254,7 @@ CREATE TABLE jobs (
 
 ## Success Metrics
 
-- ✅ Intelligent 115-point scoring system with A/B/C/D/F grading
+- ✅ Intelligent 100-point base scoring system (max 110) with A/B/C/D/F grading
 - ✅ Location-aware filtering (Remote/Hybrid Ontario +15 points)
 - ✅ Noise reduction (A/B grade notifications only, 80+)
 - ✅ Weekly automation via cron (Monday 9am)
@@ -271,7 +270,7 @@ CREATE TABLE jobs (
 
 ### ✅ V2: Enhanced Intelligence (Current)
 - Automated company research
-- 115-point scoring system
+- 100-point base scoring system (max 110 with bonuses)
 - Multi-source web scraping (1,092+ jobs weekly)
 - Email parsers for 5+ job sources
 - Location-aware filtering

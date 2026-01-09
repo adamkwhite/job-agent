@@ -114,7 +114,7 @@ class JobScorer:
 
     def score_job(self, job: dict) -> tuple[int, str, dict, dict]:
         """
-        Score a job from 0-115 with grade and breakdown
+        Score a job from 0-110 (100 base + adjustments) with grade and breakdown
 
         Includes company classification and software role filtering logic.
         Filtered software engineering roles receive -20 point penalty.
@@ -496,14 +496,14 @@ class JobScorer:
 
     def _calculate_grade(self, score: int) -> str:
         """
-        Convert score to letter grade (out of 115 total)
+        Convert score to letter grade (out of 110 maximum)
 
-        Thresholds (percentage of max):
-        - A: 85%+ (98+)
-        - B: 70%+ (80+)
-        - C: 55%+ (63+)
-        - D: 40%+ (46+)
-        - F: <40% (<46)
+        Thresholds:
+        - A: 98+ (89% of max)
+        - B: 80+ (73% of max)
+        - C: 63+ (57% of max)
+        - D: 46+ (42% of max)
+        - F: <46 (<42% of max)
         """
         if score >= 98:
             return "A"

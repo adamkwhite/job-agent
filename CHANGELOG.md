@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Documentation Updates** (Jan 9, 2026)
+  - Updated scoring system documentation to reflect 100-point base system (max 110 with bonuses)
+  - Removed outdated references to 115-point system (Company Stage category was previously removed)
+  - Updated README.md, CLAUDE.md, profiles/README.md, and job_scorer.py inline comments
+  - Current scoring: Seniority (30) + Domain (25) + Role Type (20) + Location (15) + Technical (10) + Company Classification (±20)
+
 ### Added
 - **Filter Pipeline Integration** (Dec 13, 2025 - Issues #161, #162, PR #167)
   - Integrated 3-stage filtering into company_scraper.py and processor_v2.py
