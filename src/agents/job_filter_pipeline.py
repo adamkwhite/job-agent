@@ -21,7 +21,9 @@ FilterReason = Literal[
     "hard_filter_finance_role",
     "hard_filter_legal_role",
     "hard_filter_sales_marketing",
+    "hard_filter_marketing_role",
     "hard_filter_administrative",
+    "hard_filter_retail",
     "context_filter_software_engineering",
     "context_filter_contract_low_seniority",
     "stale_job_age",
@@ -140,17 +142,29 @@ class JobFilterPipeline:
             if keyword in title:
                 return (False, "hard_filter_legal_role")
 
-        # FR1.8: Block Sales/Marketing (unless Director+ at hardware company)
-        # Note: Hardware company check happens in context filters (after scoring)
-        sales_keywords = self.hard_filters.get(
+        # FR1.8a: Block ALL marketing roles (no exceptions)
+        marketing_keywords = self.hard_filters.get("department_blocks", [])
+        if (
+            "marketing" in marketing_keywords or any("marketing" in kw for kw in marketing_keywords)
+        ) and "marketing" in title:
+            return (False, "hard_filter_marketing_role")
+
+        # Additional specific marketing role blocks
+        sales_marketing_blocks = self.hard_filters.get(
             "sales_marketing_blocks",
             ["sales manager", "marketing manager", "business development"],
         )
-        sales_general = ["sales", "marketing", "business development"]
+        for keyword in sales_marketing_blocks:
+            if "marketing" in keyword and keyword in title:
+                return (False, "hard_filter_marketing_role")
 
-        # Check if it's a sales/marketing role
-        for keyword in sales_keywords + sales_general:
-            if keyword in title:
+        # FR1.8b: Block Sales (unless Director+ at hardware company)
+        # Note: Hardware company check happens in context filters (after scoring)
+        sales_keywords = ["sales manager", "business development", "sales"]
+
+        # Check if it's a sales role (not marketing)
+        for keyword in sales_keywords:
+            if keyword in title and "marketing" not in title:
                 # Allow if Director+ level
                 senior_keywords = ["director", "vp", "vice president", "chief", "head of"]
                 if not any(senior in title for senior in senior_keywords):
@@ -161,6 +175,12 @@ class JobFilterPipeline:
         for keyword in admin_keywords:
             if keyword in title:
                 return (False, "hard_filter_administrative")
+
+        # FR1.10: Block Retail roles
+        retail_keywords = ["retail", "store operations", "store manager"]
+        for keyword in retail_keywords:
+            if keyword in title:
+                return (False, "hard_filter_retail")
 
         # Passed all hard filters
         return (True, None)

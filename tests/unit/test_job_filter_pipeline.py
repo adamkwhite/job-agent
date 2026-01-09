@@ -249,7 +249,7 @@ class TestJobFilterPipelineHardFilters:
         should_continue, reason = pipeline.apply_hard_filters(job)
 
         assert should_continue is False
-        assert reason == "hard_filter_sales_marketing"
+        assert reason == "hard_filter_marketing_role"
 
     def test_director_of_sales_allowed(self, pipeline):
         """Test that Director+ sales roles pass (seniority exception)"""
@@ -292,6 +292,32 @@ class TestJobFilterPipelineHardFilters:
 
         assert should_continue is False
         assert reason == "hard_filter_administrative"
+
+    # ===== Retail Filters =====
+
+    def test_filter_retail_store_operations_blocked(self, pipeline):
+        """Test that Retail Store Operations roles are blocked"""
+        job = {"title": "Director - Retail Store Operations"}
+        should_continue, reason = pipeline.apply_hard_filters(job)
+
+        assert should_continue is False
+        assert reason == "hard_filter_retail"
+
+    def test_filter_retail_manager_blocked(self, pipeline):
+        """Test that Retail Manager roles are blocked"""
+        job = {"title": "Retail Manager"}
+        should_continue, reason = pipeline.apply_hard_filters(job)
+
+        assert should_continue is False
+        assert reason == "hard_filter_retail"
+
+    def test_filter_store_manager_blocked(self, pipeline):
+        """Test that Store Manager roles are blocked"""
+        job = {"title": "Store Manager"}
+        should_continue, reason = pipeline.apply_hard_filters(job)
+
+        assert should_continue is False
+        assert reason == "hard_filter_retail"
 
     # ===== Pass-Through Cases =====
 
