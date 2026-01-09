@@ -112,7 +112,7 @@ For software profiles, keep these at default (0).
 
 ### Digest Settings
 - **digest_min_grade**: Minimum grade to include (`A`/`B`/`C`/`D`)
-- **digest_min_score**: Minimum score (0-115)
+- **digest_min_score**: Minimum score (0-110)
 - **digest_frequency**: `weekly` or `daily`
 
 ### Notifications

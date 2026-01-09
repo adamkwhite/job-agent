@@ -41,15 +41,15 @@ This is a job discovery and application automation system for Wesley van Ooyen (
 
 ⚠️ **When updating scoring criteria, follow the checklist:** `docs/development/SCORING_UPDATE_CHECKLIST.md`
 
-Multi-factor scoring system (0-100 points) evaluating jobs against Wesley's profile:
+Multi-factor scoring system (0-100 base points, max 110 with bonuses) evaluating jobs against Wesley's profile:
 - **Seniority** (0-30): VP/Director/Head of roles score highest
 - **Domain** (0-25): Robotics, hardware, automation, IoT, MedTech
-- **Role Type** (0-20): Engineering leadership > Product leadership
+- **Role Type** (0-20): Engineering leadership, with +2 bonuses per matched keyword
 - **Location** (0-15): Remote (+15), Hybrid Ontario (+15), Ontario cities (+12)
-- **Company Fit** (±20): Hardware boost (+10) or software penalty (-20)
 - **Technical Keywords** (0-10): Mechatronics, embedded, manufacturing
+- **Company Classification** (±20): Hardware boost (+10) or software penalty (-20)
 
-**Grading**: A (85+), B (70+), C (55+), D (40+), F (<40)
+**Grading**: A (98+), B (80+), C (63+), D (46+), F (<46)
 
 #### Company Classification Filtering (Issue #122)
 
@@ -399,7 +399,7 @@ CREATE TABLE jobs (
     link TEXT,
     keywords_matched TEXT, -- JSON array
     received_at TEXT,
-    fit_score INTEGER,     -- 0-100 points
+    fit_score INTEGER,     -- 0-110 points (100 base + adjustments)
     fit_grade TEXT,        -- A, B, C, D, F
     score_breakdown TEXT,  -- JSON object with category scores
     research_notes TEXT,

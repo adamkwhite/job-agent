@@ -130,7 +130,7 @@ software_company_penalty: 0
 # Minimum grade to include in weekly digest (A/B/C/D/F)
 digest_min_grade: C
 
-# Minimum score to include in weekly digest (0-115)
+# Minimum score to include in weekly digest (0-110)
 digest_min_score: 63
 
 # Minimum location score required (0-15)
@@ -149,7 +149,7 @@ notifications_enabled: yes
 # Minimum grade for instant notifications (A/B/C/D/F)
 notifications_min_grade: B
 
-# Minimum score for instant notifications (0-115)
+# Minimum score for instant notifications (0-110)
 notifications_min_score: 80
 
 # ==============================================================================

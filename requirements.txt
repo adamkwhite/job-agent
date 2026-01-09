@@ -92,6 +92,6 @@ types-html5lib==1.1.11.20251014
 types-requests==2.32.4.20250913
 typing-inspection==0.4.2
 typing_extensions==4.15.0
-urllib3==2.5.0
+urllib3==2.6.3
 virtualenv==20.35.3
 yarl==1.22.0
