@@ -67,7 +67,7 @@
       "description": "Job alerts with subject: 'New jobs: [Job Title] at [Company] and X more jobs'"
     },
     {
-      "name": "ontario_jobs",
+      "name": "ontariojobs",
       "enabled": true,
       "type": "job_alert",
       "description": "Ontario engineering job alerts (likely Indeed)"
