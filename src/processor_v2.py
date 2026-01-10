@@ -26,6 +26,9 @@ from parsers.builtin_parser import BuiltInParser
 from parsers.f6s_parser import F6SParser
 from parsers.jobbank_wrapper import JobBankParser
 from parsers.linkedin_parser import LinkedInParser
+from parsers.newjobs_parser import NewJobsParser
+from parsers.newmatch_parser import NewMatchParser
+from parsers.ontario_jobs_parser import OntarioJobsParser
 from parsers.parser_registry import ParserRegistry
 from parsers.recruiter_wrapper import RecruiterParser
 from parsers.supra_parser import SupraParser
@@ -101,6 +104,9 @@ class JobProcessorV2:
         self.parser_registry.register(JobBankParser())
         self.parser_registry.register(RecruiterParser())
         self.parser_registry.register(WorkInTechParser())
+        self.parser_registry.register(NewMatchParser())
+        self.parser_registry.register(NewJobsParser())
+        self.parser_registry.register(OntarioJobsParser())
 
         print(f"Registered parsers: {', '.join(self.parser_registry.get_enabled_parsers())}")
 

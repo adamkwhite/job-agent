@@ -3,19 +3,23 @@
 ## High Priority
 
 ### Testing Infrastructure
-- [ ] Fix test import errors - tests are failing to import from `src` module
-  - Error: `ModuleNotFoundError: No module named 'src'`
-  - All 5 test files affected: test_builtin_parser.py, test_jobbank_parser.py, test_processor_v2.py, test_recruiter_parser.py, test_workintech_parser.py
-  - PYTHONPATH is set but tests still fail - may need pytest.ini configuration or conftest.py
-  - Blocking: Cannot verify test coverage or run quality checks
+- [x] ~~Fix test import errors~~ - **RESOLVED** (Jan 9, 2026)
+  - Issue was in gitignored `tests/exploration/` directory (experimental tests)
+  - Production test suite (1184 tests in `tests/unit/` and `tests/integration/`) working correctly
+  - Fixed exploration tests to use `from src.*` imports instead of incorrect sys.path manipulation
+  - Added pytest.importorskip to handle optional dependencies gracefully
+  - **Result**: 1184 tests passing, 2 skipped, 66% coverage ✅
 
 ### Company Scraping Automation
-- [ ] Consider full automation options for company scraping:
-  - Option 1: Set up Firecrawl API key and call REST API directly from Python
-  - Option 2: Implement Playwright-based scraper for JavaScript-heavy sites
-  - Option 3: Keep current semi-automated workflow (minimal maintenance burden)
-- [ ] Document weekly company scraping workflow for user/maintainer
-- [ ] Test full end-to-end scraping of all 26 companies (currently tested with 2)
+- [x] ~~Scraper implementation~~ - **COMPLETED** (Nov 2025)
+  - ✅ Firecrawl API integration via Python
+  - ✅ Production: `src/jobs/weekly_unified_scraper.py` (Email + Company monitoring)
+  - ✅ Company scraper: `src/jobs/company_scraper.py` + `src/scrapers/firecrawl_career_scraper.py`
+  - ✅ Configuration: `config/robotics_priority_companies.json` (16 companies)
+  - ✅ Features: Auto-disable after 5 failures, budget tracking, rate limiting
+  - ✅ **Current workflow**: Manual execution via TUI (`./run-tui.sh`)
+  - ✅ Removed: Deprecated robotics sheet scraper (Issue #174)
+  - 🔧 Fixed: Removed broken cron job (pointed to non-existent wrapper script)
 
 ## Medium Priority
 

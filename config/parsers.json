@@ -55,6 +55,24 @@
       "description": "Job digest feedback replies for GitHub issue creation"
     },
     {
+      "name": "newmatch",
+      "enabled": true,
+      "type": "job_alert",
+      "description": "Job alerts with subject: 'New match: [Job Title] at [Company]'"
+    },
+    {
+      "name": "newjobs",
+      "enabled": true,
+      "type": "job_alert",
+      "description": "Job alerts with subject: 'New jobs: [Job Title] at [Company] and X more jobs'"
+    },
+    {
+      "name": "ontario_jobs",
+      "enabled": true,
+      "type": "job_alert",
+      "description": "Ontario engineering job alerts (likely Indeed)"
+    },
+    {
       "name": "indeed",
       "enabled": false,
       "type": "job_alert",
