@@ -12,16 +12,14 @@
 
 ### Company Scraping Automation
 - [x] ~~Scraper implementation~~ - **COMPLETED** (Nov 2025)
-  - ✅ Option 1 implemented: Firecrawl API integration via Python
-  - ✅ Production scraper: `src/jobs/company_scraper.py` + `src/scrapers/firecrawl_career_scraper.py`
+  - ✅ Firecrawl API integration via Python
+  - ✅ Production: `src/jobs/weekly_unified_scraper.py` (Email + Company monitoring)
+  - ✅ Company scraper: `src/jobs/company_scraper.py` + `src/scrapers/firecrawl_career_scraper.py`
   - ✅ Configuration: `config/robotics_priority_companies.json` (16 companies)
   - ✅ Features: Auto-disable after 5 failures, budget tracking, rate limiting
-  - ✅ Last manual run: Nov 10, 2025 (34 jobs found and sent)
-- [ ] **Cron automation** - NOT CURRENTLY RUNNING
-  - Cron job configured (Monday 6am) but wrapper script missing
-  - `scripts/run_unified_scraper.sh` does not exist
-  - Manual execution via TUI still works
-  - **Decision needed**: Set up automation or keep manual-only workflow
+  - ✅ **Current workflow**: Manual execution via TUI (`./run-tui.sh`)
+  - ✅ Removed: Deprecated robotics sheet scraper (Issue #174)
+  - 🔧 Fixed: Removed broken cron job (pointed to non-existent wrapper script)
 
 ## Medium Priority
 
