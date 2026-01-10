@@ -11,12 +11,17 @@
   - **Result**: 1184 tests passing, 2 skipped, 66% coverage ✅
 
 ### Company Scraping Automation
-- [ ] Consider full automation options for company scraping:
-  - Option 1: Set up Firecrawl API key and call REST API directly from Python
-  - Option 2: Implement Playwright-based scraper for JavaScript-heavy sites
-  - Option 3: Keep current semi-automated workflow (minimal maintenance burden)
-- [ ] Document weekly company scraping workflow for user/maintainer
-- [ ] Test full end-to-end scraping of all 26 companies (currently tested with 2)
+- [x] ~~Scraper implementation~~ - **COMPLETED** (Nov 2025)
+  - ✅ Option 1 implemented: Firecrawl API integration via Python
+  - ✅ Production scraper: `src/jobs/company_scraper.py` + `src/scrapers/firecrawl_career_scraper.py`
+  - ✅ Configuration: `config/robotics_priority_companies.json` (16 companies)
+  - ✅ Features: Auto-disable after 5 failures, budget tracking, rate limiting
+  - ✅ Last manual run: Nov 10, 2025 (34 jobs found and sent)
+- [ ] **Cron automation** - NOT CURRENTLY RUNNING
+  - Cron job configured (Monday 6am) but wrapper script missing
+  - `scripts/run_unified_scraper.sh` does not exist
+  - Manual execution via TUI still works
+  - **Decision needed**: Set up automation or keep manual-only workflow
 
 ## Medium Priority
 
