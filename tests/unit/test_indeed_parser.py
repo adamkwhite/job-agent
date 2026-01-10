@@ -1,18 +1,18 @@
 """
-Unit tests for Ontario Jobs email parser
+Unit tests for Indeed email parser
 """
 
 import email
 
-from src.parsers.ontario_jobs_parser import OntarioJobsParser
+from src.parsers.indeed_parser import IndeedParser
 
 
-class TestOntarioJobsParserCanHandle:
-    """Test Ontario Jobs parser email detection"""
+class TestIndeedParserCanHandle:
+    """Test Indeed parser email detection"""
 
     def test_can_handle_ontario_jobs_subject(self):
         """Should handle '[Job] at [Company] and X more engineering jobs in Ontario' subject"""
-        parser = OntarioJobsParser()
+        parser = IndeedParser()
         email_message = email.message_from_string(
             "From: jobs@indeed.com\n"
             "Subject: Specialist, Performance & Engineering at Vale and 29 more engineering jobs in Ontario for you!\n"
@@ -22,7 +22,7 @@ class TestOntarioJobsParserCanHandle:
 
     def test_can_handle_variations(self):
         """Should handle different variations of the pattern"""
-        parser = OntarioJobsParser()
+        parser = IndeedParser()
 
         email1 = email.message_from_string(
             "From: jobs@example.com\n"
@@ -40,7 +40,7 @@ class TestOntarioJobsParserCanHandle:
 
     def test_can_handle_case_insensitive(self):
         """Should handle case variations"""
-        parser = OntarioJobsParser()
+        parser = IndeedParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\n"
             "Subject: Engineer at Corp and 10 more ENGINEERING JOBS in ONTARIO for you!\n"
@@ -50,7 +50,7 @@ class TestOntarioJobsParserCanHandle:
 
     def test_cannot_handle_missing_ontario(self):
         """Should reject subjects without 'in Ontario'"""
-        parser = OntarioJobsParser()
+        parser = IndeedParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\n"
             "Subject: Engineer at Company and 10 more engineering jobs\n"
@@ -60,7 +60,7 @@ class TestOntarioJobsParserCanHandle:
 
     def test_cannot_handle_missing_engineering(self):
         """Should reject subjects without 'engineering jobs'"""
-        parser = OntarioJobsParser()
+        parser = IndeedParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\n"
             "Subject: Engineer at Company and 10 more jobs in Ontario\n"
@@ -70,19 +70,19 @@ class TestOntarioJobsParserCanHandle:
 
     def test_cannot_handle_unrelated_subject(self):
         """Should reject emails without the pattern"""
-        parser = OntarioJobsParser()
+        parser = IndeedParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\nSubject: Job opportunity in Toronto\n\nBody"
         )
         assert parser.can_handle(email_message) is False
 
 
-class TestOntarioJobsParserParse:
-    """Test Ontario Jobs parser extraction"""
+class TestIndeedParserParse:
+    """Test Indeed parser extraction"""
 
     def test_parse_extracts_title_and_company(self):
         """Should extract job title and company from subject"""
-        parser = OntarioJobsParser()
+        parser = IndeedParser()
         email_message = email.message_from_string(
             "From: jobs@indeed.com\n"
             "Subject: Specialist, Performance & Engineering at Vale and 29 more engineering jobs in Ontario for you!\n"
@@ -102,7 +102,7 @@ class TestOntarioJobsParserParse:
 
     def test_parse_sets_ontario_location(self):
         """Should set location to Ontario for jobs from subject"""
-        parser = OntarioJobsParser()
+        parser = IndeedParser()
         email_message = email.message_from_string(
             "From: jobs@indeed.com\n"
             "Subject: Project Manager at Landmark Structures Co and 29 more engineering jobs in Ontario for you!\n"
@@ -116,7 +116,7 @@ class TestOntarioJobsParserParse:
 
     def test_parse_extracts_multiple_job_links(self):
         """Should extract multiple job links from HTML body if available"""
-        parser = OntarioJobsParser()
+        parser = IndeedParser()
         email_message = email.message_from_string(
             "From: jobs@indeed.com\n"
             "Subject: Engineer at Company and 5 more engineering jobs in Ontario for you!\n"
@@ -131,11 +131,11 @@ class TestOntarioJobsParserParse:
 
         assert result.success is True
         assert len(result.opportunities) == 2
-        assert all(opp.source == "ontario_jobs" for opp in result.opportunities)
+        assert all(opp.source == "indeed" for opp in result.opportunities)
 
     def test_parse_extracts_ontario_cities(self):
         """Should recognize Ontario cities in location extraction"""
-        parser = OntarioJobsParser()
+        parser = IndeedParser()
         email_message = email.message_from_string(
             "From: jobs@indeed.com\n"
             "Subject: Engineer at TechCorp and 10 more engineering jobs in Ontario for you!\n"
@@ -155,7 +155,7 @@ class TestOntarioJobsParserParse:
 
     def test_parse_fallback_when_no_links(self):
         """Should create opportunity from subject if no links found"""
-        parser = OntarioJobsParser()
+        parser = IndeedParser()
         email_message = email.message_from_string(
             "From: jobs@indeed.com\n"
             "Subject: Utilities Lead at Unilever and 29 more engineering jobs in Ontario for you!\n"
@@ -174,7 +174,7 @@ class TestOntarioJobsParserParse:
 
     def test_parse_deduplicates_urls(self):
         """Should not create duplicate opportunities for same URL"""
-        parser = OntarioJobsParser()
+        parser = IndeedParser()
         email_message = email.message_from_string(
             "From: jobs@indeed.com\n"
             "Subject: Engineer at Company and 3 more engineering jobs in Ontario for you!\n"
@@ -194,7 +194,7 @@ class TestOntarioJobsParserParse:
 
     def test_parse_with_complex_title(self):
         """Should handle complex job titles with commas and ampersands"""
-        parser = OntarioJobsParser()
+        parser = IndeedParser()
         email_message = email.message_from_string(
             "From: jobs@indeed.com\n"
             "Subject: Senior Manager, Software Development & Operations at BigCorp and 15 more engineering jobs in Ontario for you!\n"

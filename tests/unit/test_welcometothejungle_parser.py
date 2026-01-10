@@ -1,18 +1,18 @@
 """
-Unit tests for NewMatch email parser
+Unit tests for Welcome to the Jungle email parser
 """
 
 import email
 
-from src.parsers.newmatch_parser import NewMatchParser
+from src.parsers.welcometothejungle_parser import WelcomeToTheJungleParser
 
 
-class TestNewMatchParserCanHandle:
-    """Test NewMatch parser email detection"""
+class TestWelcomeToTheJungleParserCanHandle:
+    """Test Welcome to the Jungle parser email detection"""
 
     def test_can_handle_new_match_subject(self):
         """Should handle 'New match: [Job] at [Company]' subject"""
-        parser = NewMatchParser()
+        parser = WelcomeToTheJungleParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\nSubject: New match: Staff Product Manager at Harvey\n\nBody"
         )
@@ -20,7 +20,7 @@ class TestNewMatchParserCanHandle:
 
     def test_can_handle_new_match_with_special_chars(self):
         """Should handle titles with special characters"""
-        parser = NewMatchParser()
+        parser = WelcomeToTheJungleParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\nSubject: New match: Director of Product - AI/ML at TechCorp\n\nBody"
         )
@@ -28,7 +28,7 @@ class TestNewMatchParserCanHandle:
 
     def test_can_handle_case_insensitive(self):
         """Should handle case variations"""
-        parser = NewMatchParser()
+        parser = WelcomeToTheJungleParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\nSubject: NEW MATCH: Senior Engineer at Company\n\nBody"
         )
@@ -36,7 +36,7 @@ class TestNewMatchParserCanHandle:
 
     def test_cannot_handle_missing_at(self):
         """Should reject subjects without ' at '"""
-        parser = NewMatchParser()
+        parser = WelcomeToTheJungleParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\nSubject: New match: Senior Engineer\n\nBody"
         )
@@ -44,19 +44,19 @@ class TestNewMatchParserCanHandle:
 
     def test_cannot_handle_unrelated_subject(self):
         """Should reject emails without 'New match:' prefix"""
-        parser = NewMatchParser()
+        parser = WelcomeToTheJungleParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\nSubject: Job opportunity at Company\n\nBody"
         )
         assert parser.can_handle(email_message) is False
 
 
-class TestNewMatchParserParse:
-    """Test NewMatch parser extraction"""
+class TestWelcomeToTheJungleParserParse:
+    """Test Welcome to the Jungle parser extraction"""
 
     def test_parse_extracts_title_and_company(self):
         """Should extract job title and company from subject"""
-        parser = NewMatchParser()
+        parser = WelcomeToTheJungleParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\n"
             "Subject: New match: Staff Product Manager at Harvey\n"
@@ -71,11 +71,11 @@ class TestNewMatchParserParse:
         opp = result.opportunities[0]
         assert opp.title == "Staff Product Manager"
         assert opp.company == "Harvey"
-        assert opp.source == "newmatch"
+        assert opp.source == "welcometothejungle"
 
     def test_parse_extracts_job_link_from_html(self):
         """Should extract job link from HTML body"""
-        parser = NewMatchParser()
+        parser = WelcomeToTheJungleParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\n"
             "Subject: New match: Senior Engineer at TechCorp\n"
@@ -92,7 +92,7 @@ class TestNewMatchParserParse:
 
     def test_parse_handles_missing_link(self):
         """Should create opportunity with needs_research=True if no link found"""
-        parser = NewMatchParser()
+        parser = WelcomeToTheJungleParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\n"
             "Subject: New match: Director of Engineering at Company\n"
@@ -109,7 +109,7 @@ class TestNewMatchParserParse:
 
     def test_parse_with_complex_title(self):
         """Should handle complex job titles"""
-        parser = NewMatchParser()
+        parser = WelcomeToTheJungleParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\n"
             "Subject: New match: Senior Engineering Manager, Device Software & Systems at RoboCo\n"
@@ -126,7 +126,7 @@ class TestNewMatchParserParse:
 
     def test_parse_filters_non_job_links(self):
         """Should filter out non-job links (unsubscribe, etc.)"""
-        parser = NewMatchParser()
+        parser = WelcomeToTheJungleParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\n"
             "Subject: New match: Product Manager at StartupCo\n"

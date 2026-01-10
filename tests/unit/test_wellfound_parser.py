@@ -1,18 +1,18 @@
 """
-Unit tests for NewJobs email parser
+Unit tests for Wellfound email parser
 """
 
 import email
 
-from src.parsers.newjobs_parser import NewJobsParser
+from src.parsers.wellfound_parser import WellfoundParser
 
 
-class TestNewJobsParserCanHandle:
-    """Test NewJobs parser email detection"""
+class TestWellfoundParserCanHandle:
+    """Test Wellfound parser email detection"""
 
     def test_can_handle_new_jobs_subject(self):
         """Should handle 'New jobs: [Job] at [Company] and X more jobs' subject"""
-        parser = NewJobsParser()
+        parser = WellfoundParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\n"
             "Subject: New jobs: Head of Engineering at NewVue.ai and 9 more jobs\n"
@@ -22,7 +22,7 @@ class TestNewJobsParserCanHandle:
 
     def test_can_handle_plural_and_singular_jobs(self):
         """Should handle both 'jobs' and 'job' in subject"""
-        parser = NewJobsParser()
+        parser = WellfoundParser()
 
         # Plural
         email_plural = email.message_from_string(
@@ -38,7 +38,7 @@ class TestNewJobsParserCanHandle:
 
     def test_can_handle_case_insensitive(self):
         """Should handle case variations"""
-        parser = NewJobsParser()
+        parser = WellfoundParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\n"
             "Subject: NEW JOBS: Senior Manager at Corp and 10 more jobs\n"
@@ -48,7 +48,7 @@ class TestNewJobsParserCanHandle:
 
     def test_cannot_handle_missing_and_more(self):
         """Should reject subjects without 'and X more jobs'"""
-        parser = NewJobsParser()
+        parser = WellfoundParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\nSubject: New jobs: Senior Engineer at Company\n\nBody"
         )
@@ -56,19 +56,19 @@ class TestNewJobsParserCanHandle:
 
     def test_cannot_handle_unrelated_subject(self):
         """Should reject emails without 'New jobs:' prefix"""
-        parser = NewJobsParser()
+        parser = WellfoundParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\nSubject: Job opportunity at Company\n\nBody"
         )
         assert parser.can_handle(email_message) is False
 
 
-class TestNewJobsParserParse:
-    """Test NewJobs parser extraction"""
+class TestWellfoundParserParse:
+    """Test Wellfound parser extraction"""
 
     def test_parse_extracts_title_and_company(self):
         """Should extract primary job title and company from subject"""
-        parser = NewJobsParser()
+        parser = WellfoundParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\n"
             "Subject: New jobs: Sr Engineering Manager at Redpanda Data and 7 more jobs\n"
@@ -88,7 +88,7 @@ class TestNewJobsParserParse:
 
     def test_parse_extracts_multiple_job_links(self):
         """Should extract multiple job links from HTML body if available"""
-        parser = NewJobsParser()
+        parser = WellfoundParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\n"
             "Subject: New jobs: Head of Engineering at StartupCo and 3 more jobs\n"
@@ -104,11 +104,11 @@ class TestNewJobsParserParse:
 
         assert result.success is True
         assert len(result.opportunities) == 3
-        assert result.opportunities[0].source == "newjobs"
+        assert result.opportunities[0].source == "wellfound"
 
     def test_parse_handles_complex_title(self):
         """Should handle complex job titles with parentheses and special chars"""
-        parser = NewJobsParser()
+        parser = WellfoundParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\n"
             "Subject: New jobs: Head of Engineering (Hands-On, Player-Coach) at NewVue.ai and 9 more jobs\n"
@@ -125,7 +125,7 @@ class TestNewJobsParserParse:
 
     def test_parse_fallback_when_no_links(self):
         """Should create opportunity from subject if no links found"""
-        parser = NewJobsParser()
+        parser = WellfoundParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\n"
             "Subject: New jobs: Director of Product at Company and 5 more jobs\n"
@@ -143,7 +143,7 @@ class TestNewJobsParserParse:
 
     def test_parse_deduplicates_urls(self):
         """Should not create duplicate opportunities for same URL"""
-        parser = NewJobsParser()
+        parser = WellfoundParser()
         email_message = email.message_from_string(
             "From: jobs@example.com\n"
             "Subject: New jobs: Engineer at TechCorp and 2 more jobs\n"

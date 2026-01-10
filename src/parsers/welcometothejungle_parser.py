@@ -1,5 +1,5 @@
 """
-Parser for "New match:" job alert emails
+Parser for Welcome to the Jungle job alert emails
 
 Handles subject line format:
 - "New match: [Job Title] at [Company]"
@@ -8,6 +8,8 @@ Examples:
 - New match: Staff Product Manager at Harvey
 - New match: Senior Product Manager at Honeycomb
 - New match: Director of Product Management at Qventus
+
+Email from: help@welcometothejungle.com
 """
 
 import re
@@ -18,8 +20,8 @@ from models import OpportunityData, ParserResult
 from parsers.base_parser import BaseEmailParser
 
 
-class NewMatchParser(BaseEmailParser):
-    """Parser for 'New match:' job alert emails"""
+class WelcomeToTheJungleParser(BaseEmailParser):
+    """Parser for Welcome to the Jungle job alert emails"""
 
     def can_handle(self, email_message) -> bool:
         """Check if this parser can handle the email"""
@@ -50,7 +52,7 @@ class NewMatchParser(BaseEmailParser):
             if not job_link:
                 # If no link found, create opportunity without link (needs_research=True)
                 opportunity = OpportunityData(
-                    source="newmatch",
+                    source="welcometothejungle",
                     source_email=from_email,
                     type="direct_job",
                     company=company,
@@ -61,7 +63,7 @@ class NewMatchParser(BaseEmailParser):
                 )
             else:
                 opportunity = OpportunityData(
-                    source="newmatch",
+                    source="welcometothejungle",
                     source_email=from_email,
                     type="direct_job",
                     company=company,

@@ -78,3 +78,23 @@ Investors: Novartis Venture Fund, DROIA Ventures
 
 Guessed website: https://protegobiopharma.com
 Career page URL (fill this in): ____________________________
+
+======================================================================
+Company: WearLinq
+Location: San Francisco, US
+Funding: Series A - $14m
+Industries: Biotech, Digital Health
+Investors: Berkeley Catalyst Fund, Device of Tomorrow Capital
+
+Guessed website: https://wearlinq.com
+Career page URL (fill this in): ____________________________
+
+======================================================================
+Company: Atavistik Bio
+Location: Cambridge, US
+Funding: Series A - $120m
+Industries: Biotech, Biotechnology AI
+Investors: Lux Capital, Regeneron Ventures
+
+Guessed website: https://atavistikbio.com
+Career page URL (fill this in): ____________________________

@@ -1,17 +1,17 @@
 """
-Parser for "Ontario engineering jobs" emails (likely Indeed or similar aggregator)
+Parser for Wellfound (formerly AngelList Talent) job alert emails
 
 Handles subject line format:
-- "[Job Title] at [Company] and 29 more engineering jobs in Ontario for you!"
-- "[Job Title] at [Company] and X more engineering jobs in Ontario for you!"
+- "New jobs: [Job Title] at [Company] and X more jobs"
 
 Examples:
-- Specialist, Performance & Engineering at Vale and 29 more engineering jobs in Ontario for you!
-- Utilities Lead at Unilever and 29 more engineering jobs in Ontario for you!
-- Project Manager at Landmark Structures Co and 29 more engineering jobs in Ontario for you!
+- New jobs: Head of Engineering (Hands-On, Player-Coach) at NewVue.ai and 9 more jobs
+- New jobs: Sr Engineering Manager, Replication and Storage at Redpanda Data and 7 more jobs
 
 Note: This parser only extracts the primary job from the subject line.
-Additional jobs mentioned in "and X more" are not parsed.
+Additional jobs mentioned in "and X more jobs" are not parsed.
+
+Email from: team@hi.wellfound.com
 """
 
 import re
@@ -22,31 +22,29 @@ from models import OpportunityData, ParserResult
 from parsers.base_parser import BaseEmailParser
 
 
-class OntarioJobsParser(BaseEmailParser):
-    """Parser for Ontario engineering jobs alert emails"""
+class WellfoundParser(BaseEmailParser):
+    """Parser for Wellfound job alert emails"""
 
     def can_handle(self, email_message) -> bool:
         """Check if this parser can handle the email"""
         subject = email_message.get("Subject", "")
 
-        # Match pattern: "[Job Title] at [Company] and X more engineering jobs in Ontario for you!"
+        # Match pattern: "New jobs: [Job Title] at [Company] and X more jobs"
         return bool(
             re.match(
-                r"^.+\s+at\s+.+\s+and\s+\d+\s+more\s+engineering\s+jobs\s+in\s+Ontario",
-                subject,
-                re.IGNORECASE,
+                r"^New jobs:\s+.+\s+at\s+.+\s+and\s+\d+\s+more\s+jobs?", subject, re.IGNORECASE
             )
         )
 
     def parse(self, email_message) -> ParserResult:
-        """Parse Ontario engineering jobs alert email"""
+        """Parse 'New jobs:' job alert email"""
         try:
             subject = email_message.get("Subject", "")
             from_email = self.extract_email_address(email_message.get("From", ""))
 
-            # Parse subject line: "[Job Title] at [Company] and X more..."
+            # Parse subject line: "New jobs: [Job Title] at [Company] and X more jobs"
             match = re.match(
-                r"^(.+?)\s+at\s+(.+?)\s+and\s+\d+\s+more\s+engineering\s+jobs",
+                r"^New jobs:\s+(.+?)\s+at\s+(.+?)\s+and\s+\d+\s+more\s+jobs?",
                 subject,
                 re.IGNORECASE,
             )
@@ -67,12 +65,12 @@ class OntarioJobsParser(BaseEmailParser):
                 # If no links found in body, create opportunity from subject line
                 opportunities = [
                     OpportunityData(
-                        source="ontario_jobs",
+                        source="wellfound",
                         source_email=from_email,
                         type="direct_job",
                         company=company,
                         title=title,
-                        location="Ontario",  # We know it's Ontario from subject
+                        location="",
                         link="",
                         needs_research=True,
                     )
@@ -120,27 +118,17 @@ class OntarioJobsParser(BaseEmailParser):
                 # Try to extract job details from link context
                 link_text = self.clean_text(link.get_text())
 
-                # Check if link has company/title info nearby
-                parent = link.parent
-                parent_text = parent.get_text() if parent else ""
-
                 # Use link text as title if available, otherwise use subject title
                 title = link_text if link_text and len(link_text) > 5 else primary_title
 
-                # Try to find company in parent text, fallback to subject company
-                company = self._extract_company_from_context(parent_text) or primary_company
-
-                # Try to find location in parent text
-                location = self._extract_location_from_context(parent_text) or "Ontario"
-
                 opportunities.append(
                     OpportunityData(
-                        source="ontario_jobs",
+                        source="wellfound",
                         source_email=from_email,
                         type="direct_job",
-                        company=company,
+                        company=primary_company,  # Use company from subject
                         title=title,
-                        location=location,
+                        location="",
                         link=href,
                         needs_research=False,
                     )
@@ -156,69 +144,18 @@ class OntarioJobsParser(BaseEmailParser):
 
                     opportunities.append(
                         OpportunityData(
-                            source="ontario_jobs",
+                            source="wellfound",
                             source_email=from_email,
                             type="direct_job",
                             company=primary_company,
                             title=primary_title,
-                            location="Ontario",
+                            location="",
                             link=url,
                             needs_research=False,
                         )
                     )
 
         return opportunities
-
-    def _extract_company_from_context(self, text: str) -> str:
-        """Try to extract company name from link context"""
-        # Look for patterns like "Company: X" or "at X"
-        match = re.search(r"(?:Company|at):\s*([^\n\|,]+)", text, re.IGNORECASE)
-        if match:
-            return self.clean_text(match.group(1))
-        return ""
-
-    def _extract_location_from_context(self, text: str) -> str:
-        """Try to extract location from link context"""
-        # Look for city names in Ontario
-        ontario_cities = [
-            "Toronto",
-            "Ottawa",
-            "Mississauga",
-            "Hamilton",
-            "Brampton",
-            "London",
-            "Markham",
-            "Vaughan",
-            "Kitchener",
-            "Windsor",
-            "Richmond Hill",
-            "Oakville",
-            "Burlington",
-            "Barrie",
-            "Oshawa",
-            "St. Catharines",
-            "Cambridge",
-            "Kingston",
-            "Guelph",
-            "Whitby",
-            "Waterloo",
-            "Sudbury",
-            "Thunder Bay",
-        ]
-
-        for city in ontario_cities:
-            if city in text:
-                # Check if "Ontario" or "ON" is also present
-                if "ontario" in text.lower() or ", on" in text.lower():
-                    return f"{city}, Ontario"
-                return city
-
-        # Look for "Location: X" pattern
-        match = re.search(r"Location:\s*([^\n\|]+)", text, re.IGNORECASE)
-        if match:
-            return self.clean_text(match.group(1))
-
-        return ""
 
     def _parse_error(self, message: str) -> ParserResult:
         """Return error result"""
