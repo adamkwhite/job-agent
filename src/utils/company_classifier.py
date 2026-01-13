@@ -712,12 +712,29 @@ def should_filter_job(
 
     # Engineering leadership depends on company type
     if role_type == "engineering_leadership":
+        # Hardware companies: NEVER filter engineering roles
+        if company_classification.type == "hardware":
+            logger.debug(f"Not filtering '{job_title}' at '{company_name}' - hardware company")
+            return (False, "hardware_company_engineering_allowed")
+
+        # AGGRESSIVE MODE: Filter ANY engineering role without hardware keywords
+        # This applies AFTER checking for hardware companies, so hardware companies are safe
+        if aggression_level == "aggressive":
+            hardware_keywords = ["hardware", "robotics", "mechatronics", "embedded", "firmware"]
+            title_lower = job_title.lower()
+            if not any(kw in title_lower for kw in hardware_keywords):
+                logger.info(
+                    f"Filtering '{job_title}' at '{company_name}' - "
+                    f"no hardware keywords (aggressive)"
+                )
+                return (True, "no_hardware_keywords_aggressive")
+
         if company_classification.type == "software":
             # Get software engineering avoid keywords from profile
             filtering_config = profile.get("filtering", {})
             avoid_keywords = filtering_config.get("software_engineering_avoid", [])
 
-            # Apply aggression level logic
+            # Apply aggression level logic for software companies
             if aggression_level == "conservative":
                 # Only filter if title contains explicit software keywords
                 title_lower = job_title.lower()
@@ -736,17 +753,6 @@ def should_filter_job(
                         f"software company (confidence={company_classification.confidence:.2f}, moderate)"
                     )
                     return (True, "software_company_moderate_confidence")
-
-            elif aggression_level == "aggressive":
-                # Filter any engineering role without explicit hardware keywords
-                hardware_keywords = ["hardware", "robotics", "mechatronics", "embedded", "firmware"]
-                title_lower = job_title.lower()
-                if not any(kw in title_lower for kw in hardware_keywords):
-                    logger.info(
-                        f"Filtering '{job_title}' at '{company_name}' - "
-                        f"no hardware keywords (aggressive)"
-                    )
-                    return (True, "no_hardware_keywords_aggressive")
 
         elif company_classification.type == "hardware":
             logger.debug(

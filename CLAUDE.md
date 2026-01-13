@@ -132,11 +132,17 @@ Automatically surface LinkedIn connections at companies in job digests to help l
 - **HTML Reports**: Displays connection names and titles in detailed view
 - **Performance**: <50ms matching per job, in-memory caching during digest runs
 - **Privacy**: All data stays local, no external API calls
+- **Security**: Connections files are automatically gitignored (`.gitignore` lines 96-101) and will never be committed to Git
 
 **Usage:**
 ```bash
-# Upload LinkedIn CSV export
+# Option 1: Use upload script (recommended - validates CSV format)
 python scripts/upload_connections.py --profile wes ~/Downloads/Connections.csv
+
+# Option 2: Manual file copy (Windows + WSL users)
+# 1. Navigate to: \\wsl.localhost\Ubuntu\home\adam\Code\job-agent\data\profiles\wes\
+# 2. Copy LinkedIn CSV and rename to: connections.csv
+# 3. Verify: head -3 data/profiles/wes/connections.csv
 
 # Generate HTML report with connections
 python src/generate_jobs_html.py --profile wes
@@ -321,6 +327,8 @@ PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile a
 # Force resend all jobs (for testing)
 PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile wes --force-resend
 ```
+
+**Note:** Dry-run mode validates jobs and filters but exits before loading connections, so you won't see "👥 connections" indicators in dry-run output. To preview connections without sending email, use `generate_jobs_html.py` instead.
 
 **Digest Tracking**: The system automatically tracks which jobs have been sent to each profile using the `job_scores.digest_sent_at` field. Running the script multiple times will only send new jobs to each person, preventing duplicate emails. Each profile maintains separate digest tracking.
 

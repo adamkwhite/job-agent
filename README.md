@@ -164,7 +164,7 @@ job-agent-venv/bin/python src/generate_jobs_html.py
 job-agent-venv/bin/python src/generate_jobs_html.py --profile wes
 
 # Send email digest
-PYTHONPATH=$PWD job-agent-venv/bin/python src/send_digest_to_wes.py
+PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile wes
 ```
 
 ### 4. Setup Weekly Automation

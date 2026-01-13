@@ -307,7 +307,7 @@ class TestShouldFilterJobHardwareCompany:
         )
 
         assert should_filter is False
-        assert reason == "hardware_company_engineering_match"
+        assert reason == "hardware_company_engineering_allowed"
 
 
 class TestShouldFilterJobDualDomainCompany:

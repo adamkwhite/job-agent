@@ -158,7 +158,13 @@
     "Codility",
     "HackerRank",
     "LeetCode",
-    "Codesignal"
+    "Codesignal",
+    "Blue J",
+    "BuildOps",
+    "Raya",
+    "Venn",
+    "BairesDev",
+    "Extreme Networks"
   ],
 
   "both_domains": [
@@ -247,7 +253,17 @@
       "collaboration",
       "communication",
       "security software",
-      "cybersecurity software"
+      "cybersecurity software",
+      "Labs",
+      "Dev",
+      "Build",
+      "Systems",
+      "Networks",
+      "Tech",
+      "Solutions",
+      "Digital",
+      "App",
+      "Web"
     ]
   }
 }
