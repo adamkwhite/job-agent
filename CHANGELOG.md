@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Company Classifier Improvements** (Jan 12, 2026 - Issue #208, PR #209)
+  - Added 6 problematic software companies to curated list: Blue J, BuildOps, Raya, Venn, BairesDev, Extreme Networks
+  - Improved software indicator keywords: Labs, Dev, Build, Systems, Networks, Tech, Solutions, Digital, App, Web
+  - Fixed aggressive mode bug: hardware companies (Boston Dynamics, Figure) no longer filtered in aggressive mode
+  - Added hardware company check before aggressive filtering logic (lines 715-718 in company_classifier.py)
+  - Updated test for new filter reason string: `hardware_company_engineering_allowed`
+  - Result: BuildOps and Extreme Networks now filtered in moderate mode (0.70 confidence)
+  - Pending decision: Hybrid filtering mode to catch all 6 companies in moderate mode (Issue #208)
+
+### Added
+- **LangSmith Observability PRD** (Jan 12, 2026 - Issue #210)
+  - Created PRD for integrating LangSmith observability into LLM extraction pipeline
+  - Track LLM API costs per run, per company, per job found
+  - Monitor performance: latency distribution, token usage, cache effectiveness
+  - Debug quality issues: JSON parse failures (8% failure rate), prompt effectiveness
+  - Goals: 20% cost reduction through prompt optimization, reduce failures from 8% to <2%
+  - File: `docs/features/langsmith-observability-PLANNED/prd.md`
+
 ### Changed
 - **Documentation Updates** (Jan 9, 2026)
   - Updated scoring system documentation to reflect 100-point base system (max 110 with bonuses)

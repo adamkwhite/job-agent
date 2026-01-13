@@ -36,6 +36,10 @@ htmlcov/
 .nox/
 test-report.html
 
+# Debug/extraction output files
+*_extraction_result.json
+claude_extraction_result.json
+
 # Environment variables
 .env
 .env.local
