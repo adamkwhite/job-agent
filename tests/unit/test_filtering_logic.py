@@ -176,6 +176,72 @@ class TestShouldFilterJobModerate:
         assert should_filter is False
         assert reason == "no_filter_applied"
 
+    def test_curated_software_company_filtered_hybrid_mode(self):
+        """Hybrid mode: Curated software companies filtered even with low confidence"""
+        classification = CompanyClassification(
+            type="software",
+            confidence=0.4,  # Low confidence, but in curated list
+            signals={
+                "curated": {
+                    "score": 1.0,
+                    "type": "software",
+                    "list_match": "software_companies",
+                }
+            },
+            source="auto",
+        )
+        profile = {
+            "role_types": {
+                "engineering_leadership": ["engineering"],
+                "product_leadership": ["product"],
+            },
+            "filtering": {},
+        }
+
+        should_filter, reason = should_filter_job(
+            job_title="Director of Engineering",
+            company_name="Blue J",
+            company_classification=classification,
+            profile=profile,
+            aggression_level="moderate",
+        )
+
+        assert should_filter is True
+        assert reason == "curated_software_company_moderate"
+
+    def test_curated_software_company_product_not_filtered(self):
+        """Hybrid mode: Product roles at curated software companies NOT filtered"""
+        classification = CompanyClassification(
+            type="software",
+            confidence=0.4,
+            signals={
+                "curated": {
+                    "score": 1.0,
+                    "type": "software",
+                    "list_match": "software_companies",
+                }
+            },
+            source="auto",
+        )
+        profile = {
+            "role_types": {
+                "engineering_leadership": ["engineering"],
+                "product_leadership": ["product"],
+            },
+            "filtering": {},
+        }
+
+        should_filter, reason = should_filter_job(
+            job_title="VP of Product",
+            company_name="Blue J",
+            company_classification=classification,
+            profile=profile,
+            aggression_level="moderate",
+        )
+
+        assert should_filter is False
+        assert reason == "product_leadership_any_company"
+
 
 class TestShouldFilterJobAggressive:
     """Test filtering logic with aggressive aggression level"""
