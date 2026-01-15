@@ -1,14 +1,15 @@
 """
 Parser for Indeed job alert emails
 
-Handles subject line format:
-- "[Job Title] at [Company] and X more engineering jobs in Ontario for you!"
+Handles two subject line formats:
+1. "[Job Title] at [Company] and X more engineering jobs in Ontario for you!"
+2. "[Company] is hiring for [Job] + X new engineering jobs in Ontario"
 
 Examples:
 - Specialist, Performance & Engineering at Vale and 29 more engineering jobs in Ontario for you!
 - Utilities Lead at Unilever and 29 more engineering jobs in Ontario for you!
 - Project Manager at Landmark Structures Co and 29 more engineering jobs in Ontario for you!
-- [Company] is hiring for [Job] + X new engineering jobs in Ontario
+- Terrestrial Energy is hiring for Project Manager – Engineering + 30 new engineering jobs in Ontario
 
 Note: This parser only extracts the primary job from the subject line.
 Additional jobs mentioned in "and X more" are not parsed.
@@ -31,14 +32,21 @@ class IndeedParser(BaseEmailParser):
         """Check if this parser can handle the email"""
         subject = email_message.get("Subject", "")
 
-        # Match pattern: "[Job Title] at [Company] and X more engineering jobs in Ontario for you!"
-        return bool(
-            re.match(
-                r"^.+\s+at\s+.+\s+and\s+\d+\s+more\s+engineering\s+jobs\s+in\s+Ontario",
-                subject,
-                re.IGNORECASE,
-            )
+        # Match pattern 1: "[Job Title] at [Company] and X more engineering jobs in Ontario for you!"
+        pattern1 = re.match(
+            r"^.+\s+at\s+.+\s+and\s+\d+\s+more\s+engineering\s+jobs\s+in\s+Ontario",
+            subject,
+            re.IGNORECASE,
         )
+
+        # Match pattern 2: "[Company] is hiring for [Job] + X new engineering jobs in Ontario"
+        pattern2 = re.match(
+            r"^.+\s+is\s+hiring\s+for\s+.+\+\s*\d+\s+new\s+engineering\s+jobs\s+in\s+Ontario",
+            subject,
+            re.IGNORECASE,
+        )
+
+        return bool(pattern1 or pattern2)
 
     def parse(self, email_message) -> ParserResult:
         """Parse Ontario engineering jobs alert email"""
@@ -46,18 +54,29 @@ class IndeedParser(BaseEmailParser):
             subject = email_message.get("Subject", "")
             from_email = self.extract_email_address(email_message.get("From", ""))
 
-            # Parse subject line: "[Job Title] at [Company] and X more..."
+            # Try pattern 1: "[Job Title] at [Company] and X more..."
             match = re.match(
                 r"^(.+?)\s+at\s+(.+?)\s+and\s+\d+\s+more\s+engineering\s+jobs",
                 subject,
                 re.IGNORECASE,
             )
 
-            if not match:
-                return self._parse_error("Could not parse subject line format")
+            if match:
+                title = match.group(1).strip()
+                company = match.group(2).strip()
+            else:
+                # Try pattern 2: "[Company] is hiring for [Job] + X new..."
+                match = re.match(
+                    r"^(.+?)\s+is\s+hiring\s+for\s+(.+?)\s*\+\s*\d+\s+new\s+engineering\s+jobs",
+                    subject,
+                    re.IGNORECASE,
+                )
 
-            title = match.group(1).strip()
-            company = match.group(2).strip()
+                if not match:
+                    return self._parse_error("Could not parse subject line format")
+
+                company = match.group(1).strip()
+                title = match.group(2).strip()
 
             # Extract HTML body to find job links
             html_body, text_body = self.extract_email_body(email_message)
