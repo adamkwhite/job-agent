@@ -8,14 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Hybrid Filtering Mode Implementation** (Jan 13, 2026 - Issue #208, PR #211)
+  - Implemented Option 3 (Hybrid mode) chosen by Wes
+  - Companies in curated software list now ALWAYS filtered for engineering roles in moderate mode
+  - Added hybrid logic to should_filter_job() in company_classifier.py (lines 749-757)
+  - New filter reason: `curated_software_company_moderate`
+  - Result: All 6 problematic companies now filtered (Blue J, Raya, Venn, BairesDev, BuildOps, Extreme Networks)
+  - Product roles at software companies still come through (verified with tests)
+  - Added 2 comprehensive tests: test_curated_software_company_filtered_hybrid_mode, test_curated_software_company_product_not_filtered
+  - All 17 filtering tests passing
+
 - **Company Classifier Improvements** (Jan 12, 2026 - Issue #208, PR #209)
   - Added 6 problematic software companies to curated list: Blue J, BuildOps, Raya, Venn, BairesDev, Extreme Networks
   - Improved software indicator keywords: Labs, Dev, Build, Systems, Networks, Tech, Solutions, Digital, App, Web
   - Fixed aggressive mode bug: hardware companies (Boston Dynamics, Figure) no longer filtered in aggressive mode
   - Added hardware company check before aggressive filtering logic (lines 715-718 in company_classifier.py)
   - Updated test for new filter reason string: `hardware_company_engineering_allowed`
-  - Result: BuildOps and Extreme Networks now filtered in moderate mode (0.70 confidence)
-  - Pending decision: Hybrid filtering mode to catch all 6 companies in moderate mode (Issue #208)
+  - Result: BuildOps and Extreme Networks filtered in moderate mode (0.70 confidence), 4 others still passed through
 
 ### Added
 - **LangSmith Observability PRD** (Jan 12, 2026 - Issue #210)
