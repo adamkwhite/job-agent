@@ -746,6 +746,16 @@ def should_filter_job(
                     return (True, "software_engineering_explicit_conservative")
 
             elif aggression_level == "moderate":  # DEFAULT
+                # HYBRID MODE: If company is in curated software list, always filter engineering roles
+                # This catches companies like Blue J, Raya, Venn that have low confidence but are known software companies
+                curated_signal = company_classification.signals.get("curated", {})
+                if curated_signal.get("list_match") == "software_companies":
+                    logger.info(
+                        f"Filtering '{job_title}' at '{company_name}' - "
+                        f"curated software company (moderate)"
+                    )
+                    return (True, "curated_software_company_moderate")
+
                 # Filter if company is classified as software with medium+ confidence
                 if company_classification.confidence >= 0.6:
                     logger.info(
