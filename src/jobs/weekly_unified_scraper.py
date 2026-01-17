@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from dotenv import load_dotenv
 
 from jobs.company_scraper import CompanyScraper
+from jobs.ministry_scraper import MinistryScraper
 from processor_v2 import JobProcessorV2
 
 load_dotenv()
@@ -28,6 +29,7 @@ class WeeklyUnifiedScraper:
     Unified weekly scraper combining all job sources:
     1. Email-based sources (LinkedIn, Supra, F6S, Artemis, Built In, etc.)
     2. Company monitoring (68 companies)
+    3. Ministry of Testing (QA/testing job board)
     """
 
     def __init__(self, profile: str | None = None):
@@ -50,6 +52,9 @@ class WeeklyUnifiedScraper:
         # Company monitoring scraper
         self.company_scraper = CompanyScraper(profile=profile, enable_llm_extraction=llm_enabled)
 
+        # Ministry of Testing scraper
+        self.ministry_scraper = MinistryScraper(profile=profile)
+
     def run_all(
         self,
         fetch_emails: bool = True,
@@ -58,6 +63,9 @@ class WeeklyUnifiedScraper:
         companies_min_score: int = 50,
         company_filter: str | None = None,
         skip_recent_hours: int | None = None,
+        scrape_ministry: bool = True,
+        _ministry_max_pages: int = 3,
+        _ministry_min_score: int = 47,
     ) -> dict:
         """
         Run all job processing sources
@@ -69,6 +77,9 @@ class WeeklyUnifiedScraper:
             companies_min_score: Minimum score for company jobs (default: 50 for D+ grade)
             company_filter: Filter companies by notes (e.g., "From Wes")
             skip_recent_hours: Skip companies checked within this many hours (None = scrape all)
+            scrape_ministry: Whether to scrape Ministry of Testing
+            ministry_max_pages: Max pages to scrape from Ministry (default: 3)
+            ministry_min_score: Minimum score for Ministry jobs (default: 47 for Mario)
 
         Returns:
             Combined stats from all sources
@@ -79,11 +90,13 @@ class WeeklyUnifiedScraper:
         print("=" * 80)
         print(f"📧 Email processing: {fetch_emails}")
         print(f"🏢 Company monitoring: {scrape_companies}")
+        print(f"🧪 Ministry of Testing: {scrape_ministry}")
         print("=" * 80 + "\n")
 
         all_stats = {
             "email": {},
             "companies": {},
+            "ministry": {},
             "total_jobs_found": 0,
             "total_jobs_stored": 0,
             "total_notifications": 0,
@@ -119,8 +132,31 @@ class WeeklyUnifiedScraper:
             all_stats["total_jobs_stored"] += company_stats.get("jobs_stored", 0)
             all_stats["total_notifications"] += company_stats.get("notifications_sent", 0)
 
+        # PART 3: Ministry of Testing
+        if scrape_ministry:
+            print("\n" + "=" * 80)
+            print("PART 3: MINISTRY OF TESTING (QA/TESTING JOBS)")
+            print("=" * 80 + "\n")
+
+            # Note: Ministry scraper requires Firecrawl MCP calls
+            # This will be handled by Claude Code when running the scraper
+            print("⚠️  Ministry scraper requires Firecrawl MCP integration")
+            print("    This feature requires manual Firecrawl MCP calls")
+            print("    Run scripts/run_ministry_scraper.py separately")
+            print()
+
+            ministry_stats = {
+                "pages_scraped": 0,
+                "jobs_found": 0,
+                "jobs_stored": 0,
+                "jobs_scored": 0,
+                "profile_scores": {},
+            }
+
+            all_stats["ministry"] = ministry_stats
+
         # Final summary
-        self._print_summary(all_stats, fetch_emails, scrape_companies)
+        self._print_summary(all_stats, fetch_emails, scrape_companies, scrape_ministry)
 
         return all_stats
 
@@ -153,6 +189,7 @@ class WeeklyUnifiedScraper:
         all_stats: dict,
         ran_emails: bool,
         ran_companies: bool,
+        ran_ministry: bool = False,
     ) -> None:
         """Print final summary"""
         print("\n" + "=" * 80)
@@ -183,6 +220,14 @@ class WeeklyUnifiedScraper:
                     f"\n⚠️  {len(failed_extractions)} companies failed both extraction methods - emailing review list..."
                 )
                 self._email_failed_extractions(failed_extractions)
+
+        if ran_ministry:
+            ministry_stats = all_stats["ministry"]
+            print("\n🧪 Ministry of Testing:")
+            print(f"  Pages scraped: {ministry_stats.get('pages_scraped', 0)}")
+            print(f"  Jobs found: {ministry_stats.get('jobs_found', 0)}")
+            print(f"  Jobs stored: {ministry_stats.get('jobs_stored', 0)}")
+            print(f"  Jobs scored: {ministry_stats.get('jobs_scored', 0)}")
 
         print("\n📊 TOTALS:")
         print(f"  Jobs found: {all_stats['total_jobs_found']}")
