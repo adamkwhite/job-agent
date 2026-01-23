@@ -87,6 +87,14 @@ class TestMultiPersonScorer:
         assert "adam" in scorer.scorers
         assert len(scorer.scorers) == 2
 
+    def test_init_creates_filters_for_enabled_profiles(self, mock_dependencies):  # noqa: ARG002
+        """Test that filter pipelines are created for each enabled profile"""
+        scorer = MultiPersonScorer()
+
+        assert "wes" in scorer.filters
+        assert "adam" in scorer.filters
+        assert len(scorer.filters) == 2
+
     def test_score_job_for_all_returns_results(self, mock_dependencies):  # noqa: ARG002
         """Test scoring a job for all profiles"""
         scorer = MultiPersonScorer()
@@ -114,6 +122,52 @@ class TestMultiPersonScorer:
 
         # Should have called upsert_job_score for each profile
         assert mock_dependencies["db"].upsert_job_score.call_count == 2
+
+    def test_score_job_for_all_applies_hard_filters(self, mock_dependencies, mocker):
+        """Test that hard filters are applied for each profile before scoring"""
+        scorer = MultiPersonScorer()
+
+        # Mock filter to block job for wes but not adam
+        mock_filter_wes = mocker.Mock()
+        mock_filter_wes.apply_hard_filters.return_value = (False, "hard_filter_junior")
+        scorer.filters["wes"] = mock_filter_wes
+
+        mock_filter_adam = mocker.Mock()
+        mock_filter_adam.apply_hard_filters.return_value = (True, None)
+        scorer.filters["adam"] = mock_filter_adam
+
+        job = {"title": "Junior Engineer", "company": "Tech Co", "location": "Remote"}
+        results = scorer.score_job_for_all(job, job_id=123)
+
+        # Verify filters were called
+        mock_filter_wes.apply_hard_filters.assert_called_once_with(job)
+        mock_filter_adam.apply_hard_filters.assert_called_once_with(job)
+
+        # Only adam should be in results (wes was filtered)
+        assert "adam" in results
+        assert "wes" not in results
+
+    def test_score_job_for_all_skips_scoring_when_filtered(self, mock_dependencies, mocker):
+        """Test that jobs filtered for a profile are not scored or saved"""
+        scorer = MultiPersonScorer()
+
+        # Mock filters to block job for both profiles
+        for profile_id in ["wes", "adam"]:
+            mock_filter = mocker.Mock()
+            mock_filter.apply_hard_filters.return_value = (
+                False,
+                "hard_filter_software_engineering",
+            )
+            scorer.filters[profile_id] = mock_filter
+
+        job = {"title": "Software Engineer", "company": "SaaS Co", "location": "Remote"}
+        results = scorer.score_job_for_all(job, job_id=789)
+
+        # No profiles should be in results
+        assert len(results) == 0
+
+        # Database should not be called since no jobs were scored
+        assert mock_dependencies["db"].upsert_job_score.call_count == 0
 
     def test_score_new_job_calls_score_job_for_all(self, mock_dependencies):  # noqa: ARG002
         """Test score_new_job delegates to score_job_for_all"""
