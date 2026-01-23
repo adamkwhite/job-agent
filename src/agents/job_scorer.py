@@ -256,6 +256,260 @@ class JobScorer:
         text_lower = text.lower()
         return sum(1 for kw in keywords if kw.lower() in text_lower)
 
+    def _is_leadership_title(self, title_lower: str) -> bool:
+        """
+        Check if title indicates leadership position.
+
+        Args:
+            title_lower: Job title in lowercase
+
+        Returns:
+            True if title contains leadership keywords
+        """
+        leadership_keywords = ["vp", "director", "head", "chief", "executive"]
+        return any(self._has_keyword(title_lower, kw) for kw in leadership_keywords)
+
+    def _calculate_software_penalty(self, title_lower: str, is_leadership: bool) -> int:
+        """
+        Return -5 if software development role, else 0.
+
+        Consolidates duplicate penalty logic for pure software engineering roles.
+
+        Args:
+            title_lower: Job title in lowercase
+            is_leadership: Whether title is a leadership position
+
+        Returns:
+            -5 if software development role detected, 0 otherwise
+        """
+        if not is_leadership:
+            return 0
+
+        # Check for "software" + "development" combination first
+        # (e.g., "Director of Software Development")
+        if "software" in title_lower and "development" in title_lower:
+            return -5
+
+        # Check for software engineering penalties (only for engineering roles)
+        # Original logic from lines 356-360
+        if "engineering" in title_lower:
+            software_indicators = ["software", "backend", "frontend", "web", "mobile"]
+            for indicator in software_indicators:
+                if indicator in title_lower:
+                    return -5
+
+        return 0
+
+    def _match_product_leadership(
+        self, title_lower: str, is_leadership: bool
+    ) -> tuple[int, str | None]:
+        """
+        Match Product Leadership roles (CPO, VP Product, etc.)
+
+        Args:
+            title_lower: Job title in lowercase
+            is_leadership: Whether title is a leadership position
+
+        Returns:
+            Tuple of (base_score, category_name) or (0, None) if no match
+        """
+        if "product" not in title_lower or not is_leadership:
+            return (0, None)
+
+        base_score = 15  # Default for product leadership
+
+        # Hardware/technical boost (+5 points)
+        hardware_keywords = ["hardware", "technical", "iot", "platform"]
+        if any(self._has_keyword(title_lower, kw) for kw in hardware_keywords):
+            base_score = 20
+        # Product Engineering dual role
+        elif "engineering" in title_lower:
+            base_score = 18
+
+        return (base_score, "product_leadership")
+
+    def _match_engineering_leadership(
+        self, title_lower: str, is_leadership: bool
+    ) -> tuple[int, str | None]:
+        """
+        Match Engineering Leadership roles (CTO, VP Engineering, etc.)
+
+        Note: Software penalty already checked in _calculate_software_penalty
+
+        Args:
+            title_lower: Job title in lowercase
+            is_leadership: Whether title is a leadership position
+
+        Returns:
+            Tuple of (base_score, category_name) or (0, None) if no match
+        """
+        if not is_leadership or "engineering" not in title_lower:
+            return (0, None)
+
+        # Hardware-focused engineering gets higher score
+        hardware_keywords = ["hardware", "mechatronics", "systems"]
+        if any(self._has_keyword(title_lower, kw) for kw in hardware_keywords):
+            base_score = 20
+        else:
+            base_score = 15  # Generic engineering leadership
+
+        return (base_score, "engineering_leadership")
+
+    def _match_rd_leadership(self, title_lower: str, is_leadership: bool) -> tuple[int, str | None]:
+        """
+        Match R&D Leadership roles (VP of R&D, etc.)
+
+        Args:
+            title_lower: Job title in lowercase
+            is_leadership: Whether title is a leadership position
+
+        Returns:
+            Tuple of (base_score, category_name) or (0, None) if no match
+        """
+        if not is_leadership:
+            return (0, None)
+
+        if "r&d" in title_lower or "r & d" in title_lower:
+            return (20, "engineering_leadership")
+
+        return (0, None)
+
+    def _match_technical_program_mgmt(
+        self, title_lower: str, is_leadership: bool
+    ) -> tuple[int, str | None]:
+        """
+        Match Technical Program Management roles
+
+        Args:
+            title_lower: Job title in lowercase
+            is_leadership: Whether title is a leadership position
+
+        Returns:
+            Tuple of (base_score, category_name) or (0, None) if no match
+        """
+        if not is_leadership:
+            return (0, None)
+
+        program_keywords = ["program", "pmo", "delivery"]
+        if any(self._has_keyword(title_lower, kw) for kw in program_keywords):
+            return (15, "technical_program_management")
+
+        return (0, None)
+
+    def _match_manufacturing_ops(
+        self, title_lower: str, is_leadership: bool
+    ) -> tuple[int, str | None]:
+        """
+        Match Manufacturing/NPI/Operations roles
+
+        Args:
+            title_lower: Job title in lowercase
+            is_leadership: Whether title is a leadership position
+
+        Returns:
+            Tuple of (base_score, category_name) or (0, None) if no match
+        """
+        manufacturing_keywords = ["manufacturing", "npi", "operations", "production"]
+        if not any(self._has_keyword(title_lower, kw) for kw in manufacturing_keywords):
+            return (0, None)
+
+        base_score = 18 if is_leadership else 12
+        return (base_score, "manufacturing_npi_operations")
+
+    def _match_product_development(
+        self, title_lower: str, is_leadership: bool
+    ) -> tuple[int, str | None]:
+        """
+        Match Product Development/R&D roles
+
+        Args:
+            title_lower: Job title in lowercase
+            is_leadership: Whether title is a leadership position
+
+        Returns:
+            Tuple of (base_score, category_name) or (0, None) if no match
+        """
+        if "development" not in title_lower and "r&d" not in title_lower:
+            return (0, None)
+
+        base_score = 15 if is_leadership else 10
+        return (base_score, "product_development_rnd")
+
+    def _match_platform_integrations(
+        self, title_lower: str, is_leadership: bool
+    ) -> tuple[int, str | None]:
+        """
+        Match Platform/Integrations/Systems roles
+
+        Args:
+            title_lower: Job title in lowercase
+            is_leadership: Whether title is a leadership position
+
+        Returns:
+            Tuple of (base_score, category_name) or (0, None) if no match
+        """
+        platform_keywords = ["platform", "integration", "systems"]
+        if not any(self._has_keyword(title_lower, kw) for kw in platform_keywords):
+            return (0, None)
+
+        base_score = 18 if is_leadership else 15
+        return (base_score, "platform_integrations_systems")
+
+    def _match_robotics_automation(
+        self, title_lower: str, is_leadership: bool
+    ) -> tuple[int, str | None]:
+        """
+        Match Robotics/Automation Engineering roles
+
+        Args:
+            title_lower: Job title in lowercase
+            is_leadership: Whether title is a leadership position
+
+        Returns:
+            Tuple of (base_score, category_name) or (0, None) if no match
+        """
+        robotics_keywords = ["robotics", "automation", "mechatronics"]
+        if not any(self._has_keyword(title_lower, kw) for kw in robotics_keywords):
+            return (0, None)
+
+        # Senior+ or leadership gets higher score
+        is_senior = is_leadership or any(
+            self._has_keyword(title_lower, kw) for kw in ["senior", "lead", "principal"]
+        )
+        base_score = 15 if is_senior else 10
+        return (base_score, "robotics_automation_engineering")
+
+    def _calculate_keyword_bonus(self, title: str, category: str | None) -> int:
+        """
+        Calculate bonus from keyword matches in config.
+
+        Args:
+            title: Job title (original case)
+            category: Matched category name, or None
+
+        Returns:
+            Bonus points (+2 per matched keyword)
+        """
+        if not category:
+            return 0
+
+        if category not in self.role_category_keywords:
+            logger.warning(
+                f"Role category '{category}' not found in config/filter-keywords.json. "
+                f"Job '{title}' will not receive keyword-based bonus points. "
+                f"Please add '{category}' to 'role_category_keywords' section in config."
+            )
+            return 0
+
+        category_keywords = self.role_category_keywords[category]
+        must_kw = category_keywords.get("must_keywords", [])
+        nice_kw = category_keywords.get("nice_keywords", [])
+
+        must_matches = self._count_keyword_matches(title, must_kw)
+        nice_matches = self._count_keyword_matches(title, nice_kw)
+
+        return (must_matches + nice_matches) * 2
+
     def _score_role_type(self, title: str) -> int:
         """
         Score based on role type using 7-category system (0-20 base + bonuses)
@@ -272,118 +526,35 @@ class JobScorer:
         Bonus: +2 points per keyword match (must_keywords + nice_keywords)
         Penalty: -5 for pure software engineering leadership
         """
-        is_leadership = any(
-            self._has_keyword(title, kw) for kw in ["vp", "director", "head", "chief", "executive"]
-        )
         title_lower = title.lower()
+        is_leadership = self._is_leadership_title(title_lower)
 
-        base_score = 0
-        bonus_score = 0
-        matched_category = None
+        # Check for software development penalty first
+        penalty = self._calculate_software_penalty(title_lower, is_leadership)
+        if penalty < 0:
+            return penalty
 
-        # PRIORITY 1: Check for software development penalty first (before other categories)
-        if is_leadership and "software" in title_lower and "development" in title_lower:
-            base_score = -5  # Penalty for "Director Software Development" type roles
-            matched_category = None
+        # Try each category matcher in priority order
+        matchers = [
+            self._match_product_leadership,
+            self._match_engineering_leadership,
+            self._match_rd_leadership,
+            self._match_technical_program_mgmt,
+            self._match_manufacturing_ops,
+            self._match_product_development,
+            self._match_platform_integrations,
+            self._match_robotics_automation,
+        ]
 
-        # Category 1: Product Leadership (15-20 base)
-        elif "product" in title_lower and is_leadership:
-            # Higher score for product + hardware/technical
-            if any(
-                self._has_keyword(title_lower, kw)
-                for kw in ["hardware", "technical", "iot", "platform"]
-            ):
-                base_score = 20
-            elif "engineering" in title_lower:  # Product Engineering dual role
-                base_score = 18
-            else:
-                base_score = 15
-            matched_category = "product_leadership"
+        for matcher in matchers:
+            base_score, category = matcher(title_lower, is_leadership)
+            if category is not None:
+                bonus_score = self._calculate_keyword_bonus(title, category)
+                return base_score + bonus_score
 
-        # Category 2: Engineering Leadership (15-20 base)
-        elif is_leadership and "engineering" in title_lower:
-            # Check for pure software penalty
-            if any(
-                self._has_keyword(title_lower, kw)
-                for kw in ["software", "backend", "frontend", "web", "mobile"]
-            ):
-                base_score = -5  # Penalty for pure software
-            elif any(
-                self._has_keyword(title_lower, kw) for kw in ["hardware", "mechatronics", "systems"]
-            ):
-                base_score = 20  # Hardware-focused engineering
-                matched_category = "engineering_leadership"
-            else:
-                base_score = 15  # Generic engineering leadership
-                matched_category = "engineering_leadership"
-
-        # R&D leadership (special case for "VP of R&D" type titles)
-        elif is_leadership and ("r&d" in title_lower or "r & d" in title_lower):
-            base_score = 20
-            matched_category = "engineering_leadership"
-
-        # Category 3: Technical Program Management (12-18 base)
-        elif is_leadership and any(
-            self._has_keyword(title_lower, kw) for kw in ["program", "pmo", "delivery"]
-        ):
-            base_score = 15
-            matched_category = "technical_program_management"
-
-        # Category 4: Manufacturing/NPI/Operations (12-18 base)
-        elif any(
-            self._has_keyword(title_lower, kw)
-            for kw in ["manufacturing", "npi", "operations", "production"]
-        ):
-            base_score = 18 if is_leadership else 12
-            matched_category = "manufacturing_npi_operations"
-
-        # Category 5: Product Development/R&D (10-15 base)
-        elif "development" in title_lower or "r&d" in title_lower:
-            base_score = 15 if is_leadership else 10
-            matched_category = "product_development_rnd"
-
-        # Category 6: Platform/Integrations/Systems (15-18 base)
-        elif any(
-            self._has_keyword(title_lower, kw) for kw in ["platform", "integration", "systems"]
-        ):
-            base_score = 18 if is_leadership else 15
-            matched_category = "platform_integrations_systems"
-
-        # Category 7: Robotics/Automation Engineering (10-15 base)
-        elif any(
-            self._has_keyword(title_lower, kw) for kw in ["robotics", "automation", "mechatronics"]
-        ):
-            if is_leadership or any(
-                self._has_keyword(title_lower, kw) for kw in ["senior", "lead", "principal"]
-            ):
-                base_score = 15
-            else:
-                base_score = 10
-            matched_category = "robotics_automation_engineering"
-
-        # Generic fallback
-        else:
-            base_score = 5 if "product" in title_lower or "program" in title_lower else 0
-
-        # Apply keyword bonuses (+2 per match)
-        if matched_category and matched_category in self.role_category_keywords:
-            category_keywords = self.role_category_keywords[matched_category]
-            must_kw = category_keywords.get("must_keywords", [])
-            nice_kw = category_keywords.get("nice_keywords", [])
-
-            must_matches = self._count_keyword_matches(title, must_kw)
-            nice_matches = self._count_keyword_matches(title, nice_kw)
-
-            bonus_score = (must_matches + nice_matches) * 2
-        elif matched_category:
-            # Category matched in code but not found in config - log warning
-            logger.warning(
-                f"Role category '{matched_category}' not found in config/filter-keywords.json. "
-                f"Job '{title}' will not receive keyword-based bonus points. "
-                f"Please add '{matched_category}' to 'role_category_keywords' section in config."
-            )
-
-        return base_score + bonus_score
+        # Fallback for uncategorized titles
+        base_score = 5 if "product" in title_lower or "program" in title_lower else 0
+        return base_score
 
     def _is_country_restricted(self, location: str, description: str = "") -> bool:
         """
