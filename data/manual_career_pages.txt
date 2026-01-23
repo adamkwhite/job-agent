@@ -98,3 +98,53 @@ Investors: Lux Capital, Regeneron Ventures
 
 Guessed website: https://atavistikbio.com
 Career page URL (fill this in): ____________________________
+
+======================================================================
+Company: Waabi
+Location: None
+Funding: None - None
+Industries:
+Investors:
+
+Guessed website: https://waabi.com
+Career page URL (fill this in): ____________________________
+
+======================================================================
+Company: Great Question
+Location: Oakland, US
+Funding: Series A - $20m
+Industries: B2B Solutions, Research
+Investors: Inovia Capital, Y Combinator
+
+Guessed website: https://greatquestion.com
+Career page URL (fill this in): ____________________________
+
+======================================================================
+Company: Solve Intelligence
+Location: London, UK
+Funding: Series B - $40m
+Industries: AI, Generative AI
+Investors: Operator Collective, Y Combinator
+
+Guessed website: https://solveintelligence.com
+Career page URL (fill this in): ____________________________
+
+======================================================================
+Company: CoLab Software
+Location: St. John's, Canada
+Funding: Series B - $72m
+Industries: Aerospace, Automotive
+Investors: Spider Capital, Y Combinator
+
+Guessed website: https://colabsoftware.com
+Career page URL (fill this in): ____________________________
+
+======================================================================
+Company: Merge Labs (merge.io)
+Location: San Francisco, US
+Funding: Seed - $252m
+Industries: AI, BCI
+Investors: Bain Capital, OpenAI Startup Fund
+
+Guessed website: https://merge
+Career page URL (fill this in): ____________________________

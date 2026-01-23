@@ -11,6 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from agents.job_filter_pipeline import JobFilterPipeline
 from agents.profile_scorer import ProfileScorer
 from database import JobDatabase
 from utils.profile_manager import get_profile_manager
@@ -23,10 +24,12 @@ class MultiPersonScorer:
         self.db = JobDatabase()
         self.manager = get_profile_manager()
 
-        # Create scorers for each profile
+        # Create scorers and filters for each profile
         self.scorers = {}
+        self.filters = {}
         for profile in self.manager.get_enabled_profiles():
             self.scorers[profile.id] = ProfileScorer(profile)
+            self.filters[profile.id] = JobFilterPipeline(profile.scoring)
 
     def score_job_for_all(self, job: dict, job_id: int) -> dict[str, tuple[int, str]]:
         """
@@ -42,6 +45,16 @@ class MultiPersonScorer:
         results = {}
 
         for profile_id, scorer in self.scorers.items():
+            # Apply profile's hard filters first (Issue #212)
+            filter_pipeline = self.filters[profile_id]
+            should_score, filter_reason = filter_pipeline.apply_hard_filters(job)
+
+            if not should_score:
+                # Job filtered for this profile - skip scoring
+                # Don't save to job_scores table (job doesn't exist for this profile)
+                continue
+
+            # Only score if passed filters
             score, grade, breakdown, classification_metadata = scorer.score_job(job)
 
             # Save to job_scores table
@@ -134,9 +147,17 @@ if __name__ == "__main__":
     }
 
     print("Test job:", test_job)
-    print("\nScoring for all profiles (not saving to DB):")
+    print("\nScoring for all profiles (with filters):")
 
     for profile_id, profile_scorer in scorer.scorers.items():
+        # Apply hard filters first (Issue #212)
+        filter_pipeline = scorer.filters[profile_id]
+        should_score, filter_reason = filter_pipeline.apply_hard_filters(test_job)
+
+        if not should_score:
+            print(f"  {profile_id}: FILTERED ({filter_reason})")
+            continue
+
         score, grade, breakdown, classification_metadata = profile_scorer.score_job(test_job)
         filtered_status = " [FILTERED]" if classification_metadata.get("filtered") else ""
         print(f"  {profile_id}: {score}/115 (Grade {grade}){filtered_status}")
