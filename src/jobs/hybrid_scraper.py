@@ -48,7 +48,7 @@ class HybridJobScraper:
         Args:
             similarity_threshold: Fuzzy matching threshold (0-100, default 90)
             min_score: Minimum score to store jobs (default 50 for D+ grade)
-            notify_threshold: Score threshold for notifications (default 80 for B grade)
+            notify_threshold: Score threshold for notifications (default 80 for A grade)
         """
         self.similarity_threshold = similarity_threshold
         self.min_score = min_score
@@ -337,7 +337,7 @@ def main():
         "--notify-threshold",
         type=int,
         default=80,
-        help="Score threshold for notifications (default: 80 for B grade)",
+        help="Score threshold for notifications (default: 80 for A grade)",
     )
     parser.add_argument(
         "--discovery-only",

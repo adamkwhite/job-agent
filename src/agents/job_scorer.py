@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from database import JobDatabase
 from utils.company_classifier import CompanyClassifier
-from utils.scoring_utils import classify_and_score_company
+from utils.scoring_utils import calculate_grade, classify_and_score_company
 
 logger = logging.getLogger(__name__)
 
@@ -169,8 +169,8 @@ class JobScorer:
         # Total score (max 100 + adjustments)
         total_score = sum(breakdown.values())
 
-        # Grade
-        grade = self._calculate_grade(total_score)
+        # Grade (using shared 100-point grading system)
+        grade = calculate_grade(total_score)
 
         return total_score, grade, breakdown, classification_metadata
 
@@ -375,6 +375,13 @@ class JobScorer:
             nice_matches = self._count_keyword_matches(title, nice_kw)
 
             bonus_score = (must_matches + nice_matches) * 2
+        elif matched_category:
+            # Category matched in code but not found in config - log warning
+            logger.warning(
+                f"Role category '{matched_category}' not found in config/filter-keywords.json. "
+                f"Job '{title}' will not receive keyword-based bonus points. "
+                f"Please add '{matched_category}' to 'role_category_keywords' section in config."
+            )
 
         return base_score + bonus_score
 
@@ -496,25 +503,19 @@ class JobScorer:
 
     def _calculate_grade(self, score: int) -> str:
         """
-        Convert score to letter grade (out of 110 maximum)
+        Convert score to letter grade (out of 100 maximum)
 
-        Thresholds:
-        - A: 98+ (89% of max)
-        - B: 80+ (73% of max)
-        - C: 63+ (57% of max)
-        - D: 46+ (42% of max)
-        - F: <46 (<42% of max)
+        DEPRECATED: Use utils.scoring_utils.calculate_grade() directly instead.
+        This method is kept for backwards compatibility with existing tests.
+
+        Thresholds (100-point system):
+        - A: 85+ (85%)
+        - B: 70+ (70%)
+        - C: 55+ (55%)
+        - D: 40+ (40%)
+        - F: <40 (<40%)
         """
-        if score >= 98:
-            return "A"
-        elif score >= 80:
-            return "B"
-        elif score >= 63:
-            return "C"
-        elif score >= 46:
-            return "D"
-        else:
-            return "F"
+        return calculate_grade(score)
 
     def score_all_jobs(self, limit: int = 100):
         """Score all recent jobs and update database"""

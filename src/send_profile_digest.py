@@ -696,12 +696,13 @@ def send_digest_to_profile(
     else:
         print("  ✓ No duplicates found")
 
-    # Count by grade
+    # Count by grade (split high vs good to match email display)
     high_scoring = [j for j in jobs if j.get("fit_score", 0) >= 70]
-    good_scoring = [j for j in jobs if j.get("fit_score", 0) >= 55]
+    good_scoring = [j for j in jobs if 55 <= j.get("fit_score", 0) < 70]
 
     print(f"  - {len(high_scoring)} excellent matches (70+)")
-    print(f"  - {len(good_scoring)} good matches (55+)")
+    print(f"  - {len(good_scoring)} good matches (55-69)")
+    print(f"  - {len(high_scoring) + len(good_scoring)} total matches (55+)")
 
     if dry_run:
         print(f"\n🧪 DRY RUN - Would send to {profile.email}")

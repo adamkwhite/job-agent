@@ -523,39 +523,50 @@ class TestGradeCalculation:
     """Test grade calculation"""
 
     def test_calculate_grade_a(self):
-        """Test A grade calculation"""
+        """Test A grade calculation (100-point system: A=85+)"""
         scorer = JobScorer()
 
-        grade = scorer._calculate_grade(98)
-        assert grade == "A"
+        # Test A grade boundaries
+        assert scorer._calculate_grade(100) == "A"
+        assert scorer._calculate_grade(98) == "A"
+        assert scorer._calculate_grade(85) == "A"  # Boundary
+        assert scorer._calculate_grade(84) == "B"
 
     def test_calculate_grade_b(self):
-        """Test B grade calculation"""
+        """Test B grade calculation (100-point system: B=70+)"""
         scorer = JobScorer()
 
-        grade = scorer._calculate_grade(85)
-        assert grade == "B"
+        # Test B grade boundaries
+        assert scorer._calculate_grade(84) == "B"
+        assert scorer._calculate_grade(70) == "B"  # Boundary
+        assert scorer._calculate_grade(69) == "C"
 
     def test_calculate_grade_c(self):
-        """Test C grade calculation"""
+        """Test C grade calculation (100-point system: C=55+)"""
         scorer = JobScorer()
 
-        grade = scorer._calculate_grade(70)
-        assert grade == "C"
+        # Test C grade boundaries
+        assert scorer._calculate_grade(69) == "C"
+        assert scorer._calculate_grade(55) == "C"  # Boundary
+        assert scorer._calculate_grade(54) == "D"
 
     def test_calculate_grade_d(self):
-        """Test D grade calculation"""
+        """Test D grade calculation (100-point system: D=40+)"""
         scorer = JobScorer()
 
-        grade = scorer._calculate_grade(55)
-        assert grade == "D"
+        # Test D grade boundaries
+        assert scorer._calculate_grade(54) == "D"
+        assert scorer._calculate_grade(40) == "D"  # Boundary
+        assert scorer._calculate_grade(39) == "F"
 
     def test_calculate_grade_f(self):
-        """Test F grade calculation"""
+        """Test F grade calculation (100-point system: F<40)"""
         scorer = JobScorer()
 
-        grade = scorer._calculate_grade(30)
-        assert grade == "F"
+        # Test F grade
+        assert scorer._calculate_grade(39) == "F"
+        assert scorer._calculate_grade(30) == "F"
+        assert scorer._calculate_grade(0) == "F"
 
 
 class TestJobScorerEdgeCases:
