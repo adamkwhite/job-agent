@@ -179,11 +179,11 @@ def main():
     print(f"Stored: {stats['stored']}")
     print(f"Duplicates: {stats['duplicates']}")
     print("\nBy Grade:")
-    print(f"  A grade (92+): {stats['by_grade']['A']}")
-    print(f"  B grade (80+): {stats['by_grade']['B']}")
-    print(f"  C grade (63+): {stats['by_grade']['C']}")
-    print(f"  D grade (46+): {stats['by_grade']['D']}")
-    print(f"  F grade (<46): {stats['by_grade']['F']}")
+    print(f"  A grade (85+): {stats['by_grade']['A']}")
+    print(f"  B grade (70+): {stats['by_grade']['B']}")
+    print(f"  C grade (55+): {stats['by_grade']['C']}")
+    print(f"  D grade (40+): {stats['by_grade']['D']}")
+    print(f"  F grade (<40): {stats['by_grade']['F']}")
     print("=" * 70)
 
 

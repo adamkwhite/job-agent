@@ -194,6 +194,71 @@ class JobValidator:
         if not url:
             return (False, "empty_url", False)
 
+        # ===== URL Pattern-Based Detection (No HTTP Request Needed) =====
+        # Check these BEFORE making HTTP requests for efficiency
+
+        # Generic career page detection for Ashby
+        # These might have jobs listed, but we can't verify specific postings
+        # Flag for review rather than reject
+        if "jobs.ashbyhq.com" in url:
+            # Remove trailing slash for consistent parsing
+            url_clean = url.rstrip("/")
+            parts = url_clean.split("/")
+            # Should have at least: https://jobs.ashbyhq.com/company/job-id
+            if len(parts) < 5:  # scheme, empty, domain, company, job-id
+                logger.info(f"Generic Ashby URL (flagged for review): {url}")
+                return (True, "generic_career_page", True)
+
+        # Generic career page detection for Lever
+        # Flag for review rather than reject
+        if "jobs.lever.co" in url:
+            url_clean = url.rstrip("/")
+            parts = url_clean.split("/")
+            if len(parts) < 5:
+                logger.info(f"Generic Lever URL (flagged for review): {url}")
+                return (True, "generic_career_page", True)
+
+        # Generic career page detection for Greenhouse
+        # Flag for review rather than reject
+        if "greenhouse.io" in url and "/jobs/" not in url and "/job/" not in url:
+            logger.info(f"Generic Greenhouse URL (flagged for review): {url}")
+            return (True, "generic_career_page", True)
+
+        # Generic career page detection for Workday
+        # Workday job URLs must have /job/ with an ID after it
+        if "myworkdayjobs.com" in url and "/job/" not in url:
+            logger.info(f"Generic Workday URL (flagged for review): {url}")
+            return (True, "generic_career_page", True)
+
+        # Generic career page detection for SmartRecruiters
+        # SmartRecruiters needs company + job-id after domain
+        if "careers.smartrecruiters.com" in url or "jobs.smartrecruiters.com" in url:
+            url_clean = url.rstrip("/")
+            parts = url_clean.split("/")
+            # Should have: https://careers.smartrecruiters.com/Company/job-id
+            if len(parts) < 5:  # scheme, empty, domain, company, job-id
+                logger.info(f"Generic SmartRecruiters URL (flagged for review): {url}")
+                return (True, "generic_career_page", True)
+
+        # Generic career path detection (catch-all for common patterns)
+        # Flag landing pages like company.com/careers or jobs.company.com
+        url_clean = url.rstrip("/")
+        if url_clean.endswith("/careers") or url_clean.endswith("/jobs"):
+            logger.info(f"Generic career path (flagged for review): {url}")
+            return (True, "generic_career_page", True)
+
+        # Check for subdomain-only career/jobs sites (e.g., jobs.company.com, careers.company.com)
+        # But exclude if they have specific path components
+        if url_clean.startswith("https://jobs.") or url_clean.startswith("https://careers."):
+            parts = url_clean.split("/")
+            # If only domain with no path, or just trailing slash, it's generic
+            if len(parts) <= 3:  # scheme, empty, domain (no path)
+                logger.info(f"Generic career subdomain (flagged for review): {url}")
+                return (True, "generic_career_page", True)
+
+        # ===== HTTP-Based Validation (Makes Network Request) =====
+        # Only reached if URL pattern checks didn't flag it
+
         # Retry logic for rate limiting (429)
         for attempt in range(self.max_retries + 1):  # +1 for initial attempt
             try:
@@ -242,30 +307,6 @@ class JobValidator:
         if "linkedin.com/login" in response.url or "linkedin.com/authwall" in response.url:
             logger.info(f"LinkedIn job (unverifiable): {url}")
             return (True, "linkedin_unverifiable", True)
-
-        # Generic career page detection for Ashby
-        # These might have jobs listed, but we can't verify specific postings
-        # Flag for review rather than reject
-        if "jobs.ashbyhq.com" in url:
-            parts = url.split("/")
-            # Should have at least: https://jobs.ashbyhq.com/company/job-id
-            if len(parts) < 5:  # scheme, empty, domain, company, job-id
-                logger.info(f"Generic Ashby URL (flagged for review): {url}")
-                return (True, "generic_career_page", True)
-
-        # Generic career page detection for Lever
-        # Flag for review rather than reject
-        if "jobs.lever.co" in url:
-            parts = url.split("/")
-            if len(parts) < 5:
-                logger.info(f"Generic Lever URL (flagged for review): {url}")
-                return (True, "generic_career_page", True)
-
-        # Generic career page detection for Greenhouse
-        # Flag for review rather than reject
-        if "greenhouse.io" in url and "/jobs/" not in url and "/job/" not in url:
-            logger.info(f"Generic Greenhouse URL (flagged for review): {url}")
-            return (True, "generic_career_page", True)
 
         # Check for successful response
         if response.status_code == 200:

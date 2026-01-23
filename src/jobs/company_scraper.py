@@ -63,7 +63,7 @@ class CompanyScraper:
         Args:
             min_score: Minimum score to store (default: 50 for D+ grade)
             company_filter: Filter companies by notes (e.g., "From Wes")
-            notify_threshold: Score threshold for notifications (default: 80 for A/B grade)
+            notify_threshold: Score threshold for notifications (default: 80 for A grade)
             skip_recent_hours: Skip companies checked within this many hours (None = scrape all)
 
         Returns:
