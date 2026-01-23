@@ -158,5 +158,81 @@
 - ✅ Mario's profile scoring configured
 - ✅ Email digest system ready
 - ✅ Profile updates (role types, locations)
+- ✅ Built In job alerts (already active - 57 jobs processed)
 
 **Next Step**: Set up LinkedIn alerts (highest ROI, 30 minutes)
+
+---
+
+## Additional Sources Research (Beyond Initial 5)
+
+After researching more QA/testing job sources, here are 6 additional options that are NOT already integrated:
+
+### 1. Community Slack Channels (Manual Monitoring)
+**Active Communities:**
+- Ministry of Testing Slack (~25K members) - #job-board channel
+- SeleniumHQ Slack (~8K members) - testing automation jobs
+- Robot Framework Slack (~8.2K members) - automation roles
+
+**Setup**: Join communities, monitor #jobs channels weekly
+**Expected Impact**: 2-3 jobs/week, manual review required
+
+### 2. Dice.com (Tech-Focused Job Board)
+**Why**: Strong QA automation and senior testing role coverage
+**Setup**: Create alerts for "QA Lead", "Test Automation", "SDET" + Remote/Canada
+**Expected Impact**: 5-8 jobs/week, 2% qualification rate = 0.1-0.2 jobs/week
+
+### 3. Reddit Communities (Manual Monitoring)
+**Subreddits:**
+- r/QualityAssurance (~20K members)
+- r/softwaretesting
+- r/SDET
+
+**Setup**: Monitor weekly hiring threads and job posts
+**Expected Impact**: 1-2 jobs/week, manual review required
+
+### 4. Robert Half Technology (Recruiter Network)
+**Why**: Established recruiter with QA/testing focus
+**Setup**: Submit resume to Robert Half Technology division
+**Expected Impact**: 3-5 recruiter contacts/month, 1-2% qualification rate
+
+### 5. ZipRecruiter
+**Why**: High volume, broad coverage ($32-67/hr typical range)
+**Setup**: Create alerts for "QA Lead", "Test Manager", "SDET" + Remote/Canada
+**Expected Impact**: 8-12 jobs/week, 1-2% qualification rate = 0.1-0.2 jobs/week
+
+### 6. QA Forums & Communities (Manual Monitoring)
+**Forums:**
+- Software Testing Help
+- QATestLab Community
+- Ministry of Testing Dojo
+
+**Setup**: Join forums, monitor job boards weekly
+**Expected Impact**: 1-2 jobs/week, manual review required
+
+---
+
+## Revised Total Impact Projection
+
+### Current Sources (Active)
+| Source | Jobs/Week | Qualification Rate | Qualifying Jobs/Week |
+|--------|-----------|-------------------|---------------------|
+| LinkedIn (planned) | 20 | 3% | 0.6 |
+| Indeed (planned) | 12 | 2% | 0.2 |
+| Glassdoor (planned) | 8 | 2% | 0.2 |
+| Ministry | 7 | 14% | 1.0 |
+| AngelList (planned) | 4 | 2% | 0.1 |
+| WorkInTech | 8 | 4% | 0.3 |
+| **Built In** | **6** | **2%** | **0.1** |
+| **TOTAL (Planned)** | **65** | **3.8%** | **~2.5/week** |
+
+### With Additional 6 Sources
+| Source | Jobs/Week | Qualification Rate | Qualifying Jobs/Week |
+|--------|-----------|-------------------|---------------------|
+| Dice.com | 6 | 2% | 0.1 |
+| ZipRecruiter | 10 | 1.5% | 0.2 |
+| Slack/Reddit/Forums | 6 | 2% | 0.1 |
+| Robert Half | 1 | 2% | 0.02 |
+| **TOTAL (All Sources)** | **88** | **3.4%** | **~3.0/week** |
+
+**Final Projection**: 1 job/week → 3 jobs/week (3x improvement)

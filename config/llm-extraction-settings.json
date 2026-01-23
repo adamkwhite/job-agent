@@ -10,7 +10,7 @@
     }
   },
   "budget": {
-    "monthly_limit_usd": 5.0,
+    "monthly_limit_usd": 15.0,
     "pause_when_exceeded": false
   },
   "timeout_seconds": 30,

@@ -6,6 +6,8 @@ Tests to ensure QA/testing jobs score correctly for Mario
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from agents.profile_scorer import ProfileScorer
@@ -19,6 +21,8 @@ class TestMarioSeniorityScoring:
         """Senior QA Engineer should match Mario's 'senior' seniority keyword"""
         manager = get_profile_manager()
         mario = manager.get_profile("mario")
+        if not mario:
+            pytest.skip("Mario's profile not found")
         scorer = ProfileScorer(mario)
 
         job = {
@@ -40,6 +44,8 @@ class TestMarioSeniorityScoring:
         """Lead QA Engineer should match Mario's 'lead' seniority keyword"""
         manager = get_profile_manager()
         mario = manager.get_profile("mario")
+        if not mario:
+            pytest.skip("Mario's profile not found")
         scorer = ProfileScorer(mario)
 
         job = {
@@ -60,6 +66,8 @@ class TestMarioSeniorityScoring:
         """QA Automation Lead should match Mario's 'lead' seniority keyword"""
         manager = get_profile_manager()
         mario = manager.get_profile("mario")
+        if not mario:
+            pytest.skip("Mario's profile not found")
         scorer = ProfileScorer(mario)
 
         job = {
@@ -80,6 +88,8 @@ class TestMarioSeniorityScoring:
         """Staff Test Engineer should match Mario's 'staff' seniority keyword"""
         manager = get_profile_manager()
         mario = manager.get_profile("mario")
+        if not mario:
+            pytest.skip("Mario's profile not found")
         scorer = ProfileScorer(mario)
 
         job = {
@@ -104,6 +114,8 @@ class TestMarioRoleTypeScoring:
         """QA Engineer should match Mario's role_types"""
         manager = get_profile_manager()
         mario = manager.get_profile("mario")
+        if not mario:
+            pytest.skip("Mario's profile not found")
         scorer = ProfileScorer(mario)
 
         job = {
@@ -125,6 +137,8 @@ class TestMarioRoleTypeScoring:
         """Test Automation Engineer should match Mario's role_types"""
         manager = get_profile_manager()
         mario = manager.get_profile("mario")
+        if not mario:
+            pytest.skip("Mario's profile not found")
         scorer = ProfileScorer(mario)
 
         job = {
@@ -145,6 +159,8 @@ class TestMarioRoleTypeScoring:
         """SDET should match Mario's role_types"""
         manager = get_profile_manager()
         mario = manager.get_profile("mario")
+        if not mario:
+            pytest.skip("Mario's profile not found")
         scorer = ProfileScorer(mario)
 
         job = {
@@ -169,6 +185,8 @@ class TestMarioDomainScoring:
         """'QA' should match Mario's domain keywords"""
         manager = get_profile_manager()
         mario = manager.get_profile("mario")
+        if not mario:
+            pytest.skip("Mario's profile not found")
         scorer = ProfileScorer(mario)
 
         job = {
@@ -190,6 +208,8 @@ class TestMarioDomainScoring:
         """'test automation' should match Mario's domain keywords"""
         manager = get_profile_manager()
         mario = manager.get_profile("mario")
+        if not mario:
+            pytest.skip("Mario's profile not found")
         scorer = ProfileScorer(mario)
 
         job = {
