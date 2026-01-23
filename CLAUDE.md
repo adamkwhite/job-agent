@@ -4,20 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a job discovery and application automation system for Wesley van Ooyen (robotics/hardware executive). The project has evolved from n8n workflows to Python-based email processing with intelligent job scoring, automated web scraping, and personalized email digests.
+Job discovery automation for multiple user profiles (Wes, Adam, Eli). Features intelligent scoring, automated scraping, and personalized email digests.
 
 ## Architecture
 
-### Current Implementation (V2 - Enhanced Intelligence)
-- **Python-based email processors** for LinkedIn, Supra, F6S, Artemis newsletters
-- **Automated company monitoring** via Firecrawl (robotics/deeptech companies)
-- **Intelligent job scoring** (100-point system) against candidate profile
-- **LLM extraction pipeline** (experimental) - Dual regex+LLM extraction via Claude 3.5 Sonnet
-- **Location-aware filtering** (Remote, Hybrid Ontario, Ontario cities)
-- **SQLite database** with deduplication and scoring history
-- **Multi-channel notifications** for A/B grade jobs only (70+)
-- **Weekly email digests** with interactive HTML job tables
-- **Cron-based automation** (Monday 9am scraper runs)
+- **Email processors**: LinkedIn, Supra, F6S, Artemis, Built In, Ministry of Testing
+- **Company monitoring**: Firecrawl-based scraping of robotics/deeptech companies
+- **Scoring**: 100-point system with per-profile hard filters (Issue #212 fix)
+- **LLM extraction**: Dual regex+LLM via Claude 3.5 Sonnet ($15/month budget)
+- **Database**: SQLite with multi-profile scoring and deduplication
+- **Notifications**: A/B grade jobs (70+) only
+- **Automation**: Weekly cron jobs
 
 ### Project Structure
 - `src/` - Python application source code
@@ -118,43 +115,8 @@ Each scored job includes classification metadata:
 - Location-based filtering buttons (Remote/Hybrid/Ontario)
 - Sent to wesvanooyen@gmail.com with scoring breakdowns
 
-### 4. LinkedIn Connections Matching (`src/utils/connections_manager.py`)
-**Status:** COMPLETED (Issue #134)
-
-Automatically surface LinkedIn connections at companies in job digests to help leverage professional networks for referrals and insights.
-
-**Key Features:**
-- **CSV Import**: Upload LinkedIn connections export via `scripts/upload_connections.py`
-- **Fuzzy Matching**: Dual matching strategy (substring + 85% similarity threshold)
-- **Company Normalization**: Handles suffixes (Inc., LLC, Corp., Ltd.) and casing variations
-- **Profile-Specific**: Each profile has isolated connections in `data/profiles/{profile}/connections.csv`
-- **Email Integration**: Shows "👥 You have 2 connections at Company" in digests
-- **HTML Reports**: Displays connection names and titles in detailed view
-- **Performance**: <50ms matching per job, in-memory caching during digest runs
-- **Privacy**: All data stays local, no external API calls
-- **Security**: Connections files are automatically gitignored (`.gitignore` lines 96-101) and will never be committed to Git
-
-**Usage:**
-```bash
-# Option 1: Use upload script (recommended - validates CSV format)
-python scripts/upload_connections.py --profile wes ~/Downloads/Connections.csv
-
-# Option 2: Manual file copy (Windows + WSL users)
-# 1. Navigate to: \\wsl.localhost\Ubuntu\home\adam\Code\job-agent\data\profiles\wes\
-# 2. Copy LinkedIn CSV and rename to: connections.csv
-# 3. Verify: head -3 data/profiles/wes/connections.csv
-
-# Generate HTML report with connections
-python src/generate_jobs_html.py --profile wes
-
-# Digest emails automatically include connections (if CSV uploaded)
-PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile wes
-```
-
-**Export LinkedIn Connections:**
-1. Go to https://www.linkedin.com/mypreferences/d/download-my-data
-2. Select 'Connections'
-3. Download Connections.csv file
+### 4. LinkedIn Connections Matching (Issue #134)
+Shows "👥 You have X connections" in digests. Upload CSV via `scripts/upload_connections.py --profile <name> ~/Downloads/Connections.csv`. Automatically included in digests/HTML reports. Files gitignored for privacy.
 
 ### 5. Unified Weekly Scraper (`src/jobs/weekly_unified_scraper.py`) **RECOMMENDED**
 Combines ALL job sources into one automated workflow:
@@ -183,50 +145,8 @@ PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py
 - Tracks last_checked timestamps
 - Sends notifications for A/B grade jobs (80+)
 
-### 7. LLM Extraction Pipeline (`src/extractors/llm_extractor.py`) **PRODUCTION**
-**Status:** PRODUCTION - Automatically enabled via config file
-
-Dual extraction system running regex AND LLM-based job extraction in parallel:
-- **Model:** Claude 3.5 Sonnet via OpenRouter API
-- **Budget:** $5/month limit ($0.01 per company, ~500 companies/month)
-- **Timeout:** 30 seconds per company (NFR1 requirement)
-- **Extraction Method Tagging:** Each job tagged with 'regex' or 'llm' in database
-- **Deduplication:** Database hash prevents duplicate storage across methods
-- **Graceful Degradation:** LLM failures don't break pipeline, regex continues
-
-**Key Features:**
-- Finds jobs regex misses (e.g., Figure AI's `[Title](url)` format)
-- Budget tracking via `logs/llm-budget-YYYY-MM.json`
-- Automatically enabled when `config/llm-extraction-settings.json` has `enabled: true`
-- Visual indicators: 📝 Regex vs 🤖 LLM in output
-
-**Configuration:**
-- `config/llm-extraction-settings.json` - Model, prompts, budget, timeout, and enabled flag
-- `OPENROUTER_API_KEY` environment variable required
-- Set `"enabled": false` in config file to disable
-
-**Usage:**
-```bash
-# LLM extraction is automatically enabled/disabled via config file
-# No CLI flags or TUI prompts needed
-
-# Check config status
-cat config/llm-extraction-settings.json | grep enabled
-
-# Disable if needed
-# Edit config/llm-extraction-settings.json and set "enabled": false
-```
-
-**Production Validation (2025-12-07):**
-- ✅ 60 companies processed, $0.60 cost (88% budget remaining)
-- ✅ Found 3 leadership jobs from Figure AI that regex missed
-- ✅ Correctly deduplicated overlapping results
-- ✅ Graceful handling of LLM failures (0 jobs found)
-
-**Related:**
-- PRD: `docs/features/llm-job-extraction-IN_PROGRESS/prd.md`
-- Issues: [#87](https://github.com/adamkwhite/job-agent/issues/87) (DB), [#88](https://github.com/adamkwhite/job-agent/issues/88) (Core), [#89](https://github.com/adamkwhite/job-agent/issues/89) (Budget), [#90](https://github.com/adamkwhite/job-agent/issues/90) (Pipeline)
-- PRs: [#111](https://github.com/adamkwhite/job-agent/pull/111), [#112](https://github.com/adamkwhite/job-agent/pull/112), [#113](https://github.com/adamkwhite/job-agent/pull/113)
+### 7. LLM Extraction Pipeline (PRODUCTION)
+Dual regex+LLM extraction via Claude 3.5 Sonnet. Finds jobs regex misses (e.g., non-standard formats). $15/month budget, 30s timeout. Config: `config/llm-extraction-settings.json`. Toggle with `"enabled": true/false`.
 
 ## Testing & Coverage Requirements
 
@@ -268,130 +188,27 @@ SKIP=python-safety-dependencies-check git commit -m "message"
 
 ## Development Commands
 
-### Run Unified Weekly Scraper (RECOMMENDED)
+**Recommended:** Use TUI for interactive workflow
 ```bash
-# For Wes (all sources: emails + robotics + company monitoring)
-PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --profile wes
-
-# For Adam (all sources)
-PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --profile adam
-
-# Email only (profile-specific inbox)
-PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --profile adam --email-only --email-limit 100
-
-# Robotics only
-PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --profile wes --robotics-only --robotics-min-score 70
-
-# Company monitoring only
-PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --profile wes --companies-only --company-filter "From Wes"
-
-# Without profile (uses legacy .env GMAIL_USERNAME)
-PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py
-```
-
-### Run Individual Components (Legacy)
-```bash
-# Email processors only
-job-agent-venv/bin/python src/processor_v2.py --fetch-emails --limit 50
-
-# Robotics scraper only
-job-agent-venv/bin/python src/jobs/weekly_robotics_scraper.py --min-score 70
-
-# Company scraper only
-PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/company_scraper.py --filter "From Wes"
-```
-
-### Generate HTML Report
-```bash
-# Create interactive jobs.html
-job-agent-venv/bin/python src/generate_jobs_html.py
-
-# Open in browser
-open jobs.html  # or xdg-open on Linux
-```
-
-### Send Email Digest
-```bash
-# Send to Wes (only unsent jobs for his profile)
-PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile wes
-
-# Send to Adam (only unsent jobs for his profile)
-PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile adam
-
-# Send to all enabled profiles
-PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --all
-
-# Test digest without sending (dry run)
-PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile adam --dry-run
-
-# Force resend all jobs (for testing)
-PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile wes --force-resend
-```
-
-**Note:** Dry-run mode validates jobs and filters but exits before loading connections, so you won't see "👥 connections" indicators in dry-run output. To preview connections without sending email, use `generate_jobs_html.py` instead.
-
-**Digest Tracking**: The system automatically tracks which jobs have been sent to each profile using the `job_scores.digest_sent_at` field. Running the script multiple times will only send new jobs to each person, preventing duplicate emails. Each profile maintains separate digest tracking.
-
-### Interactive TUI (Easiest Method)
-```bash
-# Launch the interactive terminal UI
 ./run-tui.sh
-# or
-job-agent-venv/bin/python src/tui.py
 ```
 
-**Features**:
-- Select profile (Wes or Adam)
-- Choose sources to scrape (Email, Company monitoring)
-- Pick action (Scrape only, Send digest, or Both)
-- View scoring criteria for each profile
-- Profile-specific email inbox display
-- Confirmation before execution
-
-The TUI automatically passes the correct `--profile` flag to the scraper and shows profile-specific information throughout the workflow.
-
-### Cron Setup (Weekly Automation)
+**Weekly Scraper** (all sources):
 ```bash
-# Setup unified weekly scraper (Monday 9am) - RECOMMENDED
-./scripts/setup_unified_weekly_scraper.sh
-
-# View cron jobs
-crontab -l
-
-# View logs
-tail -f logs/unified_weekly_scraper.log
-
-# Test manually
-./scripts/run_unified_scraper.sh
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --profile <wes|adam|eli>
 ```
 
-## Success Metrics (V2 - Achieved)
+**Send Digest**:
+```bash
+PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile <name>
+# Add --dry-run for testing, --all for all profiles
+```
 
-- **Intelligent Scoring**: 100-point system with A/B/C/D/F grading
-- **High-Quality Sources**: Company monitoring yields high-quality leadership roles
-- **Location Filtering**: Remote/Hybrid Ontario jobs prioritized (+15 points)
-- **Noise Reduction**: Notifications only for A/B grade jobs (70+)
-- **Weekly Automation**: Cron job monitors companies via Firecrawl
-- **Email Digests**: Beautiful HTML email with interactive job table (56KB attachment)
-- **Coverage**: 5 excellent matches, 11 good matches in latest digest
+**Cron Setup**:
+```bash
+./scripts/setup_unified_weekly_scraper.sh  # Monday 9am automation
+```
 
-## Current Performance
-
-**Latest Digest (Oct 22, 2025)**:
-- 50 total jobs processed
-- 5 excellent matches (70+ score)
-- 11 good matches (55+ score)
-- Top match: 80/100 (B grade) - Director of Engineering @ Robotics Company
-- Email delivered to wesvanooyen@gmail.com with full HTML attachment
-
-## Future Roadmap
-
-### V3: Full Automation (Planned)
-- Semi-automated application submission
-- AI-powered resume customization
-- Interview preparation automation
-- Configurable scoring weights (Issue #4)
-- Daily digest emails (Issue #3)
 
 ## Technical Details
 
@@ -441,55 +258,8 @@ Quick summary:
 3. Test with `--profile yourname` flag
 4. Profile automatically appears in TUI
 
-### Candidate Profile (Wesley van Ooyen)
-- **Background**: Robotics/hardware executive, 11 patents, IoT/MedTech experience
-- **Target Roles**: VP/Director/Head of Engineering or Product
-- **Domains**: Robotics, automation, hardware, IoT, MedTech, mechatronics
-- **Location**: Remote (US/anywhere), Hybrid Ontario (Toronto/Waterloo/Burlington)
-- **Role Preference**: Engineering leadership > Product leadership
 
-### Email Parser Implementation Details
-
-#### Built In Parser (`src/parsers/builtin_parser.py`)
-Parses Built In job alert emails with unique challenges:
-
-**AWS Tracking URLs**: Built In wraps job URLs in AWS tracking links with URL-encoded paths:
-```python
-# Example: https://cb4sdw3d.r.us-west-2.awstrack.me/L0/https:%2F%2Fbuiltin.com%2Fjob%2F...
-# Pattern must match both plain and encoded paths
-soup.find_all("a", href=re.compile(r"builtin\.com(%2F|/)job(%2F|/)"))
-```
-
-**Style-Based HTML Parsing**: Built In uses inline styles instead of semantic classes:
-```python
-# Company: font-size:16px, margin-bottom:8px
-# Title: font-size:20px, font-weight:700
-# Location/Salary: Identified by LocationIcon/SalaryIcon images
-```
-
-**URL Cleaning**: Decode URL-encoded characters and strip query params:
-```python
-url.replace("%2F", "/").replace("%3F", "?").split("?")[0]
-```
-
-**Detection Logic**:
-- `"builtin" in from_addr` or `"support@builtin.com" in from_addr`
-- `"job" and "match" and "product" in subject`
-
-**Type Hint Fix**: Added `from __future__ import annotations` to `src/imap_client.py` to enable forward references for `email.message.Message` type hints in Python 3.9+.
-
-### Configuration Files
-- `config/email-settings.json` - IMAP credentials and email settings
-- `config/filter-keywords.json` - Include/exclude keyword lists
-- `config/notification-settings.json` - Twilio SMS + email settings
-- `config/parsers.json` - Email parser configurations (includes builtin parser)
-- `.env` - Environment variables (Gmail app password, Twilio credentials)
-
-### Key Patterns
-- Python-based automation over n8n workflows
-- Profile-driven scoring over keyword filtering
-- Location-aware job matching
-- A/B grade notifications only (reduce noise)
-- Weekly automation with cron
-- Interactive HTML reports over plain text
-- Manual oversight with intelligent assistance
+### Configuration
+- `config/` - Email settings, filter keywords, notifications, LLM settings, company classifications
+- `.env` - API keys (Gmail, Twilio, OpenRouter)
+- `profiles/*.json` - Per-profile scoring criteria and digest settings
