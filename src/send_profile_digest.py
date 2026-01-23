@@ -12,6 +12,9 @@ Scoring System (100 base points, max 110 with bonuses):
 
 Filtering based on aggression level (conservative/moderate/aggressive)
 
+Note: job_scorer.py refactored (PR #216) - scoring criteria unchanged,
+      only code structure improved for maintainability.
+
 Usage:
     python src/send_profile_digest.py --profile wes
     python src/send_profile_digest.py --profile adam
