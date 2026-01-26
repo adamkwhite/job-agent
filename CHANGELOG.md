@@ -84,7 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 100+ domain-specific keywords in `config/filter-keywords.json`
   - Software engineering leadership penalty: -5 points
   - Total scoring system: 115 points (Seniority 30 + Domain 25 + Role 20 + Location 15 + Company Stage 15 + Technical 10)
-  - Grade thresholds: A (98+), B (80+), C (63+), D (46+), F (<46)
+  - Grade thresholds: A (85+), B (70+), C (55+), D (40+), F (<40)
 - **Historical Job Re-scoring Tool** (`src/rescore_all_jobs.py`)
   - Re-evaluate all historical jobs with updated scoring criteria
   - Dry-run mode for impact preview

@@ -207,11 +207,11 @@ def generate_email_html(jobs_by_grade):
         <div class="footer">
             <p><strong>Scoring Reference:</strong></p>
             <ul style="font-size: 13px;">
-                <li><strong>Grade A (98+):</strong> Perfect match</li>
-                <li><strong>Grade B (80-97):</strong> Excellent match</li>
-                <li><strong>Grade C (63-79):</strong> Good/moderate match</li>
-                <li><strong>Grade D (46-62):</strong> Lower match</li>
-                <li><strong>Grade F (<46):</strong> Minimal match</li>
+                <li><strong>Grade A (85+):</strong> Perfect match</li>
+                <li><strong>Grade B (70-84):</strong> Excellent match</li>
+                <li><strong>Grade C (55-69):</strong> Good/moderate match</li>
+                <li><strong>Grade D (40-54):</strong> Lower match</li>
+                <li><strong>Grade F (<40):</strong> Minimal match</li>
             </ul>
 
             <p style="margin-top: 20px;">

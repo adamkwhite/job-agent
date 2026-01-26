@@ -174,9 +174,9 @@ elif profile == "yourname":
 [cyan]Location (15):[/cyan] Remote/Your Location
 
 [bold yellow]🎓 Grades[/bold yellow]
-[green]A (98+)[/green] Notify + Digest
-[green]B (80+)[/green] Notify + Digest
-[yellow]C (63+)[/yellow] Digest only
+[green]A (85+)[/green] Notify + Digest
+[green]B (70+)[/green] Notify + Digest
+[yellow]C (55+)[/yellow] Digest only
 [dim]D/F[/dim] Stored/Filtered
 
 [bold yellow]📧 Sent to:[/bold yellow]
