@@ -16,6 +16,7 @@ from src.models import OpportunityData
 def company_scraper():
     """Create CompanyScraper instance with mocked dependencies"""
     with (
+        patch("src.jobs.company_scraper.validate_job_url", return_value=(True, "valid")),
         patch("src.jobs.company_scraper.CompanyService"),
         patch("src.jobs.company_scraper.FirecrawlCareerScraper"),
         patch("src.jobs.company_scraper.JobFilter"),
@@ -191,7 +192,8 @@ class TestProcessScrapedJobs:
         # Job scored 45, min is 50, should not be stored
         assert stats["jobs_stored"] == 0
 
-    def test_process_scraped_jobs_stores_high_score_job(self, company_scraper):
+    @patch("src.jobs.company_scraper.validate_job_url", return_value=(True, "valid"))
+    def test_process_scraped_jobs_stores_high_score_job(self, mock_validate_url, company_scraper):
         """Should store jobs above minimum score"""
         jobs = [
             (
@@ -226,7 +228,10 @@ class TestProcessScrapedJobs:
         company_scraper.database.add_job.assert_called_once()
         company_scraper.database.update_job_score.assert_called_once()
 
-    def test_process_scraped_jobs_sends_notifications_for_high_scores(self, company_scraper):
+    @patch("src.jobs.company_scraper.validate_job_url", return_value=(True, "valid"))
+    def test_process_scraped_jobs_sends_notifications_for_high_scores(
+        self, mock_validate_url, company_scraper
+    ):
         """Should send notifications for jobs above notify threshold"""
         jobs = [
             (
@@ -260,7 +265,10 @@ class TestProcessScrapedJobs:
         company_scraper.notifier.notify_job.assert_called_once()
         company_scraper.database.mark_notified.assert_called_once_with(1)
 
-    def test_process_scraped_jobs_handles_notification_errors(self, company_scraper):
+    @patch("src.jobs.company_scraper.validate_job_url", return_value=(True, "valid"))
+    def test_process_scraped_jobs_handles_notification_errors(
+        self, mock_validate_url, company_scraper
+    ):
         """Should handle notification errors gracefully"""
         jobs = [
             (
@@ -294,7 +302,8 @@ class TestProcessScrapedJobs:
         assert stats["notifications_sent"] == 0
         assert stats["jobs_stored"] == 1
 
-    def test_process_scraped_jobs_skips_duplicates(self, company_scraper):
+    @patch("src.jobs.company_scraper.validate_job_url", return_value=(True, "valid"))
+    def test_process_scraped_jobs_skips_duplicates(self, mock_validate_url, company_scraper):
         """Should skip duplicate jobs"""
         jobs = [
             (
@@ -324,7 +333,8 @@ class TestProcessScrapedJobs:
         assert stats["duplicates_skipped"] == 1
         assert stats["jobs_stored"] == 0
 
-    def test_scrape_all_companies_aggregates_job_stats(self, company_scraper):
+    @patch("src.jobs.company_scraper.validate_job_url", return_value=(True, "valid"))
+    def test_scrape_all_companies_aggregates_job_stats(self, mock_validate_url, company_scraper):
         """Should aggregate stats from processed jobs"""
         companies = [
             {
@@ -517,10 +527,16 @@ class TestMainCLI:
 class TestFilterPipelineIntegration:
     """Test filter pipeline integration in CompanyScraper"""
 
+    @patch("src.jobs.company_scraper.validate_job_url")
     @patch("src.jobs.company_scraper.get_profile_manager")
     @patch("src.jobs.company_scraper.JobFilterPipeline")
-    def test_hard_filters_block_before_scoring(self, mock_pipeline_class, mock_get_pm):
+    def test_hard_filters_block_before_scoring(
+        self, mock_pipeline_class, mock_get_pm, mock_validate_url
+    ):
         """Should apply hard filters before scoring and store with filter_reason"""
+        # Mock URL validation to pass
+        mock_validate_url.return_value = (True, "valid")
+
         # Setup profile and filter pipeline
         mock_profile = MagicMock()
         mock_profile.scoring = {"hard_filter_keywords": {"seniority_blocks": ["junior"]}}
@@ -573,10 +589,16 @@ class TestFilterPipelineIntegration:
             assert call_args["filter_reason"] == "hard_filter_junior"
             assert "filtered_at" in call_args
 
+    @patch("src.jobs.company_scraper.validate_job_url")
     @patch("src.jobs.company_scraper.get_profile_manager")
     @patch("src.jobs.company_scraper.JobFilterPipeline")
-    def test_context_filters_block_after_scoring(self, mock_pipeline_class, mock_get_pm):
+    def test_context_filters_block_after_scoring(
+        self, mock_pipeline_class, mock_get_pm, mock_validate_url
+    ):
         """Should apply context filters after scoring and update job with filter_reason"""
+        # Mock URL validation to pass
+        mock_validate_url.return_value = (True, "valid")
+
         # Setup profile and filter pipeline
         mock_profile = MagicMock()
         mock_profile.scoring = {"context_filters": {}}
@@ -635,10 +657,14 @@ class TestFilterPipelineIntegration:
             # Should update job score even though filtered
             scraper.database.update_job_score.assert_called_once()
 
+    @patch("src.jobs.company_scraper.validate_job_url")
     @patch("src.jobs.company_scraper.get_profile_manager")
     @patch("src.jobs.company_scraper.JobFilterPipeline")
-    def test_filtered_stats_aggregation(self, mock_pipeline_class, mock_get_pm):
+    def test_filtered_stats_aggregation(self, mock_pipeline_class, mock_get_pm, mock_validate_url):
         """Should aggregate filtered stats from multiple jobs"""
+        # Mock URL validation to pass for all jobs
+        mock_validate_url.return_value = (True, "valid")
+
         mock_profile = MagicMock()
         mock_profile.scoring = {"hard_filter_keywords": {}, "context_filters": {}}
         mock_pm = MagicMock()

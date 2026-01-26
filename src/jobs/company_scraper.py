@@ -21,6 +21,7 @@ from models import OpportunityData
 from notifier import JobNotifier
 from scrapers.firecrawl_career_scraper import FirecrawlCareerScraper
 from utils.profile_manager import get_profile_manager
+from utils.url_validator import validate_job_url
 
 # Auto-disable threshold: companies with this many consecutive failures will be auto-disabled
 AUTO_DISABLE_THRESHOLD = 5
@@ -227,6 +228,32 @@ class CompanyScraper:
 
             # Prepare job dictionary
             job_dict = self._prepare_job_dict(job)
+
+            # Validate URL before processing further
+            is_valid, validation_reason = validate_job_url(job.link or "")
+            job_dict["url_validated"] = is_valid
+            job_dict["url_validated_at"] = datetime.now().isoformat()
+            job_dict["url_validation_reason"] = validation_reason
+
+            if not is_valid:
+                print(f"  ⊘ Invalid URL: {job.title}")
+                print(f"    Reason: {validation_reason}")
+                # Store job with invalid URL marked as filtered
+                job_dict.update(
+                    {
+                        "source": "company_monitoring",
+                        "type": "direct_job",
+                        "received_at": job.received_at,
+                        "filter_reason": f"url_invalid: {validation_reason}",
+                        "filtered_at": datetime.now().isoformat(),
+                        "keywords_matched": json.dumps([]),
+                        "source_email": "",
+                        "extraction_method": extraction_method,
+                    }
+                )
+                self.database.add_job(job_dict)
+                stats["jobs_hard_filtered"] += 1
+                continue
 
             # Stage 1: Hard filters (before scoring)
             if self.filter_pipeline:

@@ -47,7 +47,10 @@ class JobDatabase:
                 fit_grade TEXT,
                 score_breakdown TEXT,
                 created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                url_validated BOOLEAN DEFAULT NULL,
+                url_validated_at TEXT DEFAULT NULL,
+                url_validation_reason TEXT DEFAULT NULL
             )
         """)
 
@@ -238,8 +241,9 @@ class JobDatabase:
                 job_hash, title, company, location, link, description,
                 salary, job_type, posted_date, source, source_email,
                 received_at, keywords_matched, raw_email_content,
-                profile, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                profile, created_at, updated_at,
+                url_validated, url_validated_at, url_validation_reason
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 job_hash,
@@ -259,6 +263,9 @@ class JobDatabase:
                 self.profile,
                 now,
                 now,
+                job_data.get("url_validated"),
+                job_data.get("url_validated_at"),
+                job_data.get("url_validation_reason"),
             ),
         )
 

@@ -539,6 +539,9 @@ class TestMultiProfileDuplicateScoring:
         from jobs.company_scraper import CompanyScraper
         from models import OpportunityData
 
+        # Mock URL validation to pass for all jobs
+        mocker.patch("jobs.company_scraper.validate_job_url", return_value=(True, "valid"))
+
         # Mock multi-profile scorer to avoid import issues
         mock_multi_scorer = mocker.MagicMock()
         mock_multi_scorer.score_job_for_all.return_value = {"adam": (70, "C")}
