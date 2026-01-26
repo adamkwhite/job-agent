@@ -316,8 +316,8 @@ class TestDigestCountAccuracy:
 
         html = generate_email_html(jobs, test_profile)
 
-        # Opening should say "0 opportunities" to match summary
-        assert "0 opportunities</strong>" in html
+        # Opening should say "0 fresh matches" to match summary
+        assert "0 fresh matches</strong>" in html
 
         # Summary should show 0 for both categories
         assert "0</strong> excellent matches (70+ score)" in html
@@ -375,8 +375,8 @@ class TestDigestCountAccuracy:
 
         html = generate_email_html(jobs, test_profile)
 
-        # Opening should say "8 opportunities" (5 excellent + 3 good), NOT "10 opportunities"
-        assert "8 opportunities</strong>" in html
+        # Opening should say "8 fresh matches" (5 excellent + 3 good), NOT "10 fresh matches"
+        assert "8 fresh matches</strong>" in html
 
         # Summary counts should match
         assert "5</strong> excellent matches (70+ score)" in html
