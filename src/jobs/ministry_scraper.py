@@ -78,11 +78,7 @@ class MinistryScraper:
 
         # Scrape each page (Firecrawl MCP calls happen in Claude Code)
         for page_num in range(1, max_pages + 1):
-            url = (
-                f"https://www.ministryoftesting.com/jobs?page={page_num}"
-                if page_num > 1
-                else "https://www.ministryoftesting.com/jobs"
-            )
+            url = f"https://www.ministryoftesting.com/jobs?page={page_num}"
 
             print(f"\n📄 Page {page_num}: {url}")
             print("   🔄 Requesting Firecrawl scrape...")
