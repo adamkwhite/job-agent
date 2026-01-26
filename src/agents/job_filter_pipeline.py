@@ -7,9 +7,26 @@ Implements multi-stage filtering to prevent irrelevant jobs from reaching the di
 - Stage 3: Stale job validation - BEFORE digest
 
 This module implements Stage 1: Hard Filters (FR1 from PRD)
+
+Stage 1 uses Chain of Responsibility pattern for better testability and maintainability.
 """
 
 from typing import Literal
+
+from agents.filter_handlers import (
+    AdministrativeRoleFilter,
+    AssociateFilter,
+    CoordinatorFilter,
+    FilterHandler,
+    FinanceRoleFilter,
+    HRRoleFilter,
+    InternshipFilter,
+    JuniorPositionFilter,
+    LegalRoleFilter,
+    MarketingRoleFilter,
+    RetailRoleFilter,
+    SalesRoleFilter,
+)
 
 # All possible filter reasons for type safety
 FilterReason = Literal[
@@ -64,9 +81,36 @@ class JobFilterPipeline:
         self.hard_filters = profile.get("hard_filter_keywords", {})
         self.context_filters = profile.get("context_filters", {})
 
+    def _build_filter_chain(self) -> FilterHandler:
+        """
+        Construct chain of filter handlers in priority order.
+
+        Returns:
+            Head of the filter chain (first handler)
+        """
+        # Create handlers in priority order (handlers accept both dict and Profile)
+        junior = JuniorPositionFilter(self.profile)
+        intern = InternshipFilter(self.profile)
+        coordinator = CoordinatorFilter(self.profile)
+        associate = AssociateFilter(self.profile)
+        hr = HRRoleFilter(self.profile)
+        finance = FinanceRoleFilter(self.profile)
+        legal = LegalRoleFilter(self.profile)
+        marketing = MarketingRoleFilter(self.profile)
+        sales = SalesRoleFilter(self.profile)
+        admin = AdministrativeRoleFilter(self.profile)
+        retail = RetailRoleFilter(self.profile)
+
+        # Chain handlers together
+        junior.set_next(intern).set_next(coordinator).set_next(associate).set_next(hr).set_next(
+            finance
+        ).set_next(legal).set_next(marketing).set_next(sales).set_next(admin).set_next(retail)
+
+        return junior  # Return head of chain
+
     def apply_hard_filters(self, job: dict) -> tuple[bool, FilterReason | None]:
         """
-        Stage 1: Apply hard filters BEFORE scoring.
+        Stage 1: Apply hard filters BEFORE scoring using Chain of Responsibility pattern.
 
         These filters block jobs that are clearly not relevant regardless of scoring.
         Execution time: <10ms per job.
@@ -86,104 +130,9 @@ class JobFilterPipeline:
             >>> pipeline.apply_hard_filters({"title": "VP Engineering"})
             (True, None)
         """
-        title = job.get("title", "").lower()
-
-        # FR1.1: Block junior positions
-        if "junior" in title:
-            return (False, "hard_filter_junior")
-
-        # FR1.2: Block intern/internship
-        if "intern" in title or "internship" in title:
-            return (False, "hard_filter_intern")
-
-        # FR1.3: Block coordinator (unless "senior coordinator")
-        if "coordinator" in title:
-            exceptions = self.hard_filters.get("exceptions", {})
-            if exceptions.get("senior_coordinator_allowed", True):
-                if "senior coordinator" not in title:
-                    return (False, "hard_filter_coordinator")
-            else:
-                return (False, "hard_filter_coordinator")
-
-        # FR1.4: Block "Associate" unless Director/VP/Principal/Chief
-        if "associate" in title:
-            associate_exceptions = self.context_filters.get(
-                "associate_with_senior", ["director", "vp", "principal", "chief"]
-            )
-            # Check if title contains any exception keywords
-            if not any(exception in title for exception in associate_exceptions):
-                return (False, "hard_filter_associate_low_seniority")
-
-        # FR1.5: Block HR/People Operations roles (except CPO)
-        hr_keywords = self.hard_filters.get("role_type_blocks", [])
-        for keyword in hr_keywords:
-            if keyword in title:
-                # Exception: Chief People Officer is C-level
-                exceptions = self.hard_filters.get("exceptions", {})
-                c_level_overrides = exceptions.get("c_level_override", ["chief people officer"])
-                if not any(override in title for override in c_level_overrides):
-                    return (False, "hard_filter_hr_role")
-
-        # FR1.6: Block Finance roles
-        finance_keywords = [
-            "financ",
-            "accounting",
-            "controller",
-            "treasurer",
-            "cfo",
-        ]  # "financ" catches finance/financial
-        for keyword in finance_keywords:
-            if keyword in title:
-                return (False, "hard_filter_finance_role")
-
-        # FR1.7: Block Legal roles
-        legal_keywords = ["legal", "counsel", "compliance"]
-        for keyword in legal_keywords:
-            if keyword in title:
-                return (False, "hard_filter_legal_role")
-
-        # FR1.8a: Block ALL marketing roles (no exceptions)
-        marketing_keywords = self.hard_filters.get("department_blocks", [])
-        if (
-            "marketing" in marketing_keywords or any("marketing" in kw for kw in marketing_keywords)
-        ) and "marketing" in title:
-            return (False, "hard_filter_marketing_role")
-
-        # Additional specific marketing role blocks
-        sales_marketing_blocks = self.hard_filters.get(
-            "sales_marketing_blocks",
-            ["sales manager", "marketing manager", "business development"],
-        )
-        for keyword in sales_marketing_blocks:
-            if "marketing" in keyword and keyword in title:
-                return (False, "hard_filter_marketing_role")
-
-        # FR1.8b: Block Sales (unless Director+ at hardware company)
-        # Note: Hardware company check happens in context filters (after scoring)
-        sales_keywords = ["sales manager", "business development", "sales"]
-
-        # Check if it's a sales role (not marketing)
-        for keyword in sales_keywords:
-            if keyword in title and "marketing" not in title:
-                # Allow if Director+ level
-                senior_keywords = ["director", "vp", "vice president", "chief", "head of"]
-                if not any(senior in title for senior in senior_keywords):
-                    return (False, "hard_filter_sales_marketing")
-
-        # FR1.9: Block Administrative roles
-        admin_keywords = ["administrative", "office manager", "executive assistant", "receptionist"]
-        for keyword in admin_keywords:
-            if keyword in title:
-                return (False, "hard_filter_administrative")
-
-        # FR1.10: Block Retail roles
-        retail_keywords = ["retail", "store operations", "store manager"]
-        for keyword in retail_keywords:
-            if keyword in title:
-                return (False, "hard_filter_retail")
-
-        # Passed all hard filters
-        return (True, None)
+        # Build filter chain and execute
+        chain = self._build_filter_chain()
+        return chain.handle(job)
 
     def apply_context_filters(
         self, job: dict, _score: int, score_breakdown: dict
