@@ -4,9 +4,9 @@ An intelligent job discovery and scoring system for robotics/hardware executives
 
 ## Project Overview
 
-This system automates job discovery for Wesley van Ooyen (robotics/hardware executive) using a 100-point intelligent scoring system (max 110 with bonuses), automated web scraping of 1,092+ robotics jobs weekly, and multi-source email processing. The system filters noise by notifying only on A/B grade matches (80+ points) and delivers weekly email digests with top opportunities.
+This system automates job discovery for Wesley van Ooyen (robotics/hardware executive) using a 100-point intelligent scoring system (max 110 with bonuses), automated web scraping of 1,092+ robotics jobs weekly, and multi-source email processing. The system filters noise by notifying only on A/B grade matches (70+ points) and delivers weekly email digests with top opportunities.
 
-**Key Achievement**: Latest digest delivered 5 excellent matches (80+) and 11 good matches (70+) from 50+ processed jobs.
+**Key Achievement**: Latest digest delivered 5 excellent matches (70+) and 11 good matches (55+) from 50+ processed jobs.
 
 ## Technology Stack
 
@@ -30,7 +30,7 @@ Multi-factor 100-point base scoring system (max 110 with bonuses) evaluating job
 - **Technical Keywords** (0-10): Mechatronics, embedded, manufacturing
 - **Company Classification** (±20): Hardware boost (+10) or software penalty (-20)
 
-**Grading**: A (98+), B (80+), C (63+), D (46+), F (<46)
+**Grading**: A (85+), B (70+), C (55+), D (40+), F (<40)
 
 **Company Classification Filtering**: Intelligent filtering reduces software engineering roles while preserving hardware/robotics opportunities. Three aggression levels (conservative/moderate/aggressive) control filtering strictness. See `CLAUDE.md` for details.
 
@@ -40,7 +40,7 @@ Multi-factor 100-point base scoring system (max 110 with bonuses) evaluating job
 3. Keyword-based filtering (include/exclude lists)
 4. Job scoring against candidate profile
 5. Job deduplication and SQLite storage
-6. Notification triggers for A/B grade jobs only (80+)
+6. Notification triggers for A/B grade jobs only (70+)
 
 ### 3. Web Scrapers
 - **Robotics Scraper** (`src/jobs/weekly_robotics_scraper.py`): 1,092 jobs from robotics/deeptech Google Sheets
@@ -256,10 +256,10 @@ CREATE TABLE jobs (
 
 - ✅ Intelligent 100-point base scoring system (max 110) with A/B/C/D/F grading
 - ✅ Location-aware filtering (Remote/Hybrid Ontario +15 points)
-- ✅ Noise reduction (A/B grade notifications only, 80+)
+- ✅ Noise reduction (A/B grade notifications only, 70+)
 - ✅ Weekly automation via cron (Monday 9am)
 - ✅ Email digests with interactive HTML reports
-- ✅ Latest results: 5 excellent matches (80+), 11 good matches (70+)
+- ✅ Latest results: 5 excellent matches (70+), 11 good matches (55+)
 
 ## Project Roadmap
 

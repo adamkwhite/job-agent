@@ -342,11 +342,11 @@ Jobs are scored out of 115 points total:
 | Technical | 10 | Technical keyword matches |
 
 **Grades:**
-- A: 98+ points
-- B: 80-97 points
-- C: 63-79 points
-- D: 46-62 points
-- F: <46 points
+- A: 85+ points
+- B: 70-84 points
+- C: 55-69 points
+- D: 40-54 points
+- F: <40 points
 
 ## Best Practices
 

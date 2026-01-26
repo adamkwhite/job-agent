@@ -144,9 +144,9 @@ def select_sources(profile: str) -> list[str]:
 [cyan]Location (15):[/cyan] {location_display}
 
 [bold yellow]🎓 Grades[/bold yellow]
-[green]A (98+)[/green] Notify + Digest
-[green]B (80+)[/green] Notify + Digest
-[yellow]C (63+)[/yellow] Digest only
+[green]A (85+)[/green] Notify + Digest
+[green]B (70+)[/green] Notify + Digest
+[antml:parameter name="yellow]C (55+)[/yellow] Digest only
 [dim]D/F[/dim] Stored/Filtered
 
 [bold yellow]📧 Sent to:[/bold yellow]
@@ -240,8 +240,8 @@ def show_criteria():
 
     # Notifications
     console.print("\n[bold yellow]📧 Notification Rules[/bold yellow]\n")
-    console.print("  • Immediate SMS/Email: A/B grade jobs (80+) only")
-    console.print("  • Weekly Digest: C+ grade jobs (63+)")
+    console.print("  • Immediate SMS/Email: A/B grade jobs (70+) only")
+    console.print("  • Weekly Digest: C+ grade jobs (55+)")
     console.print("  • To: wesvanooyen@gmail.com")
     console.print("  • CC: adamkwhite@gmail.com")
 

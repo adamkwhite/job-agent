@@ -46,7 +46,7 @@ Multi-factor scoring system (0-100 base points, max 110 with bonuses) evaluating
 - **Technical Keywords** (0-10): Mechatronics, embedded, manufacturing
 - **Company Classification** (±20): Hardware boost (+10) or software penalty (-20)
 
-**Grading**: A (98+), B (80+), C (63+), D (46+), F (<46)
+**Grading**: A (85+), B (70+), C (55+), D (40+), F (<40)
 
 #### Company Classification Filtering (Issue #122)
 
@@ -105,7 +105,7 @@ Each scored job includes classification metadata:
 3. Keyword-based filtering (include/exclude lists)
 4. Job scoring against candidate profile
 5. Job deduplication and storage
-6. Notification triggers for A/B grade jobs only (80+)
+6. Notification triggers for A/B grade jobs only (70+)
 
 **Supported Sources**: LinkedIn, Supra Product Leadership Jobs, F6S, Artemis, Built In
 
@@ -143,7 +143,7 @@ PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py
 - Uses Firecrawl MCP for JavaScript-heavy pages
 - Stores D+ grade jobs (50+) to capture more opportunities
 - Tracks last_checked timestamps
-- Sends notifications for A/B grade jobs (80+)
+- Sends notifications for A/B grade jobs (70+)
 
 ### 7. LLM Extraction Pipeline (PRODUCTION)
 Dual regex+LLM extraction via Claude 3.5 Sonnet. Finds jobs regex misses (e.g., non-standard formats). $15/month budget, 30s timeout. Config: `config/llm-extraction-settings.json`. Toggle with `"enabled": true/false`.
