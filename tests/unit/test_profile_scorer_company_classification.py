@@ -24,6 +24,9 @@ def mock_wes_profile():
     profile = MagicMock(spec=Profile)
     profile.id = "wes"
     profile.name = "Wesley van Ooyen"
+    profile.email = "wes@example.com"  # Required by validator
+    profile.digest_min_grade = "C"  # Required by validator
+    profile.email = "wes@example.com"  # Required by validator
     profile.scoring = {
         "target_seniority": ["vp", "director", "head of"],
         "domain_keywords": ["robotics", "automation", "hardware", "mechatronics"],
@@ -39,6 +42,7 @@ def mock_wes_profile():
             "software_company_penalty": -20,
         },
     }
+    profile.digest_min_grade = "C"  # Required by validator
     profile.get_target_seniority = lambda: ["vp", "director", "head of"]
     profile.get_domain_keywords = lambda: ["robotics", "automation", "hardware"]
     profile.get_location_preferences = lambda: {
