@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 from firecrawl import FirecrawlApp
 
 from models import OpportunityData
+from utils.url_validator import validate_job_url
 
 load_dotenv()
 
@@ -184,8 +185,11 @@ class FirecrawlCareerScraper:
             regex_jobs = self._extract_jobs_from_markdown(markdown, careers_url, company_name)
             print(f"  📝 Regex extraction: {len(regex_jobs)} job listings found")
 
+            # Validate URLs for regex-extracted jobs
+            validated_regex_jobs = self._validate_job_urls(regex_jobs, company_name)
+
             # Store jobs with extraction method
-            jobs_with_method = [(job, "regex") for job in regex_jobs]
+            jobs_with_method = [(job, "regex") for job in validated_regex_jobs]
 
             # Run LLM extraction if enabled and budget available
             if self.enable_llm_extraction and self.llm_extractor:
@@ -195,8 +199,11 @@ class FirecrawlCareerScraper:
                         llm_jobs = self.llm_extractor.extract_jobs(markdown, company_name)
                         print(f"  🤖 LLM extraction: {len(llm_jobs)} job listings found")
 
+                        # Validate URLs for LLM-extracted jobs
+                        validated_llm_jobs = self._validate_job_urls(llm_jobs, company_name)
+
                         # Add LLM results for separate storage
-                        jobs_with_method.extend([(job, "llm") for job in llm_jobs])
+                        jobs_with_method.extend([(job, "llm") for job in validated_llm_jobs])
                     except Exception as e:
                         logger.error(f"LLM extraction failed for {company_name}: {e}")
                         print(f"  ✗ LLM extraction failed: {e}")
@@ -403,6 +410,57 @@ class FirecrawlCareerScraper:
                         )
 
         return jobs
+
+    def _validate_job_urls(
+        self, jobs: list[OpportunityData], company_name: str
+    ) -> list[OpportunityData]:
+        """
+        Validate job URLs and mark invalid ones as stale
+
+        Args:
+            jobs: List of job opportunities to validate
+            company_name: Company name for logging
+
+        Returns:
+            List of jobs with validation metadata added
+        """
+        validated_jobs = []
+
+        for job in jobs:
+            if not job.link:
+                # No URL to validate - keep job as-is
+                validated_jobs.append(job)
+                continue
+
+            # Validate the job URL
+            is_valid, reason = validate_job_url(job.link)
+
+            # Add validation metadata to job
+            job_dict = job.__dict__.copy()
+            job_dict["url_validated"] = is_valid
+            job_dict["url_validated_at"] = datetime.now().isoformat()
+            job_dict["url_validation_reason"] = reason
+
+            if not is_valid:
+                # Mark invalid URLs as stale
+                logger.warning(f"Invalid job URL for {company_name}: {job.link} (reason: {reason})")
+                job_dict["is_stale"] = True
+                job_dict["stale_reason"] = f"url_invalid: {reason}"
+            else:
+                job_dict["is_stale"] = False
+
+            # Create new OpportunityData with updated fields
+            validated_job = OpportunityData(**job_dict)
+            validated_jobs.append(validated_job)
+
+        # Log summary
+        invalid_count = sum(
+            1 for job in validated_jobs if not job.__dict__.get("url_validated", True)
+        )
+        if invalid_count > 0:
+            print(f"  ⚠ {invalid_count} job(s) with invalid URLs marked as stale")
+
+        return validated_jobs
 
     def _is_likely_job_title(self, text: str) -> bool:
         """
