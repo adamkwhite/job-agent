@@ -185,11 +185,8 @@ class FirecrawlCareerScraper:
             regex_jobs = self._extract_jobs_from_markdown(markdown, careers_url, company_name)
             print(f"  📝 Regex extraction: {len(regex_jobs)} job listings found")
 
-            # Validate URLs for regex-extracted jobs
-            validated_regex_jobs = self._validate_job_urls(regex_jobs, company_name)
-
-            # Store jobs with extraction method
-            jobs_with_method = [(job, "regex") for job in validated_regex_jobs]
+            # Validate and tag jobs with extraction method
+            jobs_with_method = self._process_extracted_jobs(regex_jobs, company_name, "regex")
 
             # Run LLM extraction if enabled and budget available
             if self.enable_llm_extraction and self.llm_extractor:
@@ -199,11 +196,10 @@ class FirecrawlCareerScraper:
                         llm_jobs = self.llm_extractor.extract_jobs(markdown, company_name)
                         print(f"  🤖 LLM extraction: {len(llm_jobs)} job listings found")
 
-                        # Validate URLs for LLM-extracted jobs
-                        validated_llm_jobs = self._validate_job_urls(llm_jobs, company_name)
-
-                        # Add LLM results for separate storage
-                        jobs_with_method.extend([(job, "llm") for job in validated_llm_jobs])
+                        # Validate and add LLM jobs
+                        jobs_with_method.extend(
+                            self._process_extracted_jobs(llm_jobs, company_name, "llm")
+                        )
                     except Exception as e:
                         logger.error(f"LLM extraction failed for {company_name}: {e}")
                         print(f"  ✗ LLM extraction failed: {e}")
@@ -410,6 +406,23 @@ class FirecrawlCareerScraper:
                         )
 
         return jobs
+
+    def _process_extracted_jobs(
+        self, jobs: list[OpportunityData], company_name: str, method: str
+    ) -> list[tuple[OpportunityData, str]]:
+        """
+        Validate job URLs and tag with extraction method
+
+        Args:
+            jobs: List of extracted jobs
+            company_name: Company name for logging
+            method: Extraction method ('regex' or 'llm')
+
+        Returns:
+            List of tuples (validated_job, method)
+        """
+        validated_jobs = self._validate_job_urls(jobs, company_name)
+        return [(job, method) for job in validated_jobs]
 
     def _validate_job_urls(
         self, jobs: list[OpportunityData], company_name: str

@@ -9,6 +9,28 @@ import sqlite3
 from pathlib import Path
 
 
+def _add_column_if_not_exists(
+    cursor: sqlite3.Cursor, columns: list[str], column_name: str, column_type: str
+) -> None:
+    """
+    Add a column to the jobs table if it doesn't exist
+
+    Args:
+        cursor: Database cursor
+        columns: List of existing column names
+        column_name: Name of column to add
+        column_type: SQL type of column (e.g., 'BOOLEAN', 'TEXT')
+    """
+    if column_name not in columns:
+        cursor.execute(f"""
+            ALTER TABLE jobs
+            ADD COLUMN {column_name} {column_type} DEFAULT NULL
+        """)
+        print(f"Added {column_name} column to jobs table")
+    else:
+        print(f"{column_name} column already exists in jobs table")
+
+
 def migrate(db_path: str = "data/jobs.db") -> bool:
     """
     Add URL validation tracking fields to jobs table
@@ -36,35 +58,10 @@ def migrate(db_path: str = "data/jobs.db") -> bool:
         cursor.execute("PRAGMA table_info(jobs)")
         columns = [col[1] for col in cursor.fetchall()]
 
-        # Add url_validated column
-        if "url_validated" not in columns:
-            cursor.execute("""
-                ALTER TABLE jobs
-                ADD COLUMN url_validated BOOLEAN DEFAULT NULL
-            """)
-            print("Added url_validated column to jobs table")
-        else:
-            print("url_validated column already exists in jobs table")
-
-        # Add url_validated_at column
-        if "url_validated_at" not in columns:
-            cursor.execute("""
-                ALTER TABLE jobs
-                ADD COLUMN url_validated_at TEXT DEFAULT NULL
-            """)
-            print("Added url_validated_at column to jobs table")
-        else:
-            print("url_validated_at column already exists in jobs table")
-
-        # Add url_validation_reason column
-        if "url_validation_reason" not in columns:
-            cursor.execute("""
-                ALTER TABLE jobs
-                ADD COLUMN url_validation_reason TEXT DEFAULT NULL
-            """)
-            print("Added url_validation_reason column to jobs table")
-        else:
-            print("url_validation_reason column already exists in jobs table")
+        # Add validation tracking columns
+        _add_column_if_not_exists(cursor, columns, "url_validated", "BOOLEAN")
+        _add_column_if_not_exists(cursor, columns, "url_validated_at", "TEXT")
+        _add_column_if_not_exists(cursor, columns, "url_validation_reason", "TEXT")
 
         # Create index on url_validated for filtering invalid URLs
         cursor.execute("""
