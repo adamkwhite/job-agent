@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Week 1 Critical Bug Fixes Complete** (Jan 28, 2026 - Issues #219-222, PRs #224-227)
+  - **Seniority Silencing Bug** (PR #224, Issue #219): Fixed ProfileScorer to score seniority independently of role type. "Director of Marketing" now correctly scores 25 for seniority even with role=0. One-line fix with 3 comprehensive tests.
+  - **Config Validation** (PR #225, Issue #220): Added `src/utils/config_validator.py` module with `check_required_keys()` and `validate_profile_config()` functions. Prevents silent failures from misconfigured profile JSONs with clear error messages. 100% test coverage (17 tests).
+  - **Digest Count Mismatch** (PR #226, Issue #221, closes #199, #200): Fixed job count to match displayed jobs by calculating AFTER all filters (location, staleness, grade). Added validation assertion to prevent future mismatches. Updated email wording from "opportunities" to "fresh matches".
+  - **Broken Career Page Links** (PR #227, Issue #222, closes #197): Added `src/utils/url_validator.py` with HTTP validation and retry logic. Created database migration 005 for url_validated tracking. Invalid URLs automatically marked as stale. 100% test coverage (10 tests).
+  - All fixes completed via parallel autonomous agents in ~2 hours
+  - Zero behavioral changes - all 1,275+ tests passing
+  - All PRs passed SonarCloud quality gates (80%+ coverage on new code)
+
 - **Hybrid Filtering Mode Implementation** (Jan 13, 2026 - Issue #208, PR #211)
   - Implemented Option 3 (Hybrid mode) chosen by Wes
   - Companies in curated software list now ALWAYS filtered for engineering roles in moderate mode
@@ -27,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Result: BuildOps and Extreme Networks filtered in moderate mode (0.70 confidence), 4 others still passed through
 
 ### Added
+- **Configuration & URL Validation Utilities** (Jan 28, 2026 - Week 1 Initiative)
+  - `src/utils/config_validator.py`: Profile configuration validation with required/optional key checking
+  - `src/utils/url_validator.py`: HTTP URL validation with retry logic for career page links
+  - `src/migrations/005_url_validation_tracking.py`: Database schema for tracking URL validation status
+  - 3 new test files with 34 comprehensive tests (100% coverage on new utilities)
+
 - **LangSmith Observability PRD** (Jan 12, 2026 - Issue #210)
   - Created PRD for integrating LangSmith observability into LLM extraction pipeline
   - Track LLM API costs per run, per company, per job found
