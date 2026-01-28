@@ -61,6 +61,13 @@ class OpportunityData(BaseModel):
     filter_passed: bool | None = Field(None, description="Whether it passed filtering")
     filter_reason: str | None = Field(None, description="Reason for filter decision")
 
+    # URL validation (populated by career scraper)
+    url_validated: bool | None = Field(None, description="Whether URL was validated")
+    url_validated_at: str | None = Field(None, description="Timestamp of URL validation")
+    url_validation_reason: str | None = Field(None, description="Validation result reason")
+    is_stale: bool | None = Field(None, description="Whether job is marked as stale")
+    stale_reason: str | None = Field(None, description="Reason for stale status")
+
     class Config:
         json_schema_extra = {
             "examples": [
