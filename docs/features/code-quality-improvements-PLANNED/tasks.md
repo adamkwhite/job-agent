@@ -37,14 +37,14 @@
 
 ### Week 1: Critical Bug Fixes (4 Issues)
 
-- [ ] 1.0 Fix Seniority Silencing Bug (Issue #219)
-  - [ ] 1.1 Create branch `fix/seniority-silencing-bug`
-  - [ ] 1.2 Remove conditional in `profile_scorer.py:67`
-  - [ ] 1.3 Add test: "Director of Marketing" scores seniority but not role
-  - [ ] 1.4 Add test: "VP of Finance" scores seniority but not role
-  - [ ] 1.5 Run full test suite (1,265 tests must pass)
-  - [ ] 1.6 Create PR linked to Issue #219
-  - [ ] 1.7 Verify SonarCloud quality gate passes
+- [x] 1.0 Fix Seniority Silencing Bug (Issue #219) ✅ COMPLETED
+  - [x] 1.1 Create branch `fix/seniority-silencing-bug`
+  - [x] 1.2 Remove conditional in `profile_scorer.py:68`
+  - [x] 1.3 Add test: "Director of Marketing" scores seniority but not role
+  - [x] 1.4 Add test: "VP of Finance" scores seniority but not role
+  - [x] 1.5 Run full test suite (1,268 tests passed)
+  - [x] 1.6 Create PR #224 linked to Issue #219
+  - [ ] 1.7 Verify SonarCloud quality gate passes (pending)
 
 - [ ] 2.0 Add Config Missing Key Warnings (Issue #220)
   - [ ] 2.1 Create branch `feat/config-validation`
