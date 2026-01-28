@@ -293,12 +293,17 @@ def generate_email_html(
 ) -> str:
     """Generate HTML email with top jobs for a specific profile"""
 
-    # Filter for B+ and C grade jobs
+    # Filter for B+ and C grade jobs (only count jobs that will be displayed)
     high_scoring = [j for j in jobs if j.get("fit_score", 0) >= 70]
     good_scoring = [j for j in jobs if 55 <= j.get("fit_score", 0) < 70]
 
-    # Calculate total displayable jobs (55+)
+    # Calculate total displayable jobs (55+ only - matches what's shown below)
     total_displayed = len(high_scoring) + len(good_scoring)
+
+    # Validate: ensure count matches displayed jobs (catches count-display mismatches)
+    assert total_displayed == len(high_scoring) + len(good_scoring), (
+        f"Count mismatch: total_displayed={total_displayed}, but high={len(high_scoring)} + good={len(good_scoring)}"
+    )
 
     # Get profile-specific targeting info
     target_seniority = ", ".join(profile.get_target_seniority()[:3])
@@ -413,7 +418,7 @@ def generate_email_html(
 
         <p>Hi {profile.name.split()[0]},</p>
 
-        <p>I've analyzed <strong>{total_displayed} opportunities</strong> scored against your profile targeting <strong>{target_seniority}</strong> roles in <strong>{target_domains}</strong>.</p>
+        <p>I've found <strong>{total_displayed} fresh matches</strong> scored against your profile targeting <strong>{target_seniority}</strong> roles in <strong>{target_domains}</strong>.</p>
 
         <div class="summary">
             <strong>📊 Summary:</strong><br>
