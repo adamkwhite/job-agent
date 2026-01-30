@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Week 3-4 Code Quality Initiative - Group 1 Complete** (Jan 30, 2026 - PRs #228, #229)
+  - **Centralized Score Thresholds** (PR #229, FR3.5): Created `src/utils/score_thresholds.py` with Grade enum (A=85, B=70, C=55, D=40, F=0). Replaced hardcoded threshold values across 8+ files with centralized constants. Added 27 comprehensive tests with 100% coverage. Single source of truth for grade thresholds.
+  - **Fixed Circular Import Anti-Pattern** (PR #228, FR3.4): Eliminated all "import inside function" workarounds in `scoring_utils.py` by restructuring import hierarchy into clear layers (Foundation → Classification → Scoring). Moved 5+ inline imports to module level. Added 167 tests to prevent circular dependency regressions. Documented layer hierarchy in `docs/development/IMPORT_DEPENDENCY_ANALYSIS.md`.
+  - **Pydantic Configuration Validation** (PR #228, FR3.3): Added comprehensive type-safe validation for profile configs using Pydantic v2. Created `src/models/pydantic_models.py` with 9 nested models and custom validators. Validates required fields, score ranges, grade values, and email format on profile load. Added 542 comprehensive tests. User-friendly error messages for misconfigurations.
+  - All 3 tasks completed via parallel autonomous agents in ~3 hours (60% faster than serial)
+  - 736 new tests added (27 + 167 + 542), all passing
+  - Zero behavioral changes - all 1,330+ existing tests passing
+  - All PRs passed SonarCloud quality gates (80%+ coverage, <3% duplication)
+
 ### Fixed
 - **Week 1 Critical Bug Fixes Complete** (Jan 28, 2026 - Issues #219-222, PRs #224-227)
   - **Seniority Silencing Bug** (PR #224, Issue #219): Fixed ProfileScorer to score seniority independently of role type. "Director of Marketing" now correctly scores 25 for seniority even with role=0. One-line fix with 3 comprehensive tests.
