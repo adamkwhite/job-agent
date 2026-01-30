@@ -131,8 +131,8 @@ class BaseScorer:
             company_name=company_display,
             job_title=job["title"],
             domain_keywords=self._get_domain_keywords(),
-            role_types=self.profile.get("role_types", {}),
-            filtering_config=self.profile.get("filtering", {}),
+            role_types=self._get_role_types(),
+            filtering_config=self._get_filtering_config(),
         )
 
         breakdown["company_classification"] = company_adjustment
@@ -187,7 +187,7 @@ class BaseScorer:
         # VP/C-level keywords
         vp_keywords = ["vp", "vice president", "chief", "cto", "cpo", "head of"]
         director_keywords = ["director", "executive director"]
-        senior_keywords = ["senior manager", "principal", "staff"]
+        senior_keywords = ["senior manager", "principal", "staff", "senior"]
         mid_keywords = ["manager", "lead", "leadership"]
 
         # Check for VP/C-level matches (30 points)
@@ -261,7 +261,7 @@ class BaseScorer:
         - Other: 0 points
 
         Args:
-            location: Location string (lowercase)
+            location: Location string (any case)
 
         Returns:
             Score 0-15 based on location match
@@ -269,6 +269,7 @@ class BaseScorer:
         if not location:
             return 0
 
+        location_lower = location.lower()
         prefs = self._get_location_preferences()
 
         remote_keywords = prefs.get("remote_keywords", ["remote", "wfh", "anywhere"])
@@ -277,17 +278,17 @@ class BaseScorer:
         preferred_regions = prefs.get("preferred_regions", [])
 
         # Check for remote (15 points)
-        if any(kw in location for kw in remote_keywords):
+        if any(kw in location_lower for kw in remote_keywords):
             return 15
 
         # Check for hybrid
-        is_hybrid = any(kw in location for kw in hybrid_keywords)
+        is_hybrid = any(kw in location_lower for kw in hybrid_keywords)
 
         # Check for preferred cities
-        in_preferred_city = any(city in location for city in preferred_cities)
+        in_preferred_city = any(city in location_lower for city in preferred_cities)
 
         # Check for preferred regions
-        in_preferred_region = any(region in location for region in preferred_regions)
+        in_preferred_region = any(region in location_lower for region in preferred_regions)
 
         # Scoring logic
         if is_hybrid and (in_preferred_city or in_preferred_region):
@@ -411,3 +412,19 @@ class BaseScorer:
             return self.profile.get_location_preferences()
         # Dict-based (JobScorer)
         return self.profile.get("location_preferences", {})
+
+    def _get_role_types(self) -> dict:
+        """Get role types from profile"""
+        if hasattr(self.profile, "scoring"):
+            # Profile object (ProfileScorer)
+            return self.profile.scoring.get("role_types", {})
+        # Dict-based (JobScorer)
+        return self.profile.get("role_types", {})
+
+    def _get_filtering_config(self) -> dict:
+        """Get filtering configuration from profile"""
+        if hasattr(self.profile, "scoring"):
+            # Profile object (ProfileScorer)
+            return self.profile.scoring.get("filtering", {})
+        # Dict-based (JobScorer)
+        return self.profile.get("filtering", {})
