@@ -8,9 +8,12 @@ Note: classify_and_score_company() has been moved to company_classifier.py to el
 """
 
 import logging
+from typing import TYPE_CHECKING
 
 from utils.score_thresholds import Grade
-from utils.score_thresholds import calculate_grade as _calculate_grade
+
+if TYPE_CHECKING:
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +32,16 @@ def calculate_grade(score: int) -> str:
     - D: 40%+ (40+)
     - F: <40% (<40)
     """
-    return _calculate_grade(score)
+    if score >= Grade.A.value:
+        return "A"
+    elif score >= Grade.B.value:
+        return "B"
+    elif score >= Grade.C.value:
+        return "C"
+    elif score >= Grade.D.value:
+        return "D"
+    else:
+        return "F"
 
 
 # Grade thresholds for filtering

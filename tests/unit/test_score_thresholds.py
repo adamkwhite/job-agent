@@ -5,7 +5,13 @@ This test suite ensures that the Grade enum and threshold functions
 provide consistent scoring behavior across the codebase.
 """
 
+import sys
+from pathlib import Path
+
 import pytest
+
+# Add src to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from utils.score_thresholds import (
     Grade,

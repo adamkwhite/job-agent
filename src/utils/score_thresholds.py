@@ -38,7 +38,7 @@ class Grade(Enum):
 
     Notification Policy:
     - A/B grades (70+): Immediate SMS/email notifications + weekly digest
-    - C grade (55-69): Weekly digest only
+    - C: grade (55-69): Weekly digest only
     - D/F grades (<55): Not included in notifications or digests
     """
 
