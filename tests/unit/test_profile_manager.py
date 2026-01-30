@@ -244,7 +244,10 @@ class TestProfileManager:
             "name": "New User",
             "email": "new@example.com",
             "enabled": True,
-            "email_credentials": {"username": "new.alerts@gmail.com", "app_password_env": "NEW_PASSWORD"},
+            "email_credentials": {
+                "username": "new.alerts@gmail.com",
+                "app_password_env": "NEW_PASSWORD",
+            },
             "scoring": {
                 "target_seniority": ["senior"],
                 "domain_keywords": ["software"],
