@@ -176,42 +176,32 @@ class BaseScorer:
         Uses word boundary matching to avoid false positives
         (e.g., "vp" won't match "supervisor").
 
+        NOTE: This method scores based on title keywords alone, NOT target_seniority.
+        The target_seniority profile field is used by other methods (filtering, etc.)
+
         Args:
             title: Job title (lowercase)
 
         Returns:
             Score 0-30 based on seniority level
         """
-        target_seniority = self._get_target_seniority()
-
-        # VP/C-level keywords
-        vp_keywords = ["vp", "vice president", "chief", "cto", "cpo", "head of"]
-        director_keywords = ["director", "executive director"]
-        senior_keywords = ["senior manager", "principal", "staff", "senior"]
-        mid_keywords = ["manager", "lead", "leadership"]
-
-        # Check for VP/C-level matches (30 points)
-        if self._has_any_keyword(title, vp_keywords) and any(
-            kw in target_seniority for kw in ["vp", "chief", "head of", "executive"]
-        ):
+        # VP/C-level keywords (30 points)
+        if self._has_any_keyword(title, ["vp", "vice president", "chief", "cto", "cpo", "head of"]):
             return 30
 
-        # Director (25 points)
-        if self._has_any_keyword(title, director_keywords) and "director" in target_seniority:
+        # Director/Executive (25 points)
+        if self._has_any_keyword(title, ["director", "executive director"]):
             return 25
 
         # Senior Manager/Principal (15 points)
-        if self._has_any_keyword(title, senior_keywords) and any(
-            kw in target_seniority for kw in ["senior", "principal", "staff"]
-        ):
+        if self._has_any_keyword(title, ["senior manager", "principal", "staff", "senior"]):
             return 15
 
         # Manager/Lead (10 points)
-        if self._has_any_keyword(title, mid_keywords) and any(
-            kw in target_seniority for kw in ["manager", "lead", "senior"]
-        ):
+        if self._has_any_keyword(title, ["manager", "lead", "leadership"]):
             return 10
 
+        # IC roles (0 points)
         return 0
 
     def _score_domain(self, title: str, company: str) -> int:
