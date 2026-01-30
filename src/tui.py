@@ -19,6 +19,7 @@ from rich.table import Table
 sys.path.insert(0, str(Path(__file__).parent))
 
 from utils.profile_manager import get_profile_manager
+from utils.score_thresholds import Grade
 
 console = Console()
 
@@ -144,9 +145,9 @@ def select_sources(profile: str) -> list[str]:
 [cyan]Location (15):[/cyan] {location_display}
 
 [bold yellow]🎓 Grades[/bold yellow]
-[green]A (85+)[/green] Notify + Digest
-[green]B (70+)[/green] Notify + Digest
-[antml:parameter name="yellow]C (55+)[/yellow] Digest only
+[green]A ({Grade.A.value}+)[/green] Notify + Digest
+[green]B ({Grade.B.value}+)[/green] Notify + Digest
+[yellow]C ({Grade.C.value}+)[/yellow] Digest only
 [dim]D/F[/dim] Stored/Filtered
 
 [bold yellow]📧 Sent to:[/bold yellow]
@@ -240,8 +241,8 @@ def show_criteria():
 
     # Notifications
     console.print("\n[bold yellow]📧 Notification Rules[/bold yellow]\n")
-    console.print("  • Immediate SMS/Email: A/B grade jobs (70+) only")
-    console.print("  • Weekly Digest: C+ grade jobs (55+)")
+    console.print(f"  • Immediate SMS/Email: A/B grade jobs ({Grade.B.value}+) only")
+    console.print(f"  • Weekly Digest: C+ grade jobs ({Grade.C.value}+)")
     console.print("  • To: wesvanooyen@gmail.com")
     console.print("  • CC: adamkwhite@gmail.com")
 

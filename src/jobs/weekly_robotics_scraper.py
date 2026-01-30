@@ -20,6 +20,7 @@ from models import OpportunityData
 from notifier import JobNotifier
 from scrapers.robotics_deeptech_scraper import RoboticsDeeptechScraper
 from utils.multi_scorer import get_multi_scorer
+from utils.score_thresholds import Grade
 
 
 class WeeklyRoboticsJobChecker:
@@ -403,17 +404,19 @@ Related: #65 (Firecrawl generic career pages)
             print(f"  ✗ Error processing markdown for {company}: {e}")
             return []
 
-    def run(self, min_score: int = 70, leadership_only: bool = True) -> dict:
+    def run(self, min_score: int | None = None, leadership_only: bool = True) -> dict:
         """
         Run weekly scraper job
 
         Args:
-            min_score: Minimum score to store/notify (default: 70 for B+ grade)
+            min_score: Minimum score to store/notify (default: B+ grade threshold)
             leadership_only: Only scrape leadership roles (default: True)
 
         Returns:
             Stats dictionary
         """
+        if min_score is None:
+            min_score = Grade.B.value
         print("=" * 80)
         print(f"WEEKLY ROBOTICS JOB SCRAPER - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print("=" * 80)
@@ -714,7 +717,10 @@ def main():
 
     parser = argparse.ArgumentParser(description="Weekly robotics/deeptech job scraper")
     parser.add_argument(
-        "--min-score", type=int, default=70, help="Minimum score to store/notify (default: 70)"
+        "--min-score",
+        type=int,
+        default=None,
+        help=f"Minimum score to store/notify (default: {Grade.B.value})",
     )
     parser.add_argument(
         "--all-roles", action="store_true", help="Include IC roles (default: leadership only)"

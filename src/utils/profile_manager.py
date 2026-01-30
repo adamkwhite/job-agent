@@ -9,12 +9,23 @@ Each profile contains:
 - Scoring preferences (keywords, seniority, domains)
 - Digest settings (frequency, min grade)
 - Notification preferences
+
+Profiles are validated using Pydantic models for type safety and data integrity.
 """
 
 import json
 import os
+
+# Import from parent src directory
+import sys
 from dataclasses import dataclass
 from pathlib import Path
+from pathlib import Path as PathLib
+
+from pydantic import ValidationError
+
+sys.path.insert(0, str(PathLib(__file__).parent.parent))
+from models.pydantic_models import ProfileConfig
 
 
 @dataclass
@@ -90,31 +101,52 @@ class ProfileManager:
                 print(f"Error loading profile {profile_file}: {e}")
 
     def _load_profile_file(self, path: Path) -> Profile | None:
-        """Load a single profile from JSON file"""
+        """
+        Load a single profile from JSON file with Pydantic validation.
+
+        Raises:
+            ValidationError: If profile configuration is invalid
+            ValueError: If profile fails validation with user-friendly message
+        """
         with open(path) as f:
             data = json.load(f)
 
-        # Extract nested fields
-        email_creds = data.get("email_credentials", {})
-        digest = data.get("digest", {})
-        notifications = data.get("notifications", {})
+        # Validate profile data with Pydantic
+        try:
+            validated_config = ProfileConfig(**data)
+        except ValidationError as e:
+            # Convert Pydantic ValidationError to user-friendly message
+            error_messages = []
+            for error in e.errors():
+                field = ".".join(str(loc) for loc in error["loc"])
+                message = error["msg"]
+                error_messages.append(f"  - {field}: {message}")
+
+            raise ValueError(
+                f"Invalid profile configuration in {path.name}:\n" + "\n".join(error_messages)
+            ) from e
+
+        # Extract nested fields from validated config
+        email_creds = validated_config.email_credentials
+        digest = validated_config.digest
+        notifications = validated_config.notifications
 
         return Profile(
-            id=data["id"],
-            name=data["name"],
-            email=data["email"],
-            enabled=data.get("enabled", True),
-            email_username=email_creds.get("username", ""),
-            email_app_password_env=email_creds.get("app_password_env", ""),
-            scoring=data.get("scoring", {}),
-            digest_min_grade=digest.get("min_grade", "C"),
-            digest_min_score=digest.get("min_score", 63),
-            digest_min_location_score=digest.get("min_location_score", 0),
-            digest_include_grades=digest.get("include_grades", ["A", "B", "C"]),
-            digest_frequency=digest.get("send_frequency", "weekly"),
-            notifications_enabled=notifications.get("enabled", False),
-            notifications_min_grade=notifications.get("min_grade", "A"),
-            notifications_min_score=notifications.get("min_score", 90),
+            id=validated_config.id,
+            name=validated_config.name,
+            email=validated_config.email,
+            enabled=validated_config.enabled,
+            email_username=email_creds.username if email_creds else "",
+            email_app_password_env=email_creds.app_password_env if email_creds else "",
+            scoring=validated_config.scoring.model_dump(),
+            digest_min_grade=digest.min_grade,
+            digest_min_score=digest.min_score,
+            digest_min_location_score=digest.min_location_score,
+            digest_include_grades=digest.include_grades,
+            digest_frequency=digest.send_frequency,
+            notifications_enabled=notifications.enabled,
+            notifications_min_grade=notifications.min_grade,
+            notifications_min_score=notifications.min_score,
         )
 
     def get_profile(self, profile_id: str) -> Profile | None:

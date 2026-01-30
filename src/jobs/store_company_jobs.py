@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from agents.job_scorer import JobScorer
 from database import JobDatabase
+from utils.score_thresholds import Grade
 
 # Constants for repeated location strings
 HAMILTON_ONTARIO_CANADA = "Hamilton, Ontario, Canada"
@@ -179,11 +180,11 @@ def main():
     print(f"Stored: {stats['stored']}")
     print(f"Duplicates: {stats['duplicates']}")
     print("\nBy Grade:")
-    print(f"  A grade (85+): {stats['by_grade']['A']}")
-    print(f"  B grade (70+): {stats['by_grade']['B']}")
-    print(f"  C grade (55+): {stats['by_grade']['C']}")
-    print(f"  D grade (40+): {stats['by_grade']['D']}")
-    print(f"  F grade (<40): {stats['by_grade']['F']}")
+    print(f"  A grade ({Grade.A.value}+): {stats['by_grade']['A']}")
+    print(f"  B grade ({Grade.B.value}+): {stats['by_grade']['B']}")
+    print(f"  C grade ({Grade.C.value}+): {stats['by_grade']['C']}")
+    print(f"  D grade ({Grade.D.value}+): {stats['by_grade']['D']}")
+    print(f"  F grade (<{Grade.D.value}): {stats['by_grade']['F']}")
     print("=" * 70)
 
 
