@@ -238,16 +238,28 @@ class TestProfileManager:
         """Test reloading profiles"""
         manager = ProfileManager(profiles_dir=temp_profiles_dir)
 
-        # Add a new profile file
+        # Add a new profile file (with all required fields for Pydantic validation)
         new_profile = {
             "id": "new_user",
             "name": "New User",
             "email": "new@example.com",
             "enabled": True,
-            "email_credentials": {"username": "", "app_password_env": ""},
-            "scoring": {},
-            "digest": {},
-            "notifications": {},
+            "email_credentials": {
+                "username": "new.alerts@gmail.com",
+                "app_password_env": "NEW_GMAIL_APP_PASSWORD",
+            },
+            "scoring": {
+                "target_seniority": ["senior", "lead"],
+                "domain_keywords": ["software", "python"],
+                "role_types": {"engineering": ["software engineer"]},
+            },
+            "digest": {
+                "min_grade": "C",
+                "min_score": 55,
+                "include_grades": ["A", "B", "C"],
+                "send_frequency": "weekly",
+            },
+            "notifications": {"enabled": True, "min_grade": "B", "min_score": 70},
         }
         new_path = Path(temp_profiles_dir) / "new_user.json"
         with open(new_path, "w") as f:

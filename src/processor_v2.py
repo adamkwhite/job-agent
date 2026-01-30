@@ -36,6 +36,7 @@ from parsers.workintech_wrapper import WorkInTechParser
 from utils.job_validator import JobValidator
 from utils.multi_scorer import get_multi_scorer
 from utils.profile_manager import get_profile_manager
+from utils.score_thresholds import Grade
 
 
 def decode_email_subject(subject: str) -> str:
@@ -362,8 +363,8 @@ class JobProcessorV2:
         grade: str,
         stats: dict[str, int | list[str]],
     ) -> None:
-        """Send notification if job meets score threshold (70+)"""
-        if score < 70:
+        """Send notification if job meets score threshold (B+ grade)"""
+        if score < Grade.B.value:
             print(f"  ⊘ Notification skipped: Low score ({grade} {score}/100)")
             return
 

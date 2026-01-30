@@ -78,8 +78,8 @@ class JobFilterPipeline:
                 - context_filters: Associate exceptions, software engineering rules
         """
         self.profile = profile
-        self.hard_filters = profile.get("hard_filter_keywords", {})
-        self.context_filters = profile.get("context_filters", {})
+        self.hard_filters = profile.get("hard_filter_keywords") or {}
+        self.context_filters = profile.get("context_filters") or {}
 
     def _build_filter_chain(self) -> FilterHandler:
         """

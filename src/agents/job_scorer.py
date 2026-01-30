@@ -17,8 +17,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from database import JobDatabase
-from utils.company_classifier import CompanyClassifier
-from utils.scoring_utils import calculate_grade, classify_and_score_company
+from utils.company_classifier import CompanyClassifier, classify_and_score_company
+from utils.scoring_utils import calculate_grade
 
 logger = logging.getLogger(__name__)
 

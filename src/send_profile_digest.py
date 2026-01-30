@@ -38,6 +38,7 @@ from database import JobDatabase
 from utils.connections_manager import ConnectionsManager
 from utils.job_validator import JobValidator
 from utils.profile_manager import Profile, get_profile_manager
+from utils.score_thresholds import Grade
 
 load_dotenv()
 
@@ -294,8 +295,8 @@ def generate_email_html(
     """Generate HTML email with top jobs for a specific profile"""
 
     # Filter for B+ and C grade jobs (only count jobs that will be displayed)
-    high_scoring = [j for j in jobs if j.get("fit_score", 0) >= 70]
-    good_scoring = [j for j in jobs if 55 <= j.get("fit_score", 0) < 70]
+    high_scoring = [j for j in jobs if j.get("fit_score", 0) >= Grade.B.value]
+    good_scoring = [j for j in jobs if Grade.C.value <= j.get("fit_score", 0) < Grade.B.value]
 
     # Calculate total displayable jobs (55+ only - matches what's shown below)
     total_displayed = len(high_scoring) + len(good_scoring)
@@ -422,14 +423,14 @@ def generate_email_html(
 
         <div class="summary">
             <strong>📊 Summary:</strong><br>
-            • <strong>{len(high_scoring)}</strong> excellent matches (70+ score)<br>
-            • <strong>{len(good_scoring)}</strong> good matches (55-69 score)<br>
+            • <strong>{len(high_scoring)}</strong> excellent matches ({Grade.B.value}+ score)<br>
+            • <strong>{len(good_scoring)}</strong> good matches ({Grade.C.value}-{Grade.B.value - 1} score)<br>
             • Scored on: Seniority (30), Domain (25), Role Type (20), Location (15 if unrestricted remote/Canada-friendly), Technical (10), Company Fit (±20)
         </div>
     """
 
     if high_scoring:
-        html += "<h2>⭐ Top Matches (70+ Score)</h2>"
+        html += f"<h2>⭐ Top Matches ({Grade.B.value}+ Score)</h2>"
         html += """
         <table>
             <thead>
@@ -455,7 +456,7 @@ def generate_email_html(
         """
 
     if good_scoring:
-        html += "<h2>✅ Also Worth Considering (55-69 Score)</h2>"
+        html += f"<h2>✅ Also Worth Considering ({Grade.C.value}-{Grade.B.value - 1} Score)</h2>"
         html += """
         <table>
             <thead>
@@ -705,12 +706,12 @@ def send_digest_to_profile(
         print("  ✓ No duplicates found")
 
     # Count by grade (split high vs good to match email display)
-    high_scoring = [j for j in jobs if j.get("fit_score", 0) >= 70]
-    good_scoring = [j for j in jobs if 55 <= j.get("fit_score", 0) < 70]
+    high_scoring = [j for j in jobs if j.get("fit_score", 0) >= Grade.B.value]
+    good_scoring = [j for j in jobs if Grade.C.value <= j.get("fit_score", 0) < Grade.B.value]
 
-    print(f"  - {len(high_scoring)} excellent matches (70+)")
-    print(f"  - {len(good_scoring)} good matches (55-69)")
-    print(f"  - {len(high_scoring) + len(good_scoring)} total matches (55+)")
+    print(f"  - {len(high_scoring)} excellent matches ({Grade.B.value}+)")
+    print(f"  - {len(good_scoring)} good matches ({Grade.C.value}-{Grade.B.value - 1})")
+    print(f"  - {len(high_scoring) + len(good_scoring)} total matches ({Grade.C.value}+)")
 
     if dry_run:
         print(f"\n🧪 DRY RUN - Would send to {profile.email}")
@@ -767,7 +768,7 @@ def send_digest_to_profile(
     text_body = f"""
 Hi {profile.name.split()[0]},
 
-I've found {len(high_scoring)} excellent job matches (70+ score) and {len(good_scoring)} good matches (55-69 score).
+I've found {len(high_scoring)} excellent job matches ({Grade.B.value}+ score) and {len(good_scoring)} good matches ({Grade.C.value}-{Grade.B.value - 1} score).
 
 Open the HTML email to see full details and apply links.
 

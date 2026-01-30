@@ -36,12 +36,14 @@ class FilterHandler(ABC):
         # Handle both dict and Profile object formats
         if isinstance(profile, dict):
             # Dict format (used in tests and legacy code)
-            self.hard_filters = profile.get("hard_filter_keywords", {})
-            self.context_filters = profile.get("context_filters", {})
+            # Note: These fields may be None in the dict, use 'or {}' to handle that
+            self.hard_filters = profile.get("hard_filter_keywords") or {}
+            self.context_filters = profile.get("context_filters") or {}
         else:
             # Profile object format (used with ProfileManager)
-            self.hard_filters = profile.scoring.get("hard_filter_keywords", {})
-            self.context_filters = profile.scoring.get("context_filters", {})
+            # Note: profile.scoring is a dict, but hard_filter_keywords/context_filters may be None
+            self.hard_filters = profile.scoring.get("hard_filter_keywords") or {}
+            self.context_filters = profile.scoring.get("context_filters") or {}
 
         self.next_handler: FilterHandler | None = None
 

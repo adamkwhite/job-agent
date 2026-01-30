@@ -16,6 +16,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from dotenv import load_dotenv
 
+from utils.score_thresholds import Grade
+
 
 def generate_email_html(jobs_by_grade):
     """Generate HTML email with ALL unsent jobs grouped by grade"""
@@ -207,11 +209,11 @@ def generate_email_html(jobs_by_grade):
         <div class="footer">
             <p><strong>Scoring Reference:</strong></p>
             <ul style="font-size: 13px;">
-                <li><strong>Grade A (85+):</strong> Perfect match</li>
-                <li><strong>Grade B (70-84):</strong> Excellent match</li>
-                <li><strong>Grade C (55-69):</strong> Good/moderate match</li>
-                <li><strong>Grade D (40-54):</strong> Lower match</li>
-                <li><strong>Grade F (<40):</strong> Minimal match</li>
+                <li><strong>Grade A ({Grade.A.value}+):</strong> Perfect match</li>
+                <li><strong>Grade B ({Grade.B.value}-{Grade.A.value - 1}):</strong> Excellent match</li>
+                <li><strong>Grade C ({Grade.C.value}-{Grade.B.value - 1}):</strong> Good/moderate match</li>
+                <li><strong>Grade D ({Grade.D.value}-{Grade.C.value - 1}):</strong> Lower match</li>
+                <li><strong>Grade F (<{Grade.D.value}):</strong> Minimal match</li>
             </ul>
 
             <p style="margin-top: 20px;">

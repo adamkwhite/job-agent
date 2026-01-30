@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from enrichment.enrichment_pipeline import EnrichmentPipeline
 from models import OpportunityData
+from utils.score_thresholds import Grade
 
 
 def main():
@@ -27,14 +28,17 @@ def main():
     cursor = conn.cursor()
 
     # Get jobs that need enrichment (no research_notes)
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT id, company, title, location, link, fit_score, fit_grade, source
         FROM jobs
         WHERE (research_notes IS NULL OR research_notes = '')
-        AND fit_score >= 70
+        AND fit_score >= ?
         ORDER BY fit_score DESC
         LIMIT 10
-    """)
+    """,
+        (Grade.B.value,),
+    )
 
     jobs_to_enrich = cursor.fetchall()
     print(f"Found {len(jobs_to_enrich)} jobs to enrich\n")
