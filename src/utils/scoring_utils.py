@@ -5,6 +5,8 @@ Shared scoring utilities used by both JobScorer and ProfileScorer
 import logging
 from typing import TYPE_CHECKING
 
+from utils.score_thresholds import Grade
+
 if TYPE_CHECKING:
     from utils.company_classifier import CompanyClassifier
 
@@ -123,13 +125,13 @@ def calculate_grade(score: int) -> str:
     - D: 40%+ (40+)
     - F: <40% (<40)
     """
-    if score >= 85:
+    if score >= Grade.A.value:
         return "A"
-    elif score >= 70:
+    elif score >= Grade.B.value:
         return "B"
-    elif score >= 55:
+    elif score >= Grade.C.value:
         return "C"
-    elif score >= 40:
+    elif score >= Grade.D.value:
         return "D"
     else:
         return "F"
@@ -137,11 +139,11 @@ def calculate_grade(score: int) -> str:
 
 # Grade thresholds for filtering
 GRADE_THRESHOLDS = {
-    "A": 85,
-    "B": 70,
-    "C": 55,
-    "D": 40,
-    "F": 0,
+    "A": Grade.A.value,
+    "B": Grade.B.value,
+    "C": Grade.C.value,
+    "D": Grade.D.value,
+    "F": Grade.F.value,
 }
 
 
