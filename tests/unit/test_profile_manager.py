@@ -244,10 +244,14 @@ class TestProfileManager:
             "name": "New User",
             "email": "new@example.com",
             "enabled": True,
-            "email_credentials": {"username": "", "app_password_env": ""},
-            "scoring": {},
-            "digest": {},
-            "notifications": {},
+            "email_credentials": {"username": "new.alerts@gmail.com", "app_password_env": "NEW_PASSWORD"},
+            "scoring": {
+                "target_seniority": ["senior"],
+                "domain_keywords": ["software"],
+                "role_types": {"engineering": ["developer"]},
+            },
+            "digest": {"min_grade": "C", "min_score": 55, "include_grades": ["A", "B", "C"]},
+            "notifications": {"enabled": True, "min_grade": "B", "min_score": 70},
         }
         new_path = Path(temp_profiles_dir) / "new_user.json"
         with open(new_path, "w") as f:
