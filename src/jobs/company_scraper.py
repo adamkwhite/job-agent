@@ -32,7 +32,12 @@ class CompanyScraper:
     Designed to work with Firecrawl MCP for JavaScript-heavy career pages
     """
 
-    def __init__(self, profile: str | None = None, enable_llm_extraction: bool = False):
+    def __init__(
+        self,
+        profile: str | None = None,
+        enable_llm_extraction: bool = False,
+        enable_pagination: bool = True,
+    ):
         # Store profile for multi-profile support
         self.profile = profile
 
@@ -43,7 +48,10 @@ class CompanyScraper:
 
         # Initialize components
         self.company_service = CompanyService()
-        self.firecrawl_scraper = FirecrawlCareerScraper(enable_llm_extraction=enable_llm_extraction)
+        self.firecrawl_scraper = FirecrawlCareerScraper(
+            enable_llm_extraction=enable_llm_extraction,
+            enable_pagination=enable_pagination,
+        )
         self.job_filter = JobFilter()
         self.filter_pipeline = JobFilterPipeline(profile_config) if profile_config else None
         self.scorer = JobScorer()

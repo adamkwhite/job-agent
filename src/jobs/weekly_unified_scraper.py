@@ -49,8 +49,10 @@ class WeeklyUnifiedScraper:
                 llm_config = json.load(f)
                 llm_enabled = llm_config.get("enabled", False)
 
-        # Company monitoring scraper
-        self.company_scraper = CompanyScraper(profile=profile, enable_llm_extraction=llm_enabled)
+        # Company monitoring scraper (with pagination enabled by default)
+        self.company_scraper = CompanyScraper(
+            profile=profile, enable_llm_extraction=llm_enabled, enable_pagination=True
+        )
 
         # Ministry of Testing scraper
         self.ministry_scraper = MinistryScraper(profile=profile)
