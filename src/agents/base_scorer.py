@@ -21,7 +21,6 @@ Abstract Methods:
 
 import json
 import logging
-import re
 import sys
 from pathlib import Path
 
@@ -29,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from database import JobDatabase
 from utils.company_classifier import CompanyClassifier, classify_and_score_company
+from utils.keyword_matcher import KeywordMatcher
 from utils.scoring_utils import calculate_grade
 
 logger = logging.getLogger(__name__)
@@ -320,8 +320,7 @@ class BaseScorer:
         """
         Check if keyword exists in text at word boundaries
 
-        Handles special cases like "VP," "VP-" "VP " etc.
-        Uses regex word boundaries to prevent false matches:
+        Uses KeywordMatcher with word boundary mode to prevent false matches:
         - "vp" won't match "supervisor"
         - "chief" won't match "mischief"
 
@@ -332,13 +331,14 @@ class BaseScorer:
         Returns:
             True if keyword found at word boundary
         """
-        # Use word boundary regex: \b ensures we match whole words
-        pattern = r"\b" + re.escape(keyword) + r"\b"
-        return bool(re.search(pattern, text))
+        matcher = KeywordMatcher([keyword])
+        return matcher.has_any(text, mode="word_boundary")
 
     def _has_any_keyword(self, text: str, keywords: list[str]) -> bool:
         """
         Check if any keyword from list exists in text at word boundaries
+
+        Uses KeywordMatcher with word boundary mode.
 
         Args:
             text: Text to search in (lowercase)
@@ -347,11 +347,14 @@ class BaseScorer:
         Returns:
             True if any keyword found
         """
-        return any(self._has_keyword(text, keyword) for keyword in keywords)
+        matcher = KeywordMatcher(keywords)
+        return matcher.has_any(text, mode="word_boundary")
 
     def _count_keyword_matches(self, text: str, keywords: list[str]) -> int:
         """
         Count how many keywords from list appear in text
+
+        Uses KeywordMatcher with substring mode for flexible matching.
 
         Args:
             text: Text to search in
@@ -360,8 +363,8 @@ class BaseScorer:
         Returns:
             Number of matching keywords
         """
-        text_lower = text.lower()
-        return sum(1 for kw in keywords if kw.lower() in text_lower)
+        matcher = KeywordMatcher(keywords)
+        return matcher.count_matches(text, mode="substring")
 
     def _is_leadership_title(self, title_lower: str) -> bool:
         """
