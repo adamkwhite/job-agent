@@ -6,8 +6,16 @@ Tests URL discovery, sitemap parsing, and job deduplication
 
 from unittest.mock import Mock, patch
 
+import pytest
+
 from src.models import OpportunityData
 from src.scrapers.firecrawl_career_scraper import FirecrawlCareerScraper
+
+
+@pytest.fixture(autouse=True)
+def mock_firecrawl_api_key(monkeypatch):
+    """Ensure FIRECRAWL_API_KEY is set for all tests"""
+    monkeypatch.setenv("FIRECRAWL_API_KEY", "test-api-key")
 
 
 class TestURLFiltering:
