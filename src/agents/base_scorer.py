@@ -19,6 +19,7 @@ Abstract Methods:
   - ProfileScorer: Uses simple keyword matching for generic profiles
 """
 
+import copy
 import json
 import logging
 import sys
@@ -69,7 +70,10 @@ class BaseScorer:
                 - filtering: dict - Filtering configuration
                 - (optional) technical_keywords: list[str] - Additional technical keywords
         """
-        self.profile = profile
+        # Deep copy profile to prevent test mutation bugs
+        # Tests that modify scorer.profile["filtering"]["aggression_level"]
+        # would otherwise mutate the shared module-level WES_PROFILE dict
+        self.profile = copy.deepcopy(profile)
         self.db = JobDatabase()
         self.role_category_keywords = load_role_category_keywords()
         self.company_classifier = CompanyClassifier()
