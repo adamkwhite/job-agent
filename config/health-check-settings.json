@@ -1,0 +1,18 @@
+{
+  "alert_thresholds": {
+    "llm_failures_24h": 50,
+    "llm_failures_pending": 10,
+    "budget_warning_percent": 80,
+    "budget_critical_percent": 100,
+    "days_since_scrape": 7
+  },
+  "auto_display": {
+    "enabled": true,
+    "on_startup": true,
+    "critical_only": true
+  },
+  "display_options": {
+    "show_per_profile_stats": true,
+    "show_recent_jobs": 10
+  }
+}

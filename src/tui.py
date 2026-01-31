@@ -18,6 +18,7 @@ from rich.table import Table
 # Add to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
+from utils.health_checker import SystemHealthChecker
 from utils.profile_manager import get_profile_manager
 from utils.score_thresholds import Grade
 
@@ -249,6 +250,144 @@ def show_criteria():
     console.print("\n[bold cyan]═══════════════════════════════════════════════[/bold cyan]\n")
 
     input("\n[dim]Press Enter to return to menu...[/dim]")
+
+
+def show_system_health():  # pragma: no cover
+    """Display system health dashboard with errors, budget, and activity
+
+    Note: TUI functions are excluded from coverage requirements as they will be
+    tested through manual testing and integration tests
+    """
+    clear_screen()
+    show_header()
+
+    # Import database locally
+    from database import JobDatabase
+
+    db = JobDatabase()
+    health_checker = SystemHealthChecker(db)
+    health = health_checker.get_health_summary()
+
+    console.print("\n[bold cyan]═══════════════════════════════════════════════[/bold cyan]")
+    console.print("[bold cyan]            🔍 SYSTEM HEALTH CHECK              [/bold cyan]")
+    console.print("[bold cyan]═══════════════════════════════════════════════[/bold cyan]\n")
+
+    # Create main health table
+    health_table = Table(box=box.ROUNDED, show_header=False)
+    health_table.add_column("Metric", style="bold cyan", width=30)
+    health_table.add_column("Status", width=50)
+
+    # LLM Failures Section
+    failures = health["llm_failures"]
+    if failures["total_pending"] > 0:
+        failure_color = "red" if failures["total_pending"] >= 10 else "yellow"
+    else:
+        failure_color = "green"
+
+    health_table.add_row(
+        "LLM Failures (Pending)",
+        f"[{failure_color}]{failures['total_pending']}[/{failure_color}]",
+    )
+    health_table.add_row(
+        "LLM Failures (Last 24h)",
+        f"[dim]{failures['last_24h']}[/dim]",
+    )
+
+    if failures["most_common_error"]:
+        health_table.add_row(
+            "Most Common Error",
+            f"[dim]{failures['most_common_error']} ({failures['most_common_count']} times)[/dim]",
+        )
+
+    # Budget Section
+    health_table.add_row("", "")  # Blank row
+    budget = health["budget"]
+    budget_pct = budget["percentage_used"]
+
+    if budget_pct >= 100:
+        budget_color = "red"
+    elif budget_pct >= 80:
+        budget_color = "yellow"
+    else:
+        budget_color = "green"
+
+    health_table.add_row(
+        "Budget Usage",
+        f"[{budget_color}]${budget['total_spent']:.2f} / ${budget['monthly_limit']:.2f} ({budget_pct:.1f}%)[/{budget_color}]",
+    )
+    health_table.add_row(
+        "API Calls This Month",
+        f"[dim]{budget['api_calls']}[/dim]",
+    )
+    health_table.add_row(
+        "Remaining Budget",
+        f"[dim]${budget['remaining']:.2f}[/dim]",
+    )
+
+    # Database Stats Section
+    health_table.add_row("", "")  # Blank row
+    db_stats = health["database"]
+    health_table.add_row("Total Jobs in DB", f"[green]{db_stats['total_jobs']:,}[/green]")
+    health_table.add_row("A/B Grade Jobs", f"[green]{db_stats['high_quality_jobs']:,}[/green]")
+
+    # Grade breakdown
+    by_grade = db_stats.get("by_grade", {})
+    if by_grade:
+        grade_str = ", ".join([f"{grade}: {count}" for grade, count in sorted(by_grade.items())])
+        health_table.add_row("By Grade", f"[dim]{grade_str}[/dim]")
+
+    # Recent Activity Section
+    health_table.add_row("", "")  # Blank row
+    activity = health["recent_activity"]
+    if activity["last_run_time"]:
+        from datetime import datetime
+
+        try:
+            last_run = datetime.fromisoformat(activity["last_run_time"])
+            time_ago = datetime.now() - last_run
+            if time_ago.days > 0:
+                time_str = f"{time_ago.days} days ago"
+            elif time_ago.seconds > 3600:
+                time_str = f"{time_ago.seconds // 3600} hours ago"
+            else:
+                time_str = f"{time_ago.seconds // 60} minutes ago"
+        except ValueError:
+            time_str = activity["last_run_time"]
+
+        health_table.add_row("Last Scraper Run", f"[green]{time_str}[/green]")
+        health_table.add_row("Jobs Found", f"[dim]{activity['jobs_found_last_run']}[/dim]")
+        if activity["last_run_source"]:
+            health_table.add_row("Source", f"[dim]{activity['last_run_source']}[/dim]")
+    else:
+        health_table.add_row("Last Scraper Run", "[yellow]No runs found[/yellow]")
+
+    console.print(health_table)
+
+    # Critical Issues Section
+    critical = health["critical_issues"]
+    if critical:
+        console.print("\n[bold red]⚠️  CRITICAL ISSUES:[/bold red]\n")
+
+        issues_table = Table(box=box.ROUNDED, show_header=False)
+        issues_table.add_column("Issue", style="white")
+
+        for issue in critical:
+            color = issue["severity"]
+            issues_table.add_row(f"[{color}]• {issue['message']}[/{color}]")
+            issues_table.add_row(f"[dim]  → {issue['action']}[/dim]")
+
+        console.print(issues_table)
+    else:
+        console.print("\n[bold green]✅ No critical issues detected[/bold green]")
+
+    console.print("\n[bold cyan]═══════════════════════════════════════════════[/bold cyan]\n")
+
+    # Offer options
+    console.print("[dim]Actions: [f]ailures detail | [b]ack to menu[/dim]")
+    choice = Prompt.ask("\n[bold]Action[/bold]", choices=["f", "b"], default="b")
+
+    if choice == "f":
+        review_llm_failures()
 
 
 def check_api_credits():  # pragma: no cover
@@ -605,6 +744,7 @@ def select_action() -> str | None:
     table.add_row("3", "Scrape + Digest", "Run scraper then send digest email")
     table.add_row("c", "View Criteria", "Show scoring criteria and grading scale")
     table.add_row("f", "LLM Failures", "Review and retry failed LLM extractions")
+    table.add_row("h", "System Health", "View system health and error dashboard")
     table.add_row("b", "Back", "Return to profile selection")
     table.add_row("q", "Quit", "Exit application")
 
@@ -612,7 +752,7 @@ def select_action() -> str | None:
 
     choice = Prompt.ask(
         "\n[bold]Select action[/bold]",
-        choices=["1", "2", "3", "c", "f", "b", "q"],
+        choices=["1", "2", "3", "c", "f", "h", "b", "q"],
         default="3",
     )
 
@@ -622,6 +762,7 @@ def select_action() -> str | None:
         "b": "back",
         "c": "criteria",
         "f": "failures",
+        "h": "health",
         "1": "scrape",
         "2": "digest",
         "3": "both",
@@ -798,6 +939,9 @@ def main():
                 continue
             elif action == "failures":
                 review_llm_failures()
+                continue
+            elif action == "health":
+                show_system_health()
                 continue
 
             # Step 4: Select digest options (if sending digest)
