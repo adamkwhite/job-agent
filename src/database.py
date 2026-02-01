@@ -21,15 +21,23 @@ class JobDatabase:
         # CRITICAL: Prevent production database usage during tests
         import sys
 
-        if "pytest" in sys.modules and db_path == "data/jobs.db":
+        if "pytest" in sys.modules and "data/jobs.db" in db_path:
             raise RuntimeError(
-                "❌ BLOCKED: Attempted to use production database (data/jobs.db) during tests!\n"
-                "DATABASE_PATH environment variable must be set to a test path.\n"
-                "This is a safety check to prevent test data pollution."
+                f"❌ BLOCKED: Attempted to use production database during tests!\n"
+                f"db_path={db_path}\n"
+                f"DATABASE_PATH environment variable must be set to a test path.\n"
+                f"This is a safety check to prevent test data pollution."
             )
 
         self.db_path = Path(db_path)
         self.profile = profile
+        # Only create parent directory if not the production data/ directory during tests
+        if "pytest" in sys.modules and str(self.db_path.parent).endswith("data"):
+            raise RuntimeError(
+                f"❌ BLOCKED: Attempted to create data/ directory during tests!\n"
+                f"db_path={self.db_path}\n"
+                f"parent={self.db_path.parent}"
+            )
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.init_database()
 
