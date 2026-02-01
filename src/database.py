@@ -17,6 +17,17 @@ class JobDatabase:
     def __init__(self, db_path: str | None = None, profile: str | None = None):
         if db_path is None:
             db_path = os.getenv("DATABASE_PATH", "data/jobs.db")
+
+        # CRITICAL: Prevent production database usage during tests
+        import sys
+
+        if "pytest" in sys.modules and db_path == "data/jobs.db":
+            raise RuntimeError(
+                "❌ BLOCKED: Attempted to use production database (data/jobs.db) during tests!\n"
+                "DATABASE_PATH environment variable must be set to a test path.\n"
+                "This is a safety check to prevent test data pollution."
+            )
+
         self.db_path = Path(db_path)
         self.profile = profile
         self.db_path.parent.mkdir(parents=True, exist_ok=True)

@@ -23,6 +23,16 @@ class CompanyService:
         if db_path is None:
             db_path = os.getenv("DATABASE_PATH", "data/jobs.db")
 
+        # CRITICAL: Prevent production database usage during tests
+        import sys
+
+        if "pytest" in sys.modules and "data/jobs.db" in db_path:
+            raise RuntimeError(
+                "❌ BLOCKED: Attempted to use production database (data/jobs.db) during tests!\n"
+                "DATABASE_PATH environment variable must be set to a test path.\n"
+                "This is a safety check to prevent test data pollution."
+            )
+
         # Convert to absolute path relative to project root
         if not Path(db_path).is_absolute():
             # Assume project root is 2 levels up from this file
