@@ -15,14 +15,20 @@ from src.database import JobDatabase
 class TestDatabasePathEnvironmentVariable:
     """Test DATABASE_PATH environment variable behavior"""
 
-    def test_default_path_no_env(self):
+    def test_default_path_no_env(self, mocker):
         """Test that JobDatabase uses default path when no env var set"""
-        # Ensure DATABASE_PATH is not set
+        # Mock init_database to prevent actual database creation
+        mock_init = mocker.patch.object(JobDatabase, "init_database")
+
+        # Save and remove DATABASE_PATH
         old_path = os.environ.pop("DATABASE_PATH", None)
 
         try:
             db = JobDatabase()
+            # Verify path is set to default
             assert str(db.db_path) == "data/jobs.db"
+            # Verify init was called (but mocked so no file created)
+            mock_init.assert_called_once()
         finally:
             # Restore environment
             if old_path:
@@ -129,8 +135,11 @@ class TestProductionDatabaseProtection:
 class TestBackwardCompatibility:
     """Test that existing code continues to work"""
 
-    def test_no_parameters_uses_env_or_default(self):
+    def test_no_parameters_uses_env_or_default(self, mocker):
         """Test JobDatabase() with no parameters works as expected"""
+        # Mock init_database to prevent actual database creation
+        _mock_init = mocker.patch.object(JobDatabase, "init_database")
+
         old_path = os.environ.get("DATABASE_PATH")
 
         try:
