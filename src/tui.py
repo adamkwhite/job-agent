@@ -77,6 +77,7 @@ def select_profile() -> str | None:
         profile_map[str(i)] = profile.id
 
     table.add_row("a", "API Credits", "Check LLM/Firecrawl status", "")
+    table.add_row("h", "System Health", "View health dashboard", "")
     table.add_row("q", "Quit", "", "")
 
     console.print(table)
@@ -84,13 +85,15 @@ def select_profile() -> str | None:
         "\n[dim]Note: Profile selection determines which email inbox to check and where digests are sent.[/dim]"
     )
 
-    choices = list(profile_map.keys()) + ["a", "q"]
+    choices = list(profile_map.keys()) + ["a", "h", "q"]
     choice = Prompt.ask("\n[bold]Select profile[/bold]", choices=choices, default="1")
 
     if choice == "q":
         return None
     elif choice == "a":
         return "credits"
+    elif choice == "h":
+        return "health"
     else:
         return profile_map[choice]
 
@@ -919,6 +922,9 @@ def main():
                 sys.exit(0)
             elif profile == "credits":
                 check_api_credits()
+                continue
+            elif profile == "health":
+                show_system_health()
                 continue
 
             # Step 2: Select sources
