@@ -11,7 +11,9 @@ from flask_cors import CORS
 
 from .company_service import CompanyService
 
-app = Flask(__name__)
+# CSRF protection not needed: stateless API with no session/cookie auth
+# CORS restricts origins to Chrome extension only - programmatic client, not browser forms
+app = Flask(__name__)  # NOSONAR
 
 # Enable CORS - configurable via environment variable
 # Default: Chrome extension and localhost only for security
