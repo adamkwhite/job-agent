@@ -572,10 +572,10 @@ def review_llm_failures():  # pragma: no cover
 
         # Action menu
         console.print("\n[bold yellow]Actions:[/bold yellow]")
-        console.print("  [r] Review specific failure (view details, retry, skip)")
-        console.print("  [a] Retry all pending failures")
-        console.print("  [s] Skip all pending failures")
-        console.print("  [b] Back to main menu")
+        console.print("  \\[r] Review specific failure (view details, retry, skip)")
+        console.print("  \\[a] Retry all pending failures")
+        console.print("  \\[s] Skip all pending failures")
+        console.print("  \\[b] Back to main menu")
 
         choice = Prompt.ask(
             "\n[bold]Select action[/bold]", choices=["r", "a", "s", "b"], default="b"
@@ -635,10 +635,10 @@ def _review_single_failure(db, failures):  # pragma: no cover
 
     console.print("\n[bold yellow]Actions:[/bold yellow]")
     if has_markdown:
-        console.print("  [v] View markdown content")
-    console.print("  [r] Retry extraction")
-    console.print("  [s] Skip permanently")
-    console.print("  [b] Back to failure list")
+        console.print("  \\[v] View markdown content")
+    console.print("  \\[r] Retry extraction")
+    console.print("  \\[s] Skip permanently")
+    console.print("  \\[b] Back to failure list")
 
     # Build choices list dynamically
     choices = ["r", "s", "b"]
