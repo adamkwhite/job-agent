@@ -62,6 +62,8 @@ jobs:
           fi
 
       - name: Run tests with coverage
+        env:
+          DATABASE_PATH: /tmp/ci_test_jobs.db
         run: |
           # Check if tests exist
           if find tests/ -name "test_*.py" -type f | grep -q .; then
@@ -76,6 +78,24 @@ jobs:
           else
             echo "⚠️  No test files found - tests need to be written"
             echo "Skipping test execution"
+          fi
+
+      - name: Verify production DB not touched
+        run: |
+          if [ -f data/jobs.db ]; then
+            # Check if production database was modified in last 5 minutes
+            MODIFIED=$(stat -c %Y data/jobs.db)
+            START_TIME=$(date -d '5 minutes ago' +%s)
+            if [ $MODIFIED -gt $START_TIME ]; then
+              echo "❌ ERROR: Production database (data/jobs.db) was modified during tests!"
+              echo "Tests should use DATABASE_PATH environment variable for isolation."
+              echo "Modified timestamp: $(date -d @$MODIFIED)"
+              exit 1
+            else
+              echo "✅ Production database not modified during tests"
+            fi
+          else
+            echo "✅ Production database does not exist (expected for clean CI environment)"
           fi
 
       - name: Upload coverage to artifacts
