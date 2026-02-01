@@ -14,7 +14,6 @@ Tests verify that:
 import importlib.util
 import sqlite3
 import sys
-import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -40,13 +39,9 @@ class TestMigration003FilterTracking:
     """Test filter tracking migration (#003)"""
 
     @pytest.fixture
-    def temp_db(self):
-        """Create temporary database for testing"""
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
-            db_path = tmp.name
-        yield db_path
-        # Cleanup
-        Path(db_path).unlink(missing_ok=True)
+    def temp_db(self, test_db_path):
+        """Create temporary database for testing using centralized test_db_path"""
+        return test_db_path
 
     @pytest.fixture
     def db_with_existing_jobs(self, temp_db):

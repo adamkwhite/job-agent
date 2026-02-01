@@ -2,9 +2,7 @@
 
 import json
 import sqlite3
-import tempfile
 from datetime import datetime
-from pathlib import Path
 
 import pytest
 
@@ -15,16 +13,13 @@ class TestMultiProfileDuplicateScoring:
     """Test that duplicate jobs get scored for all profiles"""
 
     @pytest.fixture
-    def temp_db(self):
-        """Create temporary database for testing"""
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-            db_path = f.name
-
+    def temp_db(self, test_db_path):
+        """Create temporary database for testing using centralized test_db_path"""
         # Initialize database schema (creates jobs table)
-        JobDatabase(profile="wes", db_path=db_path)
+        JobDatabase(profile="wes", db_path=test_db_path)
 
         # Create job_scores table (normally created by migration)
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(test_db_path)
         cursor = conn.cursor()
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS job_scores (
@@ -46,10 +41,7 @@ class TestMultiProfileDuplicateScoring:
         conn.commit()
         conn.close()
 
-        yield db_path
-
-        # Cleanup
-        Path(db_path).unlink(missing_ok=True)
+        return test_db_path
 
     @pytest.fixture(autouse=True)
     def mock_firecrawl_scraper(self, mocker):
