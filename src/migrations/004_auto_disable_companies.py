@@ -140,7 +140,16 @@ def test_idempotency(db_path: str = "data/jobs.db") -> bool:
 
 
 if __name__ == "__main__":
+    import os
     import sys
+
+    # Safety check: prevent running migrations on test databases
+    db_path = os.getenv("DATABASE_PATH", "data/jobs.db")
+    if "test" in db_path.lower() or "tmp" in db_path.lower():
+        print(f"⚠️  WARNING: Detected test database path: {db_path}")
+        print("Migrations should only run on production database.")
+        print("Unset DATABASE_PATH or use production path.")
+        sys.exit(1)
 
     if len(sys.argv) > 1:
         if sys.argv[1] == "--rollback":
