@@ -386,7 +386,7 @@ def show_system_health():  # pragma: no cover
     console.print("\n[bold cyan]═══════════════════════════════════════════════[/bold cyan]\n")
 
     # Offer options
-    console.print("[dim]Actions: [f]ailures detail | [b]ack to menu[/dim]")
+    console.print("[dim]Actions: \\[f]ailures detail | \\[b]ack to menu[/dim]")
     choice = Prompt.ask("\n[bold]Action[/bold]", choices=["f", "b"], default="b")
 
     if choice == "f":
