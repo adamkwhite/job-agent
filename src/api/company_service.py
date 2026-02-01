@@ -2,6 +2,7 @@
 Company monitoring service - handles database operations for companies
 """
 
+import os
 import sqlite3
 import sys
 from datetime import datetime
@@ -17,7 +18,11 @@ from utils.company_matcher import CompanyMatcher
 class CompanyService:
     """Manages company monitoring database operations"""
 
-    def __init__(self, db_path: str = "data/jobs.db"):
+    def __init__(self, db_path: str | None = None):
+        # Respect DATABASE_PATH environment variable for test isolation
+        if db_path is None:
+            db_path = os.getenv("DATABASE_PATH", "data/jobs.db")
+
         # Convert to absolute path relative to project root
         if not Path(db_path).is_absolute():
             # Assume project root is 2 levels up from this file
