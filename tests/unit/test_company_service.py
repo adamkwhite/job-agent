@@ -2,25 +2,18 @@
 Unit tests for CompanyService (database operations)
 """
 
-import tempfile
-from pathlib import Path
-
 import pytest
 
 from api.company_service import CompanyService
 
 
 @pytest.fixture
-def temp_db():
-    """Create a temporary database for testing"""
+def temp_db(test_db_path):
+    """Create a temporary database for testing using centralized test_db_path"""
     import sqlite3
 
-    # Create temp file
-    fd, path = tempfile.mkstemp(suffix=".db")
-    db_path = Path(path)
-
-    # Create companies table
-    conn = sqlite3.connect(db_path)
+    # Create companies table using centralized test database path
+    conn = sqlite3.connect(test_db_path)
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS companies (
@@ -42,13 +35,10 @@ def temp_db():
     conn.commit()
     conn.close()
 
-    # Initialize service with temp database
-    service = CompanyService(db_path=str(db_path))
+    # Initialize service with test database
+    service = CompanyService(db_path=str(test_db_path))
 
-    yield service
-
-    # Cleanup
-    db_path.unlink(missing_ok=True)
+    return service
 
 
 def test_add_company_success(temp_db):
