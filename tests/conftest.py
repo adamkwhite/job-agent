@@ -19,11 +19,14 @@ sys.path.insert(0, str(project_root))
 
 # CRITICAL: Ensure DATABASE_PATH is set for test isolation
 # This prevents accidental production database usage
-if "pytest" in sys.modules and "DATABASE_PATH" not in os.environ:
-    # Set default test database path if not already set
-    default_test_path = str(Path(tempfile.gettempdir()) / "pytest_test_jobs.db")
-    os.environ["DATABASE_PATH"] = default_test_path
-    print(f"⚠️  DATABASE_PATH not set, using default: {default_test_path}")
+if "pytest" in sys.modules:
+    current_db_path = os.environ.get("DATABASE_PATH")
+    print(f"🔍 DATABASE_PATH at conftest load: {current_db_path}")
+    if "DATABASE_PATH" not in os.environ:
+        # Set default test database path if not already set
+        default_test_path = str(Path(tempfile.gettempdir()) / "pytest_test_jobs.db")
+        os.environ["DATABASE_PATH"] = default_test_path
+        print(f"⚠️  DATABASE_PATH not set, using default: {default_test_path}")
 
 from src.database import JobDatabase  # noqa: E402
 
