@@ -4,6 +4,7 @@ Database module for job storage and deduplication
 
 import hashlib
 import json
+import os
 import re
 import sqlite3
 from datetime import datetime
@@ -13,7 +14,9 @@ from pathlib import Path
 class JobDatabase:
     """Manages SQLite database for job listings"""
 
-    def __init__(self, db_path: str = "data/jobs.db", profile: str | None = None):
+    def __init__(self, db_path: str | None = None, profile: str | None = None):
+        if db_path is None:
+            db_path = os.getenv("DATABASE_PATH", "data/jobs.db")
         self.db_path = Path(db_path)
         self.profile = profile
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
