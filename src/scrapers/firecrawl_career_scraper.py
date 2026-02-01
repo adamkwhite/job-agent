@@ -821,7 +821,8 @@ class FirecrawlCareerScraper:
                 root = ET.fromstring(response.content)
 
                 # Handle namespace (sitemaps use http://www.sitemaps.org/schemas/sitemap/0.9)
-                ns = {"ns": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+                # XML namespace URI is an identifier, not an HTTP request - official sitemap schema
+                ns = {"ns": "http://www.sitemaps.org/schemas/sitemap/0.9"}  # NOSONAR
 
                 # Extract <loc> tags (URLs)
                 urls = []
