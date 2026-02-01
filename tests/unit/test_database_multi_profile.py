@@ -2,9 +2,9 @@
 Tests for multi-profile scoring database methods
 """
 
+import hashlib
 import sqlite3
-import tempfile
-from pathlib import Path
+from datetime import datetime
 
 import pytest
 
@@ -12,67 +12,60 @@ from src.database import JobDatabase
 
 
 @pytest.fixture
-def db_with_job():
-    """Create a database with a test job"""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "test_jobs.db"
-        db = JobDatabase(str(db_path))
+def db_with_job(test_db_path):
+    """Create a database with a test job using centralized test_db_path"""
+    db = JobDatabase(str(test_db_path))
 
-        # The JobDatabase constructor already creates tables
-        # Now add a test job using the db.add_job method or direct SQL
-        conn = sqlite3.connect(str(db_path))
-        cursor = conn.cursor()
+    # The JobDatabase constructor already creates tables
+    # Now add a test job using the db.add_job method or direct SQL
+    conn = sqlite3.connect(str(test_db_path))
+    cursor = conn.cursor()
 
-        # Create job_scores table (normally done by migration)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS job_scores (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                job_id INTEGER NOT NULL,
-                profile_id TEXT NOT NULL,
-                fit_score INTEGER,
-                fit_grade TEXT,
-                score_breakdown TEXT,
-                classification_metadata TEXT,
-                digest_sent_at TEXT,
-                notified_at TEXT,
-                created_at TEXT,
-                updated_at TEXT,
-                UNIQUE(job_id, profile_id),
-                FOREIGN KEY (job_id) REFERENCES jobs(id)
-            )
-        """)
-
-        # Insert a test job using the proper schema
-        import hashlib
-        from datetime import datetime
-
-        now = datetime.now().isoformat()
-        job_hash = hashlib.sha256(
-            b"Test Company|VP Engineering|https://example.com/job"
-        ).hexdigest()
-
-        cursor.execute(
-            """
-            INSERT INTO jobs (job_hash, title, company, location, link, source, received_at, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-            (
-                job_hash,
-                "VP Engineering",
-                "Test Company",
-                "Remote",
-                "https://example.com/job",
-                "test",
-                now,
-                now,
-                now,
-            ),
+    # Create job_scores table (normally done by migration)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS job_scores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id INTEGER NOT NULL,
+            profile_id TEXT NOT NULL,
+            fit_score INTEGER,
+            fit_grade TEXT,
+            score_breakdown TEXT,
+            classification_metadata TEXT,
+            digest_sent_at TEXT,
+            notified_at TEXT,
+            created_at TEXT,
+            updated_at TEXT,
+            UNIQUE(job_id, profile_id),
+            FOREIGN KEY (job_id) REFERENCES jobs(id)
         )
+    """)
 
-        conn.commit()
-        conn.close()
+    # Insert a test job using the proper schema
+    now = datetime.now().isoformat()
+    job_hash = hashlib.sha256(b"Test Company|VP Engineering|https://example.com/job").hexdigest()
 
-        yield db, db_path
+    cursor.execute(
+        """
+        INSERT INTO jobs (job_hash, title, company, location, link, source, received_at, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """,
+        (
+            job_hash,
+            "VP Engineering",
+            "Test Company",
+            "Remote",
+            "https://example.com/job",
+            "test",
+            now,
+            now,
+            now,
+        ),
+    )
+
+    conn.commit()
+    conn.close()
+
+    return db, test_db_path
 
 
 class TestJobScoresMethods:
