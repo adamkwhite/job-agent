@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Test Database Isolation** (Feb 1, 2026 - Issue #236, PR #237)
+  - Implemented DATABASE_PATH environment variable support for complete test isolation
+  - Prevents test data pollution in production database (eliminated 171 "Test Company" entries)
+  - Added centralized test fixtures in `tests/conftest.py` (`test_db`, `test_db_path`)
+  - Migrated 10 test files (109 tests) to use centralized fixtures
+  - Added RuntimeError blockers in `JobDatabase` and `CompanyService` to prevent production DB usage during tests
+  - Added pytest hooks to detect and clean up stray database files created by coverage tool
+  - Added migration safety checks to prevent running migrations on test databases
+  - Created comprehensive testing guide: `docs/development/TESTING.md` (326 lines)
+  - All 1458 tests now run in complete isolation with 81.2% coverage on new code
+  - CI integration: DATABASE_PATH set to `/tmp/ci_test_jobs.db` in GitHub Actions
+  - Files modified: 23 files (+1213, -205)
+
 ### Changed
 - **Week 3-4 Code Quality Initiative - Group 1 Complete** (Jan 30, 2026 - PRs #228, #229)
   - **Centralized Score Thresholds** (PR #229, FR3.5): Created `src/utils/score_thresholds.py` with Grade enum (A=85, B=70, C=55, D=40, F=0). Replaced hardcoded threshold values across 8+ files with centralized constants. Added 27 comprehensive tests with 100% coverage. Single source of truth for grade thresholds.
