@@ -1,8 +1,6 @@
 """Unit tests for LLM failure update functionality (Issue #92)"""
 
 import sqlite3
-import tempfile
-from pathlib import Path
 
 import pytest
 
@@ -10,16 +8,13 @@ from database import JobDatabase
 
 
 @pytest.fixture
-def temp_db():
-    """Create a temporary database for testing"""
-    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
-        db_path = tmp.name
-
+def temp_db(test_db_path):
+    """Create a temporary database for testing using centralized test_db_path"""
     # Create database instance
-    db = JobDatabase(db_path)
+    db = JobDatabase(test_db_path)
 
     # Create tables (if not created automatically)
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(test_db_path)
     cursor = conn.cursor()
 
     # Ensure llm_extraction_failures table exists
@@ -38,10 +33,7 @@ def temp_db():
     conn.commit()
     conn.close()
 
-    yield db
-
-    # Cleanup
-    Path(db_path).unlink(missing_ok=True)
+    return db
 
 
 def test_update_llm_failure_to_retry(temp_db):

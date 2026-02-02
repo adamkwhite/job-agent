@@ -179,6 +179,9 @@ tail -f logs/unified_weekly_scraper.log
 ## Development
 
 ### Running Tests
+
+**All tests use isolated databases** to prevent production data pollution. See [`docs/development/TESTING.md`](docs/development/TESTING.md) for comprehensive testing guide.
+
 ```bash
 # Run all tests with coverage
 PYTHONPATH=$PWD job-agent-venv/bin/pytest tests/ -v --cov=src --cov-report=term-missing
@@ -190,12 +193,15 @@ PYTHONPATH=$PWD job-agent-venv/bin/pytest tests/unit/test_job_scorer.py -v
 PYTHONPATH=$PWD job-agent-venv/bin/pytest tests/unit/ --cov=src/agents --cov-report=term-missing
 ```
 
+**Database Isolation**: Tests automatically use temporary databases via `DATABASE_PATH` environment variable. Production database (`data/jobs.db`) is never touched during test execution.
+
 ### Code Quality
 
 **Coverage Policy** (Enforced by SonarCloud):
 - All new/changed code must have ≥80% test coverage
 - Legacy code: 17% (doesn't block PRs)
 - SonarCloud quality gate checks new code only
+- See [`docs/development/TESTING.md`](docs/development/TESTING.md) for writing tests
 
 **Pre-commit Hooks**:
 - Ruff linting and formatting

@@ -1,21 +1,15 @@
 """Tests for URL validation tracking in database."""
 
 import sqlite3
-import tempfile
 from datetime import datetime
-from pathlib import Path
 
 import pytest
 
-from src.database import JobDatabase
-
 
 @pytest.fixture
-def temp_db():
-    """Create a temporary database for testing."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "test.db"
-        yield JobDatabase(str(db_path))
+def temp_db(test_db):
+    """Create a temporary database for testing using centralized test_db."""
+    return test_db
 
 
 @pytest.fixture

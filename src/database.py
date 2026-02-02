@@ -4,6 +4,7 @@ Database module for job storage and deduplication
 
 import hashlib
 import json
+import os
 import re
 import sqlite3
 from datetime import datetime
@@ -13,9 +14,30 @@ from pathlib import Path
 class JobDatabase:
     """Manages SQLite database for job listings"""
 
-    def __init__(self, db_path: str = "data/jobs.db", profile: str | None = None):
+    def __init__(self, db_path: str | None = None, profile: str | None = None):
+        if db_path is None:
+            db_path = os.getenv("DATABASE_PATH", "data/jobs.db")
+
+        # CRITICAL: Prevent production database usage during tests
+        import sys
+
+        if "pytest" in sys.modules and "data/jobs.db" in db_path:
+            raise RuntimeError(
+                f"❌ BLOCKED: Attempted to use production database during tests!\n"
+                f"db_path={db_path}\n"
+                f"DATABASE_PATH environment variable must be set to a test path.\n"
+                f"This is a safety check to prevent test data pollution."
+            )
+
         self.db_path = Path(db_path)
         self.profile = profile
+        # Only create parent directory if not the production data/ directory during tests
+        if "pytest" in sys.modules and str(self.db_path.parent).endswith("data"):
+            raise RuntimeError(
+                f"❌ BLOCKED: Attempted to create data/ directory during tests!\n"
+                f"db_path={self.db_path}\n"
+                f"parent={self.db_path.parent}"
+            )
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.init_database()
 

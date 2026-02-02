@@ -3,8 +3,6 @@ Unit tests for LLM extraction database methods
 """
 
 import sqlite3
-import tempfile
-from pathlib import Path
 
 import pytest
 
@@ -12,12 +10,10 @@ from src.database import JobDatabase
 
 
 @pytest.fixture
-def temp_db():
-    """Create a temporary database for testing"""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "test.db"
-        db = JobDatabase(str(db_path))
-        yield db, db_path
+def temp_db(test_db_path):
+    """Create a temporary database for testing using centralized test_db_path"""
+    db = JobDatabase(str(test_db_path))
+    return db, test_db_path
 
 
 class TestLLMExtractionFailures:
