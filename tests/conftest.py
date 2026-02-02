@@ -31,7 +31,7 @@ if "pytest" in sys.modules:
 from src.database import JobDatabase  # noqa: E402
 
 
-def pytest_sessionstart(_session):
+def pytest_sessionstart(session):  # noqa: ARG001
     """Hook called before test collection starts"""
     import pathlib
 
@@ -43,7 +43,7 @@ def pytest_sessionstart(_session):
         print("✅ Deleted data/jobs.db before collection")
 
 
-def pytest_collection_modifyitems(_session, _config, _items):
+def pytest_collection_modifyitems(session, config, items):  # noqa: ARG001
     """Hook called after test collection - check if data/jobs.db was created"""
     import pathlib
 
