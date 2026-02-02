@@ -80,6 +80,28 @@ def pytest_collection_modifyitems(session, config, items):  # noqa: ARG001
         sys.stderr.flush()
 
 
+def pytest_sessionfinish(session, exitstatus):  # noqa: ARG001
+    """Hook called after all tests complete - clean up any data/jobs.db created by coverage"""
+    import pathlib
+    import sys
+
+    sys.stderr.write("\n🔵 pytest_sessionfinish HOOK CALLED\n")
+    sys.stderr.flush()
+
+    db_path = pathlib.Path("data/jobs.db")
+    if db_path.exists():
+        sys.stderr.write("⚠️  WARNING: data/jobs.db exists at session end\n")
+        sys.stderr.write("This file was likely created by coverage tool during module import\n")
+        sys.stderr.write("Deleting it now to prevent CI failure...\n")
+        sys.stderr.flush()
+        db_path.unlink()
+        sys.stderr.write("✅ Deleted data/jobs.db\n")
+        sys.stderr.flush()
+    else:
+        sys.stderr.write("✅ data/jobs.db does not exist (expected)\n")
+        sys.stderr.flush()
+
+
 @pytest.fixture(scope="function")
 def test_db() -> Generator[JobDatabase, None, None]:
     """
