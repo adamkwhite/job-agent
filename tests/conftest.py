@@ -34,28 +34,50 @@ from src.database import JobDatabase  # noqa: E402
 def pytest_sessionstart(session):  # noqa: ARG001
     """Hook called before test collection starts"""
     import pathlib
+    import sys
+
+    sys.stderr.write("\n🔵 pytest_sessionstart HOOK CALLED\n")
+    sys.stderr.flush()
 
     db_path = pathlib.Path("data/jobs.db")
     if db_path.exists():
-        print("\n⚠️  WARNING: data/jobs.db EXISTS before test collection!")
-        print("This might be left over from a previous run.")
-        db_path.unlink()  # Delete it
-        print("✅ Deleted data/jobs.db before collection")
+        sys.stderr.write("⚠️  WARNING: data/jobs.db EXISTS before test collection!\n")
+        sys.stderr.write(f"File size: {db_path.stat().st_size} bytes\n")
+        sys.stderr.write("Deleting it now...\n")
+        sys.stderr.flush()
+        db_path.unlink()
+        sys.stderr.write("✅ Deleted data/jobs.db before collection\n")
+        sys.stderr.flush()
+    else:
+        sys.stderr.write("✅ data/jobs.db does not exist before collection (expected)\n")
+        sys.stderr.flush()
 
 
 def pytest_collection_modifyitems(session, config, items):  # noqa: ARG001
     """Hook called after test collection - check if data/jobs.db was created"""
     import pathlib
+    import sys
+
+    sys.stderr.write(
+        f"\n🔵 pytest_collection_modifyitems HOOK CALLED (collected {len(items)} items)\n"
+    )
+    sys.stderr.flush()
 
     db_path = pathlib.Path("data/jobs.db")
     if db_path.exists():
         size = db_path.stat().st_size
+        sys.stderr.write("❌ FATAL: data/jobs.db EXISTS after collection!\n")
+        sys.stderr.write(f"File size: {size} bytes\n")
+        sys.stderr.flush()
         raise RuntimeError(
             f"\n❌ FATAL: data/jobs.db was created during test collection!\n"
             f"File size: {size} bytes\n"
             f"This file should NOT exist during tests.\n"
             f"DATABASE_PATH should be used instead."
         )
+    else:
+        sys.stderr.write("✅ data/jobs.db does not exist after collection (expected)\n")
+        sys.stderr.flush()
 
 
 @pytest.fixture(scope="function")
