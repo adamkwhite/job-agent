@@ -31,6 +31,30 @@ if "pytest" in sys.modules:
 from src.database import JobDatabase  # noqa: E402
 
 
+def pytest_sessionstart(_session):
+    """Hook called before test collection starts"""
+    import pathlib
+
+    db_path = pathlib.Path("data/jobs.db")
+    if db_path.exists():
+        print("\n⚠️  WARNING: data/jobs.db EXISTS before test collection!")
+        print("This might be left over from a previous run.")
+        db_path.unlink()  # Delete it
+        print("✅ Deleted data/jobs.db before collection")
+
+
+def pytest_collection_modifyitems(_session, _config, _items):
+    """Hook called after test collection - check if data/jobs.db was created"""
+    import pathlib
+
+    db_path = pathlib.Path("data/jobs.db")
+    if db_path.exists():
+        print("\n❌ ERROR: data/jobs.db was created during test collection!")
+        print(f"File size: {db_path.stat().st_size} bytes")
+        print("This file should NOT exist during tests.")
+        # Don't raise error here, let the CI verification catch it
+
+
 @pytest.fixture(scope="function")
 def test_db() -> Generator[JobDatabase, None, None]:
     """
