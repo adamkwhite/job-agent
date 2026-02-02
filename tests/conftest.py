@@ -49,10 +49,13 @@ def pytest_collection_modifyitems(session, config, items):  # noqa: ARG001
 
     db_path = pathlib.Path("data/jobs.db")
     if db_path.exists():
-        print("\n❌ ERROR: data/jobs.db was created during test collection!")
-        print(f"File size: {db_path.stat().st_size} bytes")
-        print("This file should NOT exist during tests.")
-        # Don't raise error here, let the CI verification catch it
+        size = db_path.stat().st_size
+        raise RuntimeError(
+            f"\n❌ FATAL: data/jobs.db was created during test collection!\n"
+            f"File size: {size} bytes\n"
+            f"This file should NOT exist during tests.\n"
+            f"DATABASE_PATH should be used instead."
+        )
 
 
 @pytest.fixture(scope="function")
