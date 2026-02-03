@@ -21,13 +21,36 @@ Use `mcp__time__get_current_time` with timezone `America/Toronto`:
 - Check if any docs should move to `docs/archive/`
 - Remove Python cache files if committed by mistake (`__pycache__/`, `*.pyc`)
 
-### Git Housekeeping
-```bash
-git status  # Review all changes
-```
-- Stage all intentional deletions and moves
-- Verify untracked files should exist or be gitignored
-- Check `.gitignore` catches test artifacts, coverage reports, venv/
+### Database Backup Verification
++```bash
++# Check if today's backup exists
++ls -lah data/backups/ | tail -5
++
++# View backup log
++tail -20 logs/database_backup.log
++
++# Manual backup if needed (automated backup runs at 3am)
++./scripts/backup_database.sh
++```
++
++**Checklist:**
++- [ ] Today's backup exists (daily/weekly/monthly based on date)
++- [ ] Backup log shows no errors
++- [ ] Backup directory size is reasonable (~14MB for tiered retention)
++- [ ] If backup missing, run manual backup before end of day
++
++**Retention Status:**
++- Daily backups: Should have up to 7 recent backups
++- Weekly backups: Should have up to 4 Sundays
++- Monthly backups: Should have up to 3 first-of-month backups
++
++### Git Housekeeping
++```bash
++git status  # Review all changes
++```
++- Stage all intentional deletions and moves
++- Verify untracked files should exist or be gitignored
++- Check `.gitignore` catches test artifacts, coverage reports, venv/
 
 ## 3. Test Suite & Coverage (CRITICAL)
 
