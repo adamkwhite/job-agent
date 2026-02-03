@@ -30,6 +30,9 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 
+from rich.console import Console
+from rich.table import Table
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 from dotenv import load_dotenv
@@ -41,6 +44,43 @@ from utils.profile_manager import Profile, get_profile_manager
 from utils.score_thresholds import Grade
 
 load_dotenv()
+
+
+def _display_jobs_table(jobs: list[dict]) -> None:
+    """
+    Display jobs in a formatted table for dry-run output.
+
+    Args:
+        jobs: List of job dictionaries to display
+    """
+    console = Console()
+    table = Table(show_header=True, header_style="bold cyan", show_lines=False)
+
+    table.add_column("Company", style="green", width=25)
+    table.add_column("Job Title", style="yellow", width=45)
+    table.add_column("Grade", justify="center", width=6)
+    table.add_column("Score", justify="center", width=6)
+    table.add_column("Location", width=20)
+
+    for job in jobs:
+        company = job.get("company", "Unknown")[:23]
+        title = job.get("title", "Unknown")[:43]
+        grade = job.get("fit_grade", "?")
+        score = str(job.get("fit_score", 0))
+        location = job.get("location", "Unknown")[:18]
+
+        # Truncate with ellipsis if needed
+        if len(job.get("company", "")) > 23:
+            company += "..."
+        if len(job.get("title", "")) > 43:
+            title += "..."
+        if len(job.get("location", "")) > 18:
+            location += "..."
+
+        table.add_row(company, title, grade, score, location)
+
+    console.print(table)
+    print()  # Add blank line after table
 
 
 def _normalize_job_title(title: str) -> str:
@@ -725,6 +765,14 @@ def send_digest_to_profile(
 
         print(f"\n🧪 DRY RUN - Would send to {profile.email}")
         print(f"  Subject: {subject_preview}")
+
+        # Display jobs table
+        if len(jobs) > 0:
+            print(f"\nJobs to be sent ({len(jobs)}):")
+            _display_jobs_table(jobs)
+        else:
+            print("\n  No jobs to display")
+
         return True
 
     # Initialize connections manager for this profile
