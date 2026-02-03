@@ -118,7 +118,36 @@ vim config/email-settings.json
 vim config/filter-keywords.json
 ```
 
-### 3. Run Components
+### 3. Setup Automated Database Backups (CRITICAL)
+
+**⚠️ IMPORTANT:** After losing 7 weeks of data (Dec 11 - Jan 31) when pytest hooks deleted the production database, automated backups are now MANDATORY.
+
+```bash
+# Install daily backup cron job (runs at 3:00 AM)
+./scripts/setup_backup_cron.sh
+
+# Manual backup anytime
+./scripts/backup_database.sh
+
+# Check backup status
+ls -lah data/backups/
+tail -20 logs/database_backup.log
+```
+
+**Tiered Retention Policy:**
+- 📅 Daily backups: Keep 7 days (detailed recent history)
+- 📅 Weekly backups: Keep 4 weeks (Sundays only)
+- 📅 Monthly backups: Keep 3 months (1st of month)
+- 💾 Total storage: ~14MB (for 1MB database)
+
+**Restore from backup:**
+```bash
+cp data/backups/jobs-backup-YYYYMMDD-TYPE.db data/jobs.db
+```
+
+**Location:** `data/backups/` (gitignored, not committed)
+
+### 4. Run Components
 
 **Unified Weekly Scraper (Recommended)**:
 ```bash
@@ -167,7 +196,7 @@ job-agent-venv/bin/python src/generate_jobs_html.py --profile wes
 PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile wes
 ```
 
-### 4. Setup Weekly Automation
+### 5. Setup Weekly Automation
 ```bash
 # Configure cron job (Monday 9am)
 ./scripts/setup_unified_weekly_scraper.sh

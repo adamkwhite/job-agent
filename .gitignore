@@ -47,6 +47,7 @@ claude_extraction_result.json
 # Database
 data/jobs.db
 data/*.db
+data/backups/*.db
 *.db-journal
 
 # Logs

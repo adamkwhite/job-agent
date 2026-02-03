@@ -185,6 +185,47 @@ class JobDatabase:
             CREATE INDEX IF NOT EXISTS idx_extraction_metrics_date ON extraction_metrics(scrape_date)
         """)
 
+        # Create job_scores table for multi-profile scoring
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS job_scores (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id INTEGER NOT NULL,
+                profile_id TEXT NOT NULL,
+                fit_score INTEGER,
+                fit_grade TEXT,
+                score_breakdown TEXT,
+                classification_metadata TEXT,
+                digest_sent_at TEXT,
+                notified_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (job_id) REFERENCES jobs(id),
+                UNIQUE(job_id, profile_id)
+            )
+        """)
+
+        # Migration: Add classification_metadata column if missing (for existing databases)
+        cursor.execute("PRAGMA table_info(job_scores)")
+        job_scores_columns = [col[1] for col in cursor.fetchall()]
+        if "classification_metadata" not in job_scores_columns:
+            cursor.execute("ALTER TABLE job_scores ADD COLUMN classification_metadata TEXT")
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_job_scores_job_id ON job_scores(job_id)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_job_scores_profile_id ON job_scores(profile_id)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_job_scores_fit_score ON job_scores(fit_score)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_job_scores_digest_sent ON job_scores(digest_sent_at)
+        """)
+
         conn.commit()
         conn.close()
 

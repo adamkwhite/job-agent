@@ -207,7 +207,45 @@ PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile <
 **Cron Setup**:
 ```bash
 ./scripts/setup_unified_weekly_scraper.sh  # Monday 9am automation
+./scripts/setup_backup_cron.sh             # Daily 3am database backups
 ```
+
+## Database Backups
+
+**Automated Tiered Backup System** (runs daily at 3:00 AM):
+
+**Retention Policy:**
+- **Daily backups**: Keep 7 days (detailed recent history)
+- **Weekly backups**: Keep 4 weeks (created Sundays)
+- **Monthly backups**: Keep 3 months (created 1st of month)
+
+**Commands:**
+```bash
+# Manual backup
+./scripts/backup_database.sh
+
+# Setup automated daily backups (cron)
+./scripts/setup_backup_cron.sh
+
+# Check backup status
+ls -lah data/backups/
+
+# View backup logs
+tail -50 logs/database_backup.log
+
+# Restore from backup
+cp data/backups/jobs-backup-YYYYMMDD-TYPE.db data/jobs.db
+```
+
+**Storage:** Approximately 14MB for ~1MB database (7 daily + 4 weekly + 3 monthly)
+
+**Location:** `data/backups/` (gitignored, not committed)
+
+**⚠️ CRITICAL:** After Issue #236, pytest hooks only run in CI. But backups are still essential for:
+- Accidental deletions
+- Corruption recovery
+- Rollback after bad data imports
+- Historical snapshots
 
 
 ## Technical Details

@@ -32,11 +32,24 @@ from src.database import JobDatabase  # noqa: E402
 
 
 def pytest_sessionstart(session):  # noqa: ARG001
-    """Hook called before test collection starts"""
+    """Hook called before test collection starts
+
+    CRITICAL: Only clean up production database in CI environments.
+    On local development, developers may have valuable data in data/jobs.db
+    that should NEVER be deleted automatically.
+    """
     import pathlib
     import sys
 
-    sys.stderr.write("\n🔵 pytest_sessionstart HOOK CALLED\n")
+    # Only run cleanup in CI environments, not on local development machines
+    is_ci = os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true"
+
+    if not is_ci:
+        sys.stderr.write("\n🔵 pytest_sessionstart: Skipping DB cleanup (local development)\n")
+        sys.stderr.flush()
+        return
+
+    sys.stderr.write("\n🔵 pytest_sessionstart HOOK CALLED (CI environment)\n")
     sys.stderr.flush()
 
     db_path = pathlib.Path("data/jobs.db")
@@ -54,12 +67,26 @@ def pytest_sessionstart(session):  # noqa: ARG001
 
 
 def pytest_collection_modifyitems(session, config, items):  # noqa: ARG001
-    """Hook called after test collection - check if data/jobs.db was created"""
+    """Hook called after test collection - check if data/jobs.db was created
+
+    CRITICAL: Only enforce in CI. On local development, this file may legitimately
+    exist and should not cause test failures.
+    """
     import pathlib
     import sys
 
+    # Only enforce in CI environments
+    is_ci = os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true"
+
+    if not is_ci:
+        sys.stderr.write(
+            f"\n🔵 pytest_collection_modifyitems: Skipping DB check (collected {len(items)} items, local dev)\n"
+        )
+        sys.stderr.flush()
+        return
+
     sys.stderr.write(
-        f"\n🔵 pytest_collection_modifyitems HOOK CALLED (collected {len(items)} items)\n"
+        f"\n🔵 pytest_collection_modifyitems HOOK CALLED (collected {len(items)} items, CI)\n"
     )
     sys.stderr.flush()
 
@@ -81,11 +108,22 @@ def pytest_collection_modifyitems(session, config, items):  # noqa: ARG001
 
 
 def pytest_sessionfinish(session, exitstatus):  # noqa: ARG001
-    """Hook called after all tests complete - clean up any data/jobs.db created by coverage"""
+    """Hook called after all tests complete - clean up any data/jobs.db created by coverage
+
+    CRITICAL: Only clean up in CI. Local developers may have production data.
+    """
     import pathlib
     import sys
 
-    sys.stderr.write("\n🔵 pytest_sessionfinish HOOK CALLED\n")
+    # Only run cleanup in CI environments
+    is_ci = os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true"
+
+    if not is_ci:
+        sys.stderr.write("\n🔵 pytest_sessionfinish: Skipping DB cleanup (local development)\n")
+        sys.stderr.flush()
+        return
+
+    sys.stderr.write("\n🔵 pytest_sessionfinish HOOK CALLED (CI environment)\n")
     sys.stderr.flush()
 
     db_path = pathlib.Path("data/jobs.db")
