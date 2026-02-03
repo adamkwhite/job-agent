@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Digest Dry-Run Email Subject Bug** (Feb 2, 2026 - Issue #238, PR #241)
+  - Fixed misleading "🎯 0 Job Matches" subject line when only C-grade (55-69) jobs exist
+  - Dry-run preview now uses same tiered subject logic as actual email send
+  - Displays correct subjects: "✨ X Good Job Matches Found" for C-grade, "🎯 X Excellent Job Matches for You" for B+ grade
+  - One-line logic duplication eliminated by reusing email subject generation code
+  - All 1458 tests passing, 69 digest-specific tests validated
+
+### Added
+- **Dry-Run Job Table Display** (Feb 2, 2026 - Issue #240, PR #242)
+  - Added Rich table showing exact jobs that would be sent during `--dry-run` mode
+  - Table displays 5 columns: Company (25 chars), Job Title (45 chars), Grade, Score, Location (20 chars)
+  - Smart truncation with ellipsis for values exceeding column width
+  - Eliminates need to run full digest just to preview job selection
+  - Uses existing Rich library dependency (already used in TUI)
+  - New helper function: `_display_jobs_table(jobs: list[dict])`
+  - Enhanced debugging workflow: users can now validate filters, test thresholds, and verify selections before sending
+
+### Fixed
 - **Test Database Isolation** (Feb 1, 2026 - Issue #236, PR #237)
   - Implemented DATABASE_PATH environment variable support for complete test isolation
   - Prevents test data pollution in production database (eliminated 171 "Test Company" entries)
