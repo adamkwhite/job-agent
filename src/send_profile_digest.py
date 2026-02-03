@@ -714,10 +714,17 @@ def send_digest_to_profile(
     print(f"  - {len(high_scoring) + len(good_scoring)} total matches ({Grade.C.value}+)")
 
     if dry_run:
+        # Generate subject line using same logic as actual email (lines 734-741)
+        if len(high_scoring) > 0:
+            subject_preview = f"🎯 {len(high_scoring)} Excellent Job Match{'es' if len(high_scoring) > 1 else ''} for You"
+        elif len(good_scoring) > 0:
+            subject_preview = f"✨ {len(good_scoring)} Good Job Match{'es' if len(good_scoring) > 1 else ''} Found"
+        else:
+            subject_preview = "📋 Job Digest - No Top Matches This Week"
+        subject_preview += f" - {datetime.now().strftime('%Y-%m-%d')}"
+
         print(f"\n🧪 DRY RUN - Would send to {profile.email}")
-        print(
-            f"  Subject: 🎯 {len(high_scoring)} Job Matches - {datetime.now().strftime('%Y-%m-%d')}"
-        )
+        print(f"  Subject: {subject_preview}")
         return True
 
     # Initialize connections manager for this profile
