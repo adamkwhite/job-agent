@@ -63,8 +63,8 @@ def rescore_all_jobs(
     significant_increases = []  # Jobs with +20 point increase
 
     for job in jobs:
-        old_score = job.get("fit_score", 0)
-        old_grade = job.get("fit_grade", "F")
+        old_score = job.get("fit_score") or 0  # Handle None values
+        old_grade = job.get("fit_grade") or "F"
 
         # Re-score the job
         new_score, new_grade, breakdown, _classification_metadata = scorer.score_job(job)
