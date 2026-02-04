@@ -382,10 +382,10 @@ def main():
     """
     Test scraper
 
-    Note: This requires manually passing markdown from Firecrawl MCP tool.
-    See scripts/run_ministry_scraper.py for automated version.
+    This is a standalone test demonstrating the parser with example markdown.
+    For actual scraping, use src/jobs/ministry_scraper.py which includes Firecrawl API integration.
     """
-    # Example markdown (you would get this from Firecrawl MCP tool)
+    # Example markdown for testing the parser
     test_markdown = """
 [Quality Assurance (QA) Analyst](https://www.ministryoftesting.com/jobs/qa-analyst)
 

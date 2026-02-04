@@ -140,22 +140,27 @@ class WeeklyUnifiedScraper:
             print("PART 3: MINISTRY OF TESTING (QA/TESTING JOBS)")
             print("=" * 80 + "\n")
 
-            # Note: Ministry scraper requires Firecrawl MCP calls
-            # This will be handled by Claude Code when running the scraper
-            print("⚠️  Ministry scraper requires Firecrawl MCP integration")
-            print("    This feature requires manual Firecrawl MCP calls")
-            print("    Run scripts/run_ministry_scraper.py separately")
-            print()
+            try:
+                ministry_stats = self.ministry_scraper.scrape_ministry_jobs(
+                    max_pages=_ministry_max_pages,
+                    min_score=_ministry_min_score,
+                )
+                all_stats["ministry"] = ministry_stats
 
-            ministry_stats = {
-                "pages_scraped": 0,
-                "jobs_found": 0,
-                "jobs_stored": 0,
-                "jobs_scored": 0,
-                "profile_scores": {},
-            }
+                # Update totals
+                all_stats["total_jobs_found"] += ministry_stats.get("jobs_found", 0)
+                all_stats["total_jobs_stored"] += ministry_stats.get("jobs_stored", 0)
 
-            all_stats["ministry"] = ministry_stats
+            except Exception as e:
+                print(f"✗ Ministry scraper error: {e}")
+                all_stats["ministry"] = {
+                    "pages_scraped": 0,
+                    "jobs_found": 0,
+                    "jobs_stored": 0,
+                    "jobs_scored": 0,
+                    "profile_scores": {},
+                    "error": str(e),
+                }
 
         # Final summary
         self._print_summary(all_stats, fetch_emails, scrape_companies, scrape_ministry)

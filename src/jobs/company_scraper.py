@@ -29,7 +29,7 @@ AUTO_DISABLE_THRESHOLD = 5
 class CompanyScraper:
     """
     Scrapes monitored companies for leadership roles
-    Designed to work with Firecrawl MCP for JavaScript-heavy career pages
+    Uses Firecrawl API for JavaScript-heavy career pages
     """
 
     def __init__(
