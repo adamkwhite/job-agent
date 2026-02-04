@@ -22,6 +22,12 @@ from utils.health_checker import SystemHealthChecker
 from utils.profile_manager import get_profile_manager
 from utils.score_thresholds import Grade
 
+# Constants for duplicated string literals (SonarCloud fix)
+SEPARATOR_TOP = "\n[bold cyan]═══════════════════════════════════════════════[/bold cyan]"
+SEPARATOR_BOTTOM = "[bold cyan]═══════════════════════════════════════════════[/bold cyan]\n"
+SEPARATOR_FULL = "\n[bold cyan]═══════════════════════════════════════════════[/bold cyan]\n"
+PRESS_ENTER_PROMPT = "\n[dim]Press Enter to return to menu...[/dim]"
+
 console = Console()
 
 
@@ -193,9 +199,9 @@ def show_criteria():
     """Display scoring criteria and grading information"""
     clear_screen()
 
-    console.print("\n[bold cyan]═══════════════════════════════════════════════[/bold cyan]")
+    console.print(SEPARATOR_TOP)
     console.print("[bold cyan]         JOB SCORING CRITERIA (Wesley)         [/bold cyan]")
-    console.print("[bold cyan]═══════════════════════════════════════════════[/bold cyan]\n")
+    console.print(SEPARATOR_BOTTOM)
 
     # Scoring breakdown
     console.print("[bold yellow]📊 Scoring System (0-115 points)[/bold yellow]\n")
@@ -250,9 +256,9 @@ def show_criteria():
     console.print("  • To: wesvanooyen@gmail.com")
     console.print("  • CC: adamkwhite@gmail.com")
 
-    console.print("\n[bold cyan]═══════════════════════════════════════════════[/bold cyan]\n")
+    console.print(SEPARATOR_FULL)
 
-    input("\n[dim]Press Enter to return to menu...[/dim]")
+    input(PRESS_ENTER_PROMPT)
 
 
 def show_system_health():  # pragma: no cover
@@ -271,9 +277,9 @@ def show_system_health():  # pragma: no cover
     health_checker = SystemHealthChecker(db)
     health = health_checker.get_health_summary()
 
-    console.print("\n[bold cyan]═══════════════════════════════════════════════[/bold cyan]")
+    console.print(SEPARATOR_TOP)
     console.print("[bold cyan]            🔍 SYSTEM HEALTH CHECK              [/bold cyan]")
-    console.print("[bold cyan]═══════════════════════════════════════════════[/bold cyan]\n")
+    console.print(SEPARATOR_BOTTOM)
 
     # Create main health table
     health_table = Table(box=box.ROUNDED, show_header=False)
@@ -383,7 +389,7 @@ def show_system_health():  # pragma: no cover
     else:
         console.print("\n[bold green]✅ No critical issues detected[/bold green]")
 
-    console.print("\n[bold cyan]═══════════════════════════════════════════════[/bold cyan]\n")
+    console.print(SEPARATOR_FULL)
 
     # Offer options
     console.print("[dim]Actions: \\[f]ailures detail | \\[b]ack to menu[/dim]")
@@ -502,12 +508,12 @@ def check_api_credits():  # pragma: no cover
 
     console.print(firecrawl_table)
 
-    console.print("\n[bold cyan]═══════════════════════════════════════════════[/bold cyan]\n")
+    console.print(SEPARATOR_FULL)
     console.print(
         "[dim]Note: Firecrawl credits are managed through your Firecrawl account dashboard.[/dim]"
     )
 
-    input("\n[dim]Press Enter to return to menu...[/dim]")
+    input(PRESS_ENTER_PROMPT)
 
 
 def review_llm_failures():  # pragma: no cover
@@ -538,7 +544,7 @@ def review_llm_failures():  # pragma: no cover
 
         if not failures:
             console.print("[green]✅ No pending LLM extraction failures to review![/green]\n")
-            input("\n[dim]Press Enter to return to menu...[/dim]")
+            input(PRESS_ENTER_PROMPT)
             return
 
         # Summary stats
@@ -615,9 +621,9 @@ def _review_single_failure(db, failures):  # pragma: no cover
 
     # Show failure details
     console.clear()
-    console.print("\n[bold cyan]═══════════════════════════════════════════════[/bold cyan]")
+    console.print(SEPARATOR_TOP)
     console.print(f"[bold cyan]      FAILURE DETAILS - {failure['company_name']}      [/bold cyan]")
-    console.print("[bold cyan]═══════════════════════════════════════════════[/bold cyan]\n")
+    console.print(SEPARATOR_BOTTOM)
 
     detail_table = Table(box=box.ROUNDED, show_header=False)
     detail_table.add_column("Field", style="cyan", width=20)
