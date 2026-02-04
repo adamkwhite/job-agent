@@ -47,7 +47,7 @@ SENIORITY_HIERARCHY: dict[int, list[str]] = {
     5: ["manager", "engineering manager", "people manager"],
     6: ["director", "senior manager", "group manager"],
     7: ["vp", "vice president", "head of", "executive director"],
-    8: ["chief", "cto", "cpo", "ceo", "cfo", "coo", "president"],
+    8: ["chief", "cto", "cpo", "ceo", "cfo", "coo"],
 }
 
 
