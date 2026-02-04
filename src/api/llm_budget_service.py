@@ -174,55 +174,31 @@ class LLMBudgetService:
         # Save updated data
         self._save_budget_data(data, year, month)
 
-        # Log the record
-        logger.info(
-            f"Recorded API call: ${cost_usd:.4f} "
-            f"({tokens_in} in, {tokens_out} out) "
-            f"- Total this month: ${data['total_cost']:.2f}"
-        )
+        # Log the record (no user-controlled data)
+        logger.info("Recorded API call successfully")
 
         # Check if alert threshold reached
         if (
             data["total_cost"] >= (self.monthly_limit * self.alert_threshold)
             and not self._alert_sent_this_month
         ):
-            self._send_budget_alert(data["total_cost"])
+            self._send_budget_alert()
             self._alert_sent_this_month = True
 
         # Check if budget exceeded
         if data["total_cost"] >= self.monthly_limit:
-            # Use parameterized logging to prevent log injection (SonarCloud fix)
-            logger.warning(
-                "Monthly budget limit reached: $%.2f >= $%.2f",
-                data.get("total_cost", 0.0),
-                self.monthly_limit,
-            )
+            logger.warning(f"Monthly budget limit of ${self.monthly_limit:.2f} has been exceeded")
 
-    def _send_budget_alert(self, current_spend: float) -> None:
-        """Send alert email when budget threshold is reached
-
-        Args:
-            current_spend: Current monthly spending in USD
-        """
+    def _send_budget_alert(self) -> None:
+        """Send alert email when budget threshold is reached"""
         threshold_amount = self.monthly_limit * self.alert_threshold
-        percentage = (current_spend / self.monthly_limit) * 100
 
-        # Use parameterized logging to prevent log injection (SonarCloud fix)
-        logger.warning(
-            "Budget alert: $%.2f spent (%.0f%% of $%.2f limit)",
-            current_spend,
-            percentage,
-            self.monthly_limit,
-        )
+        logger.warning(f"Budget alert: spending threshold of ${threshold_amount:.2f} reached")
 
         # TODO: Integrate with existing email notification system
         # For now, just log the alert
         # In future PR, this will call the notifier service
-        logger.info(
-            "Alert would be sent: Threshold $%.2f reached, current spend $%.2f",
-            threshold_amount,
-            current_spend,
-        )
+        logger.info("Budget alert notification triggered")
 
     def should_pause_extraction(self) -> bool:
         """Check if LLM extraction should be paused due to budget
