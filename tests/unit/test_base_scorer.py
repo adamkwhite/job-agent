@@ -49,51 +49,11 @@ def test_profile():
 
 
 class TestSeniorityScoring:
-    """Test seniority level scoring (0-30 points)"""
+    """Test seniority level scoring with relative scoring (Issue #244)
 
-    def test_vp_level_scores_30(self, test_profile):
-        """VP/C-level titles score 30 points"""
-        scorer = TestScorer(test_profile)
-
-        assert scorer._score_seniority("vp of engineering") == 30
-        assert scorer._score_seniority("vice president product") == 30
-        assert scorer._score_seniority("chief technology officer") == 30
-        assert scorer._score_seniority("cto") == 30
-        assert scorer._score_seniority("cpo") == 30
-        assert scorer._score_seniority("head of engineering") == 30
-
-    def test_director_scores_25(self, test_profile):
-        """Director titles score 25 points"""
-        scorer = TestScorer(test_profile)
-
-        assert scorer._score_seniority("director of engineering") == 25
-        assert scorer._score_seniority("executive director") == 25
-        assert scorer._score_seniority("engineering director") == 25
-
-    def test_senior_scores_15(self, test_profile):
-        """Senior/Principal/Staff titles score 15 points"""
-        scorer = TestScorer(test_profile)
-
-        assert scorer._score_seniority("senior manager, engineering") == 15
-        assert scorer._score_seniority("principal engineer") == 15
-        assert scorer._score_seniority("staff engineer") == 15
-        assert scorer._score_seniority("senior software engineer") == 15
-
-    def test_manager_lead_scores_10(self, test_profile):
-        """Manager/Lead titles score 10 points"""
-        scorer = TestScorer(test_profile)
-
-        assert scorer._score_seniority("engineering manager") == 10
-        assert scorer._score_seniority("technical lead") == 10
-        assert scorer._score_seniority("team leadership") == 10
-
-    def test_ic_roles_score_0(self, test_profile):
-        """Individual contributor roles score 0 points"""
-        scorer = TestScorer(test_profile)
-
-        assert scorer._score_seniority("software engineer") == 0
-        assert scorer._score_seniority("data scientist") == 0
-        assert scorer._score_seniority("product designer") == 0
+    Note: Comprehensive relative scoring tests are in test_relative_seniority_scoring.py.
+    These tests verify edge cases and boundary conditions.
+    """
 
     def test_word_boundary_matching(self, test_profile):
         """Test word boundaries prevent false matches"""
@@ -104,6 +64,19 @@ class TestSeniorityScoring:
 
         # "chief" should NOT match "mischief"
         assert scorer._score_seniority("mischief maker") == 0
+
+    def test_no_target_seniority_falls_back_to_absolute(self):
+        """When profile has no target_seniority, should fall back to absolute scoring"""
+        profile_no_targets = {
+            "domain_keywords": ["robotics"],
+            "role_types": {"engineering": ["engineering"]},
+            "location_preferences": {"remote_keywords": ["remote"]},
+            "filtering": {"aggression_level": "moderate"},
+        }
+        scorer = TestScorer(profile_no_targets)
+
+        # Should use absolute scoring fallback (VP = 30)
+        assert scorer._score_seniority("vp of engineering") >= 25
 
 
 class TestDomainScoring:

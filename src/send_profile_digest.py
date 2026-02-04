@@ -3,7 +3,7 @@ Send job digest to any profile
 Multi-person version of send_digest_to_wes.py
 
 Scoring System (100 base points, max 110 with bonuses):
-- Seniority: 0-30
+- Seniority: 0-30 (relative scoring based on target_seniority - Issue #244)
 - Domain: 0-25
 - Role Type: 0-20 (+ keyword bonuses)
 - Location: 0-15
@@ -12,8 +12,9 @@ Scoring System (100 base points, max 110 with bonuses):
 
 Filtering based on aggression level (conservative/moderate/aggressive)
 
-Note: job_scorer.py refactored (PR #216) - scoring criteria unchanged,
-      only code structure improved for maintainability.
+Note: Relative seniority scoring (Issue #244) - jobs matching candidate's
+      target level get 30pts, one level away gets 25pts, etc.
+      Eliminates bias toward executive roles.
 
 Usage:
     python src/send_profile_digest.py --profile wes
@@ -530,7 +531,7 @@ def generate_email_html(
         <div class="footer">
             <p><strong>How scoring works for {profile.name}:</strong></p>
             <ul>
-                <li><strong>Seniority (0-30):</strong> {_format_seniority_list(profile)}</li>
+                <li><strong>Seniority (0-30):</strong> Jobs matching your target level ({_format_seniority_list(profile)}) receive maximum points. Jobs one level away get 25pts, two levels get 15pts, etc.</li>
                 <li><strong>Domain (0-25):</strong> {_format_domain_list(profile)}</li>
                 <li><strong>Role Type (0-20):</strong> {_format_role_types(profile)}</li>
                 <li><strong>Location (0-15):</strong> {_format_location_prefs(profile)}</li>
