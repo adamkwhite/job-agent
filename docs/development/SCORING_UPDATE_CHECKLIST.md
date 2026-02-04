@@ -51,36 +51,6 @@ Add this to PR descriptions when updating scoring:
 3. **Not re-scoring historical data** - Miss opportunities that now qualify
 4. **Documentation drift** - CLAUDE.md becomes outdated
 
-## Seniority Scoring System (Issue #244)
-
-**Current Implementation**: Relative seniority scoring (as of 2026-02-03)
-
-The system uses a **9-level seniority hierarchy** and scores jobs based on how well they match the candidate's `target_seniority`:
-
-**Seniority Hierarchy**:
-- Level 0: Junior, Entry-level, Intern
-- Level 1: Mid-level, Engineer (IC without "senior")
-- Level 2: Senior, Staff, Principal
-- Level 3: Lead, Team Lead, Tech Lead
-- Level 4: Architect, Distinguished, Fellow
-- Level 5: Manager, Engineering Manager
-- Level 6: Director, Senior Manager
-- Level 7: VP, Head of, Executive Director
-- Level 8: Chief, CTO, CPO
-
-**Scoring**:
-- Perfect match to target: 30 points
-- One level away: 25 points
-- Two levels away: 15 points
-- Three levels away: 10 points
-- Four+ levels away: 5 points
-
-**When updating seniority scoring**:
-- If adding/removing levels, update `SENIORITY_HIERARCHY` in `src/agents/base_scorer.py`
-- If changing point values, update `_score_seniority()` method
-- Always update this checklist with the new hierarchy
-- Test across all profiles to ensure no regressions
-
 ## Automation Ideas
 
 ### Pre-commit Hook (Future)

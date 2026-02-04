@@ -21,100 +21,81 @@ class TestJobScorerInit:
 
 
 class TestSeniorityScoring:
-    """Test seniority scoring with relative scoring (Issue #244)
-
-    Wes's profile targets: director (level 6), vp (level 7), head of (level 7)
-    Scoring: Perfect match=30pts, 1 level away=25pts, 2 levels=15pts, etc.
-
-    Note: Comprehensive relative scoring tests for all profiles are in
-    test_relative_seniority_scoring.py. These tests verify Wes-specific behavior.
-    """
+    """Test seniority scoring (0-30 points)"""
 
     def test_vp_level_scores_30(self):
-        """Test VP/Director/Head of/C-level roles score 30 points
-
-        NOTE: Wes's profile has target_seniority=null, so uses absolute scoring
-        fallback where VP/Director/C-level all score 30 points.
-        """
+        """Test VP/C-level roles score 30 points"""
         scorer = JobScorer()
 
-        # All executive roles score 30 with absolute scoring fallback
-        executive_roles = [
+        titles = [
             "VP of Engineering",
             "Vice President of Product",
-            "Head of Engineering",
-            "Director of Engineering",
             "Chief Technology Officer",
             "CTO",
             "CPO",
+            "Head of Engineering",
         ]
 
-        for title in executive_roles:
+        for title in titles:
             score = scorer._score_seniority(title.lower())
-            assert score == 30, f"{title} should score 30 (absolute scoring fallback)"
+            assert score == 30, f"Failed for: {title}"
 
     def test_director_scores_25_or_30(self):
-        """Test Director roles score 30 points (perfect match for Wes)"""
+        """Test Director roles score 25-30 points"""
         scorer = JobScorer()
 
-        # All director titles match Wes's target level 6 → 30 points
         titles = [
-            "Director of Engineering",
-            "Engineering Director",
-            "Executive Director of Product",
+            "Director of Engineering",  # 30 (matches "head of")
+            "Engineering Director",  # 25
+            "Executive Director of Product",  # 25
         ]
 
         for title in titles:
             score = scorer._score_seniority(title.lower())
-            assert score == 30, f"{title} should score 30 (perfect match)"
+            assert score >= 25, f"Failed for: {title}"
 
-    def test_senior_manager_scores_30(self):
-        """Test Senior Manager scores 30 points (level 6, matches Director)"""
+    def test_senior_manager_scores_15(self):
+        """Test Senior Manager/Principal scores 15 points"""
         scorer = JobScorer()
 
-        # "Senior Manager" is in level 6 (director tier) → perfect match for Wes
         titles = [
             "Senior Manager, Engineering",
+            "Principal Engineer",
+            "Staff Engineer",
         ]
 
         for title in titles:
             score = scorer._score_seniority(title.lower())
-            assert score == 30, f"{title} should score 30 (level 6 matches Wes's target)"
+            assert score == 15, f"Failed for: {title}"
 
-        # Principal/Staff are level 2, 4 levels from target level 6 → 5 points
-        ic_senior = ["Principal Engineer", "Staff Engineer"]
-        for title in ic_senior:
-            score = scorer._score_seniority(title.lower())
-            assert score == 5, f"{title} should score 5 (4 levels from target)"
-
-    def test_manager_lead_scores_correctly(self):
-        """Test Manager/Lead roles score based on distance from Wes's targets"""
+    def test_manager_lead_scores_10(self):
+        """Test Manager/Lead scores 10 points"""
         scorer = JobScorer()
 
-        # Manager is level 5, 1 away from target level 6 → 25 points
-        managers = ["Engineering Manager", "Product Manager"]
-        for title in managers:
-            score = scorer._score_seniority(title.lower())
-            assert score == 25, f"{title} should score 25 (1 level from target)"
+        titles = [
+            "Engineering Manager",
+            "Product Manager",
+            "Technical Lead",
+            "Team Leadership",
+        ]
 
-        # Lead is level 3, 3 away from target level 6 → 10 points
-        leads = ["Technical Lead"]
-        for title in leads:
+        for title in titles:
             score = scorer._score_seniority(title.lower())
-            assert score == 10, f"{title} should score 10 (3 levels from target)"
+            assert score >= 10, f"Failed for: {title}"
 
-    def test_ic_roles_score_low(self):
-        """Test IC roles score based on distance from Wes's targets"""
+    def test_ic_roles_score_0(self):
+        """Test IC roles score 0 points"""
         scorer = JobScorer()
 
-        # Engineer/Analyst are level 1, 5 levels from target level 6 → 5 points
-        ic_roles = ["Software Engineer", "Analyst"]
-        for title in ic_roles:
-            score = scorer._score_seniority(title.lower())
-            assert score == 5, f"{title} should score 5 (5 levels from target)"
+        titles = [
+            "Software Engineer",
+            "Product Designer",
+            "Analyst",
+        ]
 
-        # No keyword match → 0 points
-        assert scorer._score_seniority("product designer") == 0
+        for title in titles:
+            score = scorer._score_seniority(title.lower())
+            assert score == 0, f"Failed for: {title}"
 
     def test_vp_with_punctuation_scores_30(self):
         """Test VP titles with commas, dashes, and other punctuation score 30 points
@@ -145,7 +126,7 @@ class TestSeniorityScoring:
         - "managerial" would match "manager" ❌
 
         With word boundaries (correct):
-        - These should NOT match the keywords inside them ✅
+        - These should NOT match ✅
         """
         scorer = JobScorer()
 
@@ -157,10 +138,12 @@ class TestSeniorityScoring:
             "Mischief incorrectly matched 'chief'"
         )
 
-        # "Managerial analyst" should match "analyst" (level 1) but NOT "manager"
-        # Analyst is 5 levels from target → 5 points (not 25 from manager match)
+        # Managerial should match "manager" and score 10
+        # Note: This is expected to match because "managerial" is a valid management-related term
         score = scorer._score_seniority("managerial analyst")
-        assert score == 5, f"Managerial analyst should score 5 (analyst match), got {score}"
+        # Actually "managerial" won't match "manager" with word boundaries, so should be 0
+        # This is correct behavior - we want exact word matches
+        assert score == 0, f"Managerial analyst got {score}, expected 0"
 
 
 class TestDomainScoring:

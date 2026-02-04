@@ -22,7 +22,6 @@ Abstract Methods:
 import copy
 import json
 import logging
-import re
 import sys
 from pathlib import Path
 
@@ -34,21 +33,6 @@ from utils.keyword_matcher import KeywordMatcher
 from utils.scoring_utils import calculate_grade
 
 logger = logging.getLogger(__name__)
-
-
-# Seniority Hierarchy (Issue #244 - Relative Seniority Scoring)
-# Maps career progression levels (0=Junior → 8=C-level)
-SENIORITY_HIERARCHY: dict[int, list[str]] = {
-    0: ["junior", "entry level", "entry-level", "associate", "intern", "co-op", "trainee"],
-    1: ["mid-level", "engineer", "analyst", "specialist", "developer"],  # IC without "senior"
-    2: ["senior", "staff", "principal", "sr"],
-    3: ["lead", "team lead", "tech lead", "technical lead"],
-    4: ["architect", "distinguished", "fellow"],
-    5: ["manager", "engineering manager", "people manager"],
-    6: ["director", "senior manager", "group manager"],
-    7: ["vp", "vice president", "head of", "executive director"],
-    8: ["chief", "cto", "cpo", "ceo", "cfo", "coo"],
-}
 
 
 def load_role_category_keywords() -> dict:
@@ -184,77 +168,7 @@ class BaseScorer:
 
     def _score_seniority(self, title: str) -> int:
         """
-        Score based on seniority match to target (0-30 points) - RELATIVE SCORING
-
-        This method uses **relative scoring** based on the candidate's target_seniority
-        preferences. Jobs matching the candidate's target level receive maximum points.
-
-        Scoring Logic:
-        - Perfect match to target level: 30 points
-        - One level away (above or below): 25 points
-        - Two levels away: 15 points
-        - Three levels away: 10 points
-        - Four+ levels away: 5 points
-
-        Fallback: If target_seniority is empty, uses absolute scoring (old behavior).
-
-        Args:
-            title: Job title (any case)
-
-        Returns:
-            Score 0-30 based on seniority match to target
-
-        Examples:
-            Mario (targets "senior, staff, lead"):
-                "Senior QA Engineer" → 30pts (perfect match to level 2)
-                "Lead QA Engineer" → 30pts (perfect match to level 3)
-                "QA Manager" → 25pts (one level up: 5 vs 3)
-                "Director of QA" → 15pts (three levels up: 6 vs 3)
-
-            Wes (targets "director, vp, head of"):
-                "Director of Engineering" → 30pts (perfect match to level 6)
-                "VP Engineering" → 30pts (perfect match to level 7)
-                "Senior Manager" → 25pts (one level down: 6 vs 6)
-        """
-        target_seniority = self._get_target_seniority()
-
-        # Fallback to absolute scoring if no target specified
-        if not target_seniority:
-            return self._score_seniority_absolute(title)
-
-        # Detect job seniority level
-        job_level = self._detect_seniority_level(title)
-        if job_level == -1:
-            return 0  # No seniority keywords found
-
-        # Detect all target levels
-        target_levels = self._detect_all_target_levels(target_seniority)
-        if not target_levels:
-            # Target seniority specified but doesn't map to hierarchy
-            return self._score_seniority_absolute(title)
-
-        # Check if job level matches ANY target level (perfect match)
-        if job_level in target_levels:
-            return 30
-
-        # Calculate minimum distance to nearest target level
-        min_distance = min(abs(job_level - target_level) for target_level in target_levels)
-
-        # Score based on distance
-        if min_distance == 1:
-            return 25  # One level away (stretch or slightly junior)
-        if min_distance == 2:
-            return 15  # Two levels away
-        if min_distance == 3:
-            return 10  # Three levels away
-        return 5  # Four+ levels away (major mismatch)
-
-    def _score_seniority_absolute(self, title: str) -> int:
-        """
-        LEGACY: Score based on absolute seniority level (0-30 points)
-
-        This is the old absolute scoring logic used as a fallback when
-        target_seniority is not specified in the profile.
+        Score based on seniority level (0-30 points)
 
         Seniority tiers:
         - VP/C-level: 30 points
@@ -263,30 +177,32 @@ class BaseScorer:
         - Manager/Lead: 10 points
         - IC roles: 0 points
 
+        Uses word boundary matching to avoid false positives
+        (e.g., "vp" won't match "supervisor").
+
+        NOTE: This method scores based on title keywords alone, NOT target_seniority.
+        The target_seniority profile field is used by other methods (filtering, etc.)
+
         Args:
-            title: Job title (any case)
+            title: Job title (lowercase)
 
         Returns:
-            Score 0-30 based on absolute seniority level
+            Score 0-30 based on seniority level
         """
-        title_lower = title.lower()
-
         # VP/C-level keywords (30 points)
-        if self._has_any_keyword(
-            title_lower, ["vp", "vice president", "chief", "cto", "cpo", "head of"]
-        ):
+        if self._has_any_keyword(title, ["vp", "vice president", "chief", "cto", "cpo", "head of"]):
             return 30
 
         # Director/Executive (25 points)
-        if self._has_any_keyword(title_lower, ["director", "executive director"]):
+        if self._has_any_keyword(title, ["director", "executive director"]):
             return 25
 
         # Senior Manager/Principal (15 points)
-        if self._has_any_keyword(title_lower, ["senior manager", "principal", "staff", "senior"]):
+        if self._has_any_keyword(title, ["senior manager", "principal", "staff", "senior"]):
             return 15
 
         # Manager/Lead (10 points)
-        if self._has_any_keyword(title_lower, ["manager", "lead", "leadership"]):
+        if self._has_any_keyword(title, ["manager", "lead", "leadership"]):
             return 10
 
         # IC roles (0 points)
@@ -493,66 +409,6 @@ class BaseScorer:
             return self.profile.get_location_preferences()
         # Dict-based (JobScorer)
         return self.profile.get("location_preferences", {})
-
-    # ========== Seniority Detection Helpers (Issue #244) ==========
-
-    def _detect_seniority_level(self, title: str) -> int:
-        """
-        Detect seniority level from job title using hierarchy mapping
-
-        Uses word boundary matching to avoid false positives.
-        For titles with multiple seniority keywords, returns the highest level.
-
-        Args:
-            title: Job title (any case)
-
-        Returns:
-            Seniority level 0-8, or -1 if no seniority keywords found
-
-        Examples:
-            "Senior Software Engineer" → 2 (senior)
-            "Director of Engineering" → 6 (director)
-            "VP of Product" → 7 (vp)
-            "Senior Manager" → 6 (manager wins over senior due to higher level)
-        """
-        title_lower = title.lower()
-        highest_level = -1
-
-        for level, keywords in SENIORITY_HIERARCHY.items():
-            for keyword in keywords:
-                # Word boundary matching to avoid false positives
-                pattern = r"\b" + re.escape(keyword) + r"\b"
-                if re.search(pattern, title_lower):
-                    highest_level = max(highest_level, level)
-
-        return highest_level
-
-    def _detect_all_target_levels(self, target_seniority: list[str]) -> list[int]:
-        """
-        Detect all seniority levels from target_seniority list
-
-        Args:
-            target_seniority: List of target seniority keywords
-
-        Returns:
-            List of seniority levels (0-8) found in target keywords
-
-        Examples:
-            ["senior", "staff"] → [2] (both map to level 2)
-            ["senior", "lead", "director"] → [2, 3, 6]
-            [] → []
-        """
-        if not target_seniority:
-            return []
-
-        levels = set()
-        for target_kw in target_seniority:
-            target_lower = target_kw.lower().strip()
-            for level, keywords in SENIORITY_HIERARCHY.items():
-                if target_lower in keywords:
-                    levels.add(level)
-
-        return sorted(levels)
 
     def _get_role_types(self) -> dict:
         """Get role types from profile"""
