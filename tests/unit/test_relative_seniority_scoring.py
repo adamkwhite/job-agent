@@ -19,8 +19,8 @@ import pytest
 from agents.base_scorer import SENIORITY_HIERARCHY, BaseScorer
 
 
-class TestScorer(BaseScorer):
-    """Concrete test subclass for BaseScorer testing"""
+class RelativeSeniorityTestScorer(BaseScorer):
+    """Concrete test subclass for relative seniority scoring tests"""
 
     def _score_role_type(self, title: str) -> int:
         """Simple implementation for testing"""
@@ -116,7 +116,7 @@ class TestDetectSeniorityLevel:
 
     def test_level_0_junior(self, mario_profile):
         """Junior roles map to level 0 (but titles with other keywords may score higher)"""
-        scorer = TestScorer(mario_profile)
+        scorer = RelativeSeniorityTestScorer(mario_profile)
         # "Junior Developer" has both "junior" (0) and "developer" (1), returns highest = 1
         assert scorer._detect_seniority_level("Junior Developer") == 1
         # "Entry-level Engineer" has both "entry-level" (0) and "engineer" (1), returns 1
@@ -127,28 +127,28 @@ class TestDetectSeniorityLevel:
 
     def test_level_2_senior(self, mario_profile):
         """Senior/Staff/Principal map to level 2"""
-        scorer = TestScorer(mario_profile)
+        scorer = RelativeSeniorityTestScorer(mario_profile)
         assert scorer._detect_seniority_level("Senior Engineer") == 2
         assert scorer._detect_seniority_level("Staff Software Engineer") == 2
         assert scorer._detect_seniority_level("Principal QA Engineer") == 2
 
     def test_level_6_director(self, wes_profile):
         """Director roles map to level 6"""
-        scorer = TestScorer(wes_profile)
+        scorer = RelativeSeniorityTestScorer(wes_profile)
         assert scorer._detect_seniority_level("Director of Engineering") == 6
         assert scorer._detect_seniority_level("Engineering Director") == 6
         assert scorer._detect_seniority_level("Senior Manager") == 6  # senior manager maps to 6
 
     def test_level_8_c_level(self, wes_profile):
         """C-level roles map to level 8"""
-        scorer = TestScorer(wes_profile)
+        scorer = RelativeSeniorityTestScorer(wes_profile)
         assert scorer._detect_seniority_level("CTO") == 8
         assert scorer._detect_seniority_level("Chief Technology Officer") == 8
         assert scorer._detect_seniority_level("Chief Product Officer") == 8
 
     def test_ambiguous_title_takes_highest(self, wes_profile):
         """For ambiguous titles with multiple keywords, return highest level"""
-        scorer = TestScorer(wes_profile)
+        scorer = RelativeSeniorityTestScorer(wes_profile)
         # "Senior Manager" has both "senior" (level 2) and "manager" (level 5)
         # But "senior manager" is explicitly in level 6, so should return 6
         assert scorer._detect_seniority_level("Senior Manager") == 6
@@ -159,7 +159,7 @@ class TestDetectSeniorityLevel:
 
     def test_no_seniority_keywords_returns_minus_one(self, mario_profile):
         """Titles with no seniority keywords return -1"""
-        scorer = TestScorer(mario_profile)
+        scorer = RelativeSeniorityTestScorer(mario_profile)
         assert scorer._detect_seniority_level("Software Engineer") == 1  # "engineer" is level 1
         assert scorer._detect_seniority_level("QA Specialist") == 1  # "specialist" is level 1
         assert scorer._detect_seniority_level("Product Designer") == -1  # no keywords
@@ -170,25 +170,25 @@ class TestDetectAllTargetLevels:
 
     def test_single_target_level(self, mario_profile):
         """Single target keyword maps to single level"""
-        scorer = TestScorer(mario_profile)
+        scorer = RelativeSeniorityTestScorer(mario_profile)
         levels = scorer._detect_all_target_levels(["senior"])
         assert levels == [2]
 
     def test_multiple_targets_same_level(self, mario_profile):
         """Multiple targets at same level return unique level"""
-        scorer = TestScorer(mario_profile)
+        scorer = RelativeSeniorityTestScorer(mario_profile)
         levels = scorer._detect_all_target_levels(["senior", "staff", "principal"])
         assert levels == [2]  # All map to level 2
 
     def test_multiple_targets_different_levels(self, mario_profile):
         """Multiple targets at different levels return sorted list"""
-        scorer = TestScorer(mario_profile)
+        scorer = RelativeSeniorityTestScorer(mario_profile)
         levels = scorer._detect_all_target_levels(["senior", "lead", "director"])
         assert levels == [2, 3, 6]  # senior=2, lead=3, director=6
 
     def test_empty_target_returns_empty_list(self, mario_profile):
         """Empty target list returns empty list"""
-        scorer = TestScorer(mario_profile)
+        scorer = RelativeSeniorityTestScorer(mario_profile)
         levels = scorer._detect_all_target_levels([])
         assert levels == []
 
@@ -198,27 +198,27 @@ class TestRelativeSeniorityScoring:
 
     def test_perfect_match_senior_level(self, mario_profile):
         """Perfect match to Senior (level 2) scores 30pts"""
-        scorer = TestScorer(mario_profile)
+        scorer = RelativeSeniorityTestScorer(mario_profile)
         assert scorer._score_seniority("Senior QA Engineer") == 30
         assert scorer._score_seniority("Staff Software Engineer") == 30
         assert scorer._score_seniority("Principal Engineer") == 30
 
     def test_perfect_match_director_level(self, wes_profile):
         """Perfect match to Director (level 6) scores 30pts"""
-        scorer = TestScorer(wes_profile)
+        scorer = RelativeSeniorityTestScorer(wes_profile)
         assert scorer._score_seniority("Director of Engineering") == 30
         assert scorer._score_seniority("Engineering Director") == 30
 
     def test_perfect_match_vp_level(self, wes_profile):
         """Perfect match to VP (level 7) scores 30pts"""
-        scorer = TestScorer(wes_profile)
+        scorer = RelativeSeniorityTestScorer(wes_profile)
         assert scorer._score_seniority("VP of Engineering") == 30
         assert scorer._score_seniority("Vice President of Product") == 30
         assert scorer._score_seniority("Head of Engineering") == 30
 
     def test_one_level_up_scores_25pts(self, mario_profile):
         """One level above target scores 25pts (stretch opportunity)"""
-        scorer = TestScorer(mario_profile)
+        scorer = RelativeSeniorityTestScorer(mario_profile)
         # Mario targets levels [2, 3] (senior, staff, lead)
         # Architect is level 4, which is 1 away from lead (3)
         assert scorer._score_seniority("Solutions Architect") == 25  # level 4, 1 from lead (3)
@@ -226,14 +226,14 @@ class TestRelativeSeniorityScoring:
 
     def test_one_level_down_scores_25pts(self, wes_profile):
         """One level below target scores 25pts"""
-        scorer = TestScorer(wes_profile)
+        scorer = RelativeSeniorityTestScorer(wes_profile)
         # Wes targets level 6-8 (director, vp, chief)
         # Manager (level 5) is one below director (6)
         assert scorer._score_seniority("Engineering Manager") == 25
 
     def test_two_levels_away_scores_15pts(self, mario_profile):
         """Two levels away scores 15pts"""
-        scorer = TestScorer(mario_profile)
+        scorer = RelativeSeniorityTestScorer(mario_profile)
         # Mario targets [2, 3] (senior, staff, lead, principal)
         # Manager (5) is 2 levels from lead (3)
         assert scorer._score_seniority("QA Manager") == 15
@@ -241,14 +241,14 @@ class TestRelativeSeniorityScoring:
 
     def test_three_levels_away_scores_10pts(self, mario_profile):
         """Three levels away scores 10pts"""
-        scorer = TestScorer(mario_profile)
+        scorer = RelativeSeniorityTestScorer(mario_profile)
         # Mario targets [2, 3]
         # Director (6) is 3 levels from lead (3)
         assert scorer._score_seniority("Director of QA") == 10
 
     def test_four_plus_levels_away_scores_5pts(self, mario_profile):
         """Four+ levels away scores 5pts"""
-        scorer = TestScorer(mario_profile)
+        scorer = RelativeSeniorityTestScorer(mario_profile)
         # Mario targets [2, 3]
         # VP (7) is 4 levels from lead (3)
         assert scorer._score_seniority("VP of Quality") == 5
@@ -257,7 +257,7 @@ class TestRelativeSeniorityScoring:
 
     def test_no_seniority_keywords_scores_0pts(self, mario_profile):
         """Jobs with no seniority keywords score 0pts"""
-        scorer = TestScorer(mario_profile)
+        scorer = RelativeSeniorityTestScorer(mario_profile)
         assert scorer._score_seniority("Product Designer") == 0
         assert scorer._score_seniority("Marketing Coordinator") == 0
 
@@ -270,7 +270,7 @@ class TestRelativeSeniorityScoring:
             "location_preferences": {},
             "filtering": {},
         }
-        scorer = TestScorer(profile_no_target)
+        scorer = RelativeSeniorityTestScorer(profile_no_target)
 
         # Should use absolute scoring (VP=30, Director=25, etc.)
         assert scorer._score_seniority("VP of Engineering") == 30
@@ -283,7 +283,7 @@ class TestProfileIntegration:
 
     def test_mario_profile_scoring(self, mario_profile):
         """Mario's profile scores Senior/Lead roles at 30pts"""
-        scorer = TestScorer(mario_profile)
+        scorer = RelativeSeniorityTestScorer(mario_profile)
 
         # Perfect matches (levels 2-3)
         assert scorer._score_seniority("Senior QA Engineer") == 30  # level 2
@@ -301,7 +301,7 @@ class TestProfileIntegration:
 
     def test_adam_profile_scoring(self, adam_profile):
         """Adam's profile scores Senior/Staff/Principal roles at 30pts"""
-        scorer = TestScorer(adam_profile)
+        scorer = RelativeSeniorityTestScorer(adam_profile)
 
         assert scorer._score_seniority("Staff Software Engineer") == 30
         assert scorer._score_seniority("Principal Engineer") == 30
@@ -309,7 +309,7 @@ class TestProfileIntegration:
 
     def test_eli_profile_scoring(self, eli_profile):
         """Eli's profile scores Director/VP/CTO roles at 30pts"""
-        scorer = TestScorer(eli_profile)
+        scorer = RelativeSeniorityTestScorer(eli_profile)
 
         assert scorer._score_seniority("Director of Engineering") == 30
         assert scorer._score_seniority("VP of Engineering") == 30
@@ -320,7 +320,7 @@ class TestProfileIntegration:
 
     def test_wes_profile_scoring(self, wes_profile):
         """Wes's profile scores Director/VP/Head roles at 30pts"""
-        scorer = TestScorer(wes_profile)
+        scorer = RelativeSeniorityTestScorer(wes_profile)
 
         assert scorer._score_seniority("Director of Engineering") == 30
         assert scorer._score_seniority("VP of Product") == 30
@@ -334,7 +334,7 @@ class TestEdgeCases:
         """Job matching ANY target level scores 30pts"""
         # Mario targets: senior (2), staff (2), lead (3), principal (2)
         # Target levels: [2, 3]
-        scorer = TestScorer(mario_profile)
+        scorer = RelativeSeniorityTestScorer(mario_profile)
 
         # All these match one of Mario's target levels
         assert scorer._score_seniority("Senior Engineer") == 30  # level 2
@@ -344,7 +344,7 @@ class TestEdgeCases:
 
     def test_case_insensitive_matching(self, mario_profile):
         """Seniority detection is case-insensitive"""
-        scorer = TestScorer(mario_profile)
+        scorer = RelativeSeniorityTestScorer(mario_profile)
 
         assert scorer._score_seniority("SENIOR ENGINEER") == 30
         assert scorer._score_seniority("Senior Engineer") == 30
@@ -352,7 +352,7 @@ class TestEdgeCases:
 
     def test_word_boundary_matching(self, mario_profile):
         """Uses word boundaries to avoid false positives"""
-        scorer = TestScorer(mario_profile)
+        scorer = RelativeSeniorityTestScorer(mario_profile)
 
         # "supervisor" should NOT match "vp"
         # "supervisor" has no seniority keywords, should be -1 → 0pts
@@ -360,7 +360,7 @@ class TestEdgeCases:
 
     def test_title_with_no_keywords_but_has_engineer(self, mario_profile):
         """Engineer without seniority keyword is level 1 (IC)"""
-        scorer = TestScorer(mario_profile)
+        scorer = RelativeSeniorityTestScorer(mario_profile)
 
         # "Software Engineer" has "engineer" (level 1)
         # Level 1 is 1 level below Senior (2), so 25pts
@@ -368,7 +368,7 @@ class TestEdgeCases:
 
     def test_complex_title_with_multiple_keywords(self, wes_profile):
         """Complex titles with multiple keywords use highest level"""
-        scorer = TestScorer(wes_profile)
+        scorer = RelativeSeniorityTestScorer(wes_profile)
 
         # "Senior Director" has senior (2) and director (6)
         # Director (6) wins, perfect match for Wes
@@ -377,7 +377,7 @@ class TestEdgeCases:
     def test_distance_calculation_uses_minimum(self, mario_profile):
         """Distance calculation uses minimum distance to ANY target level"""
         # Mario targets levels [2, 3] (senior, staff, lead, principal)
-        scorer = TestScorer(mario_profile)
+        scorer = RelativeSeniorityTestScorer(mario_profile)
 
         # Architect is level 4
         # Distance to level 3 (lead) = 1
