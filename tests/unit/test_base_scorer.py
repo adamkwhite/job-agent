@@ -449,3 +449,526 @@ class TestAbstractMethod:
         # Calling _score_role_type should raise NotImplementedError
         with pytest.raises(NotImplementedError, match="must implement _score_role_type"):
             scorer._score_role_type("test title")
+
+
+# ========== RELATIVE SENIORITY SCORING TESTS (Issue #244) ==========
+
+
+class TestDetectSeniorityLevel:
+    """Test _detect_seniority_level() helper method (Sub-task 3.1)"""
+
+    def test_detect_level_0_junior(self, test_profile):
+        """Level 0: Junior/Intern/Entry-level roles"""
+        scorer = TestScorer(test_profile)
+
+        assert scorer._detect_seniority_level("junior developer") == 0
+        assert scorer._detect_seniority_level("intern software engineer") == 0
+        assert scorer._detect_seniority_level("entry level qa engineer") == 0
+        assert scorer._detect_seniority_level("associate engineer") == 0
+
+    def test_detect_level_2_senior(self, test_profile):
+        """Level 2: Senior/Staff/Principal IC roles"""
+        scorer = TestScorer(test_profile)
+
+        assert scorer._detect_seniority_level("senior engineer") == 2
+        assert scorer._detect_seniority_level("staff software engineer") == 2
+        assert scorer._detect_seniority_level("principal qa engineer") == 2
+        assert scorer._detect_seniority_level("senior software developer") == 2
+
+    def test_detect_level_6_director(self, test_profile):
+        """Level 6: Director level roles"""
+        scorer = TestScorer(test_profile)
+
+        assert scorer._detect_seniority_level("director of engineering") == 6
+        assert scorer._detect_seniority_level("engineering director") == 6
+        assert scorer._detect_seniority_level("senior manager of qa") == 6
+
+    def test_detect_level_8_c_level(self, test_profile):
+        """Level 8: C-level executive roles"""
+        scorer = TestScorer(test_profile)
+
+        assert scorer._detect_seniority_level("cto") == 8
+        assert scorer._detect_seniority_level("chief technology officer") == 8
+        assert scorer._detect_seniority_level("chief product officer") == 8
+        assert scorer._detect_seniority_level("ceo") == 8
+        assert scorer._detect_seniority_level("executive director") == 8
+
+    def test_detect_ambiguous_senior_manager(self, test_profile):
+        """Ambiguous: 'Senior Manager' should prioritize manager level"""
+        scorer = TestScorer(test_profile)
+
+        # "Senior Manager" contains both "senior" (level 2) and "manager" (level 5)
+        # Should return 6 (senior manager is director-level)
+        result = scorer._detect_seniority_level("senior manager")
+        assert result == 6  # senior manager maps to level 6
+
+
+class TestDetectHighestTargetLevel:
+    """Test _detect_highest_target_level() helper method (Sub-task 3.2)"""
+
+    def test_single_target(self, test_profile):
+        """Single target keyword returns its exact match level"""
+        scorer = TestScorer(test_profile)
+
+        # Exact match in hierarchy (not substring matching)
+        assert (
+            scorer._detect_highest_target_level(["senior"]) == 2
+        )  # Level 2: ["senior", "staff", "principal"]
+        assert (
+            scorer._detect_highest_target_level(["director"]) == 6
+        )  # Level 6: ["director", "senior manager"]
+        assert (
+            scorer._detect_highest_target_level(["vp"]) == 7
+        )  # Level 7: ["vp", "vice president", "head of"]
+        assert scorer._detect_highest_target_level(["staff"]) == 2
+        assert scorer._detect_highest_target_level(["architect"]) == 4
+
+    def test_multiple_targets(self, test_profile):
+        """Multiple targets return highest level across all exact matches"""
+        scorer = TestScorer(test_profile)
+
+        # Mario's target: senior (2), staff (2), lead (3), principal (2), architect (4)
+        # Highest is architect at level 4
+        mario_targets = ["senior", "staff", "lead", "principal", "architect"]
+        assert scorer._detect_highest_target_level(mario_targets) == 4  # architect
+
+        # Eli's target: director (6), vp (7), cto (8), head of (7)
+        eli_targets = ["director", "vp", "cto", "head of"]
+        assert scorer._detect_highest_target_level(eli_targets) == 8  # cto
+
+    def test_empty_target(self, test_profile):
+        """Empty target list returns -1"""
+        scorer = TestScorer(test_profile)
+
+        assert scorer._detect_highest_target_level([]) == -1
+
+
+class TestRelativeSeniorityScoring:
+    """Test relative _score_seniority() algorithm (Sub-task 3.3)"""
+
+    @pytest.fixture
+    def mario_profile(self):
+        """Mario's profile (targets Senior IC roles - levels 2, 3, 4)"""
+        return {
+            "target_seniority": ["senior", "staff", "lead", "principal", "architect"],
+            # Target levels: senior/staff/principal (2), lead (3), architect (4)
+            "domain_keywords": ["qa", "testing", "quality"],
+            "role_types": {"engineering": ["qa engineer"]},
+            "location_preferences": {
+                "remote_keywords": ["remote"],
+                "hybrid_keywords": ["hybrid"],
+                "preferred_cities": ["montreal"],
+                "preferred_regions": ["quebec"],
+            },
+            "filtering": {
+                "aggression_level": "conservative",
+                "hardware_company_boost": 0,
+                "software_company_penalty": 0,
+            },
+        }
+
+    def test_perfect_match(self, mario_profile):
+        """Perfect match: Job level IN target levels → 30pts"""
+        scorer = TestScorer(mario_profile)
+
+        # Mario targets levels 2, 3, 4
+        # These jobs are in target levels → perfect match
+        assert scorer._score_seniority("senior qa engineer") == 30  # level 2
+        assert scorer._score_seniority("lead qa engineer") == 30  # level 3
+        assert scorer._score_seniority("qa architect") == 30  # level 4
+
+    def test_one_level_up(self, mario_profile):
+        """One level up from target: 25pts"""
+        scorer = TestScorer(mario_profile)
+
+        # Mario targets levels [2, 3, 4]
+        # Manager (5) is one level above architect (4) → 25pts
+        assert scorer._score_seniority("qa manager") == 25  # level 5
+
+    def test_one_level_down(self, mario_profile):
+        """One level down from target: 25pts"""
+        scorer = TestScorer(mario_profile)
+
+        # Mario targets levels [2, 3, 4]
+        # Mid-level (1) is one level below senior (2) → 25pts
+        assert scorer._score_seniority("mid-level qa engineer") == 25  # level 1
+
+    def test_two_levels_away(self, mario_profile):
+        """Two levels away from nearest target: 15pts"""
+        scorer = TestScorer(mario_profile)
+
+        # Mario targets levels [2, 3, 4]
+        # Junior (0) is two levels below senior (2) → 15pts
+        # Director (6) is two levels above architect (4) → 15pts
+        assert scorer._score_seniority("junior qa engineer") == 15  # level 0
+        assert scorer._score_seniority("director of qa") == 15  # level 6
+
+    def test_three_levels_away(self, mario_profile):
+        """Three levels away from nearest target: 10pts"""
+        scorer = TestScorer(mario_profile)
+
+        # Mario targets levels [2, 3, 4]
+        # VP (7) is three levels above architect (4) → 10pts
+        assert scorer._score_seniority("vp of qa") == 10
+
+    def test_major_mismatch(self, mario_profile):
+        """Four+ levels away from any target: 5pts"""
+        scorer = TestScorer(mario_profile)
+
+        # Mario targets levels [2, 3, 4]
+        # CTO (8) is four levels above architect (4) → 5pts
+        assert scorer._score_seniority("cto") == 5  # level 8
+
+    def test_fallback_to_absolute_no_target(self):
+        """Fallback to absolute scoring when target_seniority is empty"""
+        profile_no_target = {
+            "target_seniority": [],  # Empty target
+            "domain_keywords": ["engineering"],
+            "role_types": {"engineering": ["engineer"]},
+            "location_preferences": {
+                "remote_keywords": ["remote"],
+                "hybrid_keywords": ["hybrid"],
+                "preferred_cities": [],
+                "preferred_regions": [],
+            },
+            "filtering": {
+                "aggression_level": "conservative",
+                "hardware_company_boost": 0,
+                "software_company_penalty": 0,
+            },
+        }
+        scorer = TestScorer(profile_no_target)
+
+        # Should use absolute scoring: VP = 30pts (top tier)
+        assert scorer._score_seniority("vp of engineering") == 30
+
+    def test_ic_role_no_seniority(self, mario_profile):
+        """IC role with no seniority keywords → 0pts"""
+        scorer = TestScorer(mario_profile)
+
+        # Job has no seniority keywords (level -1)
+        assert scorer._score_seniority("qa engineer") == 0
+        assert scorer._score_seniority("software developer") == 0
+
+    def test_ambiguous_title_senior_manager(self, mario_profile):
+        """Ambiguous title: 'Senior Manager' prioritizes higher level"""
+        scorer = TestScorer(mario_profile)
+
+        # "Senior Manager" contains both "senior" (level 2) and "manager" (level 5)
+        # Detects as level 6 (senior manager)
+        # Mario targets levels [2, 3, 4], job is level 6 → two levels away → 15pts
+        assert scorer._score_seniority("senior manager of qa") == 15
+
+    def test_multiple_target_levels_match_any(self):
+        """Multiple target levels: Job matching ANY target level gets 30pts"""
+        profile = {
+            "target_seniority": ["senior", "lead"],  # levels 2, 3
+            "domain_keywords": ["qa"],
+            "role_types": {"engineering": ["qa"]},
+            "location_preferences": {
+                "remote_keywords": ["remote"],
+                "hybrid_keywords": ["hybrid"],
+                "preferred_cities": [],
+                "preferred_regions": [],
+            },
+            "filtering": {
+                "aggression_level": "conservative",
+                "hardware_company_boost": 0,
+                "software_company_penalty": 0,
+            },
+        }
+        scorer = TestScorer(profile)
+
+        # Both target levels should score 30pts
+        assert scorer._score_seniority("senior qa engineer") == 30  # level 2 IN [2,3]
+        assert scorer._score_seniority("lead qa engineer") == 30  # level 3 IN [2,3]
+
+
+class TestRelativeScoringIntegration:
+    """Integration tests for relative scoring across all profiles (Sub-task 3.4)"""
+
+    def test_mario_profile_scoring(self):
+        """Mario: Targets senior/staff/lead/principal/architect (levels 2, 3, 4)"""
+        import json
+        from pathlib import Path
+
+        mario_path = Path(__file__).parent.parent.parent / "profiles" / "mario.json"
+        with open(mario_path) as f:
+            mario_data = json.load(f)
+
+        # Use scoring section as profile dict
+        mario_profile = mario_data["scoring"]
+        scorer = TestScorer(mario_profile)
+
+        # Mario's target levels: [2, 3, 4] (senior, lead, architect)
+        # Perfect match: any job IN target levels → 30pts
+        assert scorer._score_seniority("senior qa engineer") == 30  # level 2 IN [2,3,4]
+        assert scorer._score_seniority("lead qa engineer") == 30  # level 3 IN [2,3,4]
+        assert scorer._score_seniority("qa architect") == 30  # level 4 IN [2,3,4]
+
+        # One level away: Manager (level 5) is 1 away from architect (4) → 25pts
+        assert scorer._score_seniority("qa manager") == 25
+
+    def test_adam_profile_scoring(self):
+        """Adam: Targets senior/staff/lead/principal/architect (levels 2, 3, 4)"""
+        import json
+        from pathlib import Path
+
+        adam_path = Path(__file__).parent.parent.parent / "profiles" / "adam.json"
+        with open(adam_path) as f:
+            adam_data = json.load(f)
+
+        # Use scoring section as profile dict
+        adam_profile = adam_data["scoring"]
+        scorer = TestScorer(adam_profile)
+
+        # Adam's target levels: [2, 3, 4]
+        # Perfect match: any job IN target levels → 30pts
+        assert scorer._score_seniority("senior software engineer") == 30  # level 2 IN [2,3,4]
+        assert scorer._score_seniority("software architect") == 30  # level 4 IN [2,3,4]
+
+        # One level away: Manager (level 5) is 1 away from architect (4) → 25pts
+        assert scorer._score_seniority("engineering manager") == 25
+
+    def test_eli_profile_scoring(self):
+        """Eli: Targets director/vp/cto/head of (levels 6, 7, 8)"""
+        import json
+        from pathlib import Path
+
+        eli_path = Path(__file__).parent.parent.parent / "profiles" / "eli.json"
+        with open(eli_path) as f:
+            eli_data = json.load(f)
+
+        # Use scoring section as profile dict
+        eli_profile = eli_data["scoring"]
+        scorer = TestScorer(eli_profile)
+
+        # Eli's target levels: [6, 7, 8] (director, vp, cto)
+        # Perfect match: any job IN target levels → 30pts
+        assert scorer._score_seniority("director of engineering") == 30  # level 6 IN [6,7,8]
+        assert scorer._score_seniority("vp of engineering") == 30  # level 7 IN [6,7,8]
+        assert scorer._score_seniority("chief technology officer") == 30  # level 8 IN [6,7,8]
+
+    def test_wes_profile_scoring(self):
+        """Wes: Targets vp/director/head of/chief/cto/cpo (levels 6, 7, 8)"""
+        import json
+        from pathlib import Path
+
+        wes_path = Path(__file__).parent.parent.parent / "profiles" / "wes.json"
+        with open(wes_path) as f:
+            wes_data = json.load(f)
+
+        # Use scoring section as profile dict
+        wes_profile = wes_data["scoring"]
+        scorer = TestScorer(wes_profile)
+
+        # Wes's target levels: [6, 7, 8] (director, vp, cto/cpo/chief)
+        # Perfect match: any job IN target levels → 30pts
+        assert scorer._score_seniority("director of product") == 30  # level 6 IN [6,7,8]
+        assert scorer._score_seniority("vp of product") == 30  # level 7 IN [6,7,8]
+        assert scorer._score_seniority("cto") == 30  # level 8 IN [6,7,8]
+        assert scorer._score_seniority("chief product officer") == 30  # level 8 IN [6,7,8]
+
+
+class TestRegressionStability:
+    """Regression tests for Eli/Wes score stability (Sub-task 3.5)"""
+
+    def test_eli_scores_stable(self):
+        """Eli: Sample jobs should score within ±5pts of expected baseline"""
+        import json
+        from pathlib import Path
+
+        eli_path = Path(__file__).parent.parent.parent / "profiles" / "eli.json"
+        with open(eli_path) as f:
+            eli_data = json.load(f)
+
+        eli_profile = eli_data["scoring"]
+        scorer = TestScorer(eli_profile)
+
+        # Eli targets: ["director", "vp", "cto", "chief technology officer", "head of"]
+        # Target levels: [6, 7, 8] (director, vp, cto)
+        # Sample jobs with expected seniority scores
+        test_cases = [
+            ("CTO", 30),  # level 8 IN [6,7,8] → 30pts
+            ("Chief Technology Officer", 30),  # level 8 IN [6,7,8] → 30pts
+            ("VP of Engineering", 30),  # level 7 IN [6,7,8] → 30pts
+            ("Head of Engineering", 30),  # level 7 IN [6,7,8] → 30pts
+            ("Director of Engineering", 30),  # level 6 IN [6,7,8] → 30pts
+            ("Engineering Director", 30),  # level 6 IN [6,7,8] → 30pts
+            ("Senior Manager Engineering", 30),  # level 6 IN [6,7,8] → 30pts (senior manager = 6)
+            ("Engineering Manager", 25),  # level 5, nearest target 6 → 1 away → 25pts
+            ("Lead Engineer", 10),  # level 3, nearest target 6 → 3 away → 10pts
+            ("Senior Software Engineer", 5),  # level 2, nearest target 6 → 4 away → 5pts
+        ]
+
+        for title, expected_score in test_cases:
+            actual_score = scorer._score_seniority(title.lower())
+            # Allow ±5pts tolerance
+            assert abs(actual_score - expected_score) <= 5, (
+                f"Eli scoring regression: '{title}' expected {expected_score}pts, "
+                f"got {actual_score}pts (diff: {abs(actual_score - expected_score)})"
+            )
+
+    def test_wes_scores_stable(self):
+        """Wes: Sample jobs should score within ±5pts of expected baseline"""
+        import json
+        from pathlib import Path
+
+        wes_path = Path(__file__).parent.parent.parent / "profiles" / "wes.json"
+        with open(wes_path) as f:
+            wes_data = json.load(f)
+
+        wes_profile = wes_data["scoring"]
+        scorer = TestScorer(wes_profile)
+
+        # Wes targets: ["vp", "director", "head of", "executive", "chief", "cto", "cpo"]
+        # Target levels: [6, 7, 8] (director, vp, cto/cpo/chief)
+        # Sample jobs with expected seniority scores
+        test_cases = [
+            ("VP of Product", 30),  # level 7 IN [6,7,8] → 30pts
+            ("VP of Engineering", 30),  # level 7 IN [6,7,8] → 30pts
+            ("Head of Robotics", 30),  # level 7 IN [6,7,8] → 30pts
+            ("CTO", 30),  # level 8 IN [6,7,8] → 30pts
+            ("Chief Product Officer", 30),  # level 8 IN [6,7,8] → 30pts
+            ("Director of Engineering", 30),  # level 6 IN [6,7,8] → 30pts
+            ("Engineering Director", 30),  # level 6 IN [6,7,8] → 30pts
+            ("Senior Manager Engineering", 30),  # level 6 IN [6,7,8] → 30pts
+            ("Engineering Manager", 25),  # level 5, nearest target 6 → 1 away → 25pts
+            ("Lead Engineer", 10),  # level 3, nearest target 6 → 3 away → 10pts
+        ]
+
+        for title, expected_score in test_cases:
+            actual_score = scorer._score_seniority(title.lower())
+            # Allow ±5pts tolerance
+            assert abs(actual_score - expected_score) <= 5, (
+                f"Wes scoring regression: '{title}' expected {expected_score}pts, "
+                f"got {actual_score}pts (diff: {abs(actual_score - expected_score)})"
+            )
+
+
+class TestEdgeCases:
+    """Edge case tests for relative seniority scoring (Sub-task 3.6)"""
+
+    def test_multiple_targets_at_different_levels(self):
+        """Multiple targets at different levels: Uses all target levels for matching"""
+        profile = {
+            "target_seniority": ["senior", "director", "vp"],  # levels 2, 6, 7
+            "domain_keywords": ["engineering"],
+            "role_types": {"engineering": ["engineer"]},
+            "location_preferences": {
+                "remote_keywords": ["remote"],
+                "hybrid_keywords": ["hybrid"],
+                "preferred_cities": [],
+                "preferred_regions": [],
+            },
+            "filtering": {
+                "aggression_level": "conservative",
+                "hardware_company_boost": 0,
+                "software_company_penalty": 0,
+            },
+        }
+        scorer = TestScorer(profile)
+
+        # All target levels should get 30pts
+        assert scorer._score_seniority("senior engineer") == 30  # level 2 IN [2,6,7]
+        assert scorer._score_seniority("director of engineering") == 30  # level 6 IN [2,6,7]
+        assert scorer._score_seniority("vp of engineering") == 30  # level 7 IN [2,6,7]
+
+    def test_title_with_no_seniority_keywords(self):
+        """Title with no seniority keywords: IC role → 0pts"""
+        profile = {
+            "target_seniority": ["senior", "staff"],
+            "domain_keywords": ["engineering"],
+            "role_types": {"engineering": ["engineer"]},
+            "location_preferences": {
+                "remote_keywords": ["remote"],
+                "hybrid_keywords": ["hybrid"],
+                "preferred_cities": [],
+                "preferred_regions": [],
+            },
+            "filtering": {
+                "aggression_level": "conservative",
+                "hardware_company_boost": 0,
+                "software_company_penalty": 0,
+            },
+        }
+        scorer = TestScorer(profile)
+
+        # No seniority keywords (level -1) → 0pts
+        assert scorer._score_seniority("software developer") == 0
+        assert scorer._score_seniority("qa engineer") == 0
+
+    def test_profile_with_no_target_seniority(self):
+        """Profile with no target_seniority: Fallback to absolute scoring"""
+        profile_no_target = {
+            "target_seniority": [],  # Empty
+            "domain_keywords": ["engineering"],
+            "role_types": {"engineering": ["engineer"]},
+            "location_preferences": {
+                "remote_keywords": ["remote"],
+                "hybrid_keywords": ["hybrid"],
+                "preferred_cities": [],
+                "preferred_regions": [],
+            },
+            "filtering": {
+                "aggression_level": "conservative",
+                "hardware_company_boost": 0,
+                "software_company_penalty": 0,
+            },
+        }
+        scorer = TestScorer(profile_no_target)
+
+        # Should use absolute scoring
+        assert scorer._score_seniority("vp of engineering") == 30  # VP tier
+        assert scorer._score_seniority("director of engineering") == 25  # Director tier
+        assert scorer._score_seniority("senior engineer") == 15  # Senior tier
+
+    def test_title_with_multiple_seniority_keywords(self):
+        """Title with multiple seniority keywords: Uses highest level"""
+        profile = {
+            "target_seniority": ["senior"],
+            "domain_keywords": ["engineering"],
+            "role_types": {"engineering": ["engineer"]},
+            "location_preferences": {
+                "remote_keywords": ["remote"],
+                "hybrid_keywords": ["hybrid"],
+                "preferred_cities": [],
+                "preferred_regions": [],
+            },
+            "filtering": {
+                "aggression_level": "conservative",
+                "hardware_company_boost": 0,
+                "software_company_penalty": 0,
+            },
+        }
+        scorer = TestScorer(profile)
+
+        # "Senior Lead Engineer" contains "senior" (level 2) and "lead" (level 3)
+        # Should detect as level 3 (lead)
+        # Target is senior (level 2), job is lead (level 3) → one level off → 25pts
+        assert scorer._score_seniority("senior lead engineer") == 25
+
+    def test_case_sensitivity(self):
+        """Case sensitivity: Scoring should work with uppercase/lowercase"""
+        profile = {
+            "target_seniority": ["senior"],
+            "domain_keywords": ["engineering"],
+            "role_types": {"engineering": ["engineer"]},
+            "location_preferences": {
+                "remote_keywords": ["remote"],
+                "hybrid_keywords": ["hybrid"],
+                "preferred_cities": [],
+                "preferred_regions": [],
+            },
+            "filtering": {
+                "aggression_level": "conservative",
+                "hardware_company_boost": 0,
+                "software_company_penalty": 0,
+            },
+        }
+        scorer = TestScorer(profile)
+
+        # All should score the same (method lowercases inputs)
+        assert scorer._score_seniority("SENIOR ENGINEER") == 30
+        assert scorer._score_seniority("senior engineer") == 30
+        assert scorer._score_seniority("Senior Engineer") == 30
