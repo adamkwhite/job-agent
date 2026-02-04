@@ -8,12 +8,8 @@ Note: classify_and_score_company() has been moved to company_classifier.py to el
 """
 
 import logging
-from typing import TYPE_CHECKING
 
 from utils.score_thresholds import Grade
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 

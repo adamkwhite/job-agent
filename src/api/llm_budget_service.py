@@ -219,8 +219,9 @@ class LLMBudgetService:
         # For now, just log the alert
         # In future PR, this will call the notifier service
         logger.info(
-            f"Alert would be sent: Threshold ${threshold_amount:.2f} reached, "
-            f"current spend ${current_spend:.2f}"
+            "Alert would be sent: Threshold $%.2f reached, current spend $%.2f",
+            threshold_amount,
+            current_spend,
         )
 
     def should_pause_extraction(self) -> bool:

@@ -894,7 +894,13 @@ def run_scraper(profile: str, sources: list[str]) -> int:
 
 def send_digest(profile: str, dry_run: bool = False, force_resend: bool = False) -> int:
     """Send email digest"""
-    mode = "DRY RUN" if dry_run else "FORCE RESEND" if force_resend else "PRODUCTION"
+    # Extract nested conditional for clarity (SonarCloud fix)
+    if dry_run:
+        mode = "DRY RUN"
+    elif force_resend:
+        mode = "FORCE RESEND"
+    else:
+        mode = "PRODUCTION"
     console.print(f"\n[bold green]Sending Email Digest ({mode})...[/bold green]\n")
 
     # Build command

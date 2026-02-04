@@ -118,6 +118,11 @@ def _deduplicate_jobs(jobs: list[dict]) -> list[dict]:
         key = (company, title)
         job_groups[key].append(job)
 
+    # Helper to get location score from job (moved outside loop to avoid closure issues)
+    def get_location_score(job):
+        breakdown = json.loads(job.get("score_breakdown", "{}"))
+        return breakdown.get("location", 0)
+
     # For each group, keep the best job
     deduplicated = []
     for (_company, _title), group in job_groups.items():
@@ -125,10 +130,6 @@ def _deduplicate_jobs(jobs: list[dict]) -> list[dict]:
             deduplicated.append(group[0])
         else:
             # Sort by: location score (desc), then received_at (desc)
-            def get_location_score(job):
-                breakdown = json.loads(job.get("score_breakdown", "{}"))
-                return breakdown.get("location", 0)
-
             best_job = max(
                 group,
                 key=lambda j: (
