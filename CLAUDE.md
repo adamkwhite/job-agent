@@ -38,15 +38,44 @@ Job discovery automation for multiple user profiles (Wes, Adam, Eli). Features i
 
 ⚠️ **When updating scoring criteria, follow the checklist:** `docs/development/SCORING_UPDATE_CHECKLIST.md`
 
-Multi-factor scoring system (0-100 base points, max 110 with bonuses) evaluating jobs against Wesley's profile:
-- **Seniority** (0-30): VP/Director/Head of roles score highest
-- **Domain** (0-25): Robotics, hardware, automation, IoT, MedTech
-- **Role Type** (0-20): Engineering leadership, with +2 bonuses per matched keyword
+Multi-factor scoring system (0-100 base points, max 110 with bonuses) evaluating jobs against profile preferences:
+- **Seniority** (0-30): **Relative scoring** - jobs matching candidate's target_seniority get 30pts, one level away gets 25pts, two levels gets 15pts, etc. (Issue #244)
+- **Domain** (0-25): Profile-specific domain keywords (e.g., Robotics, hardware, automation, IoT, MedTech)
+- **Role Type** (0-20): Profile-specific role types, with +2 bonuses per matched keyword
 - **Location** (0-15): Remote (+15), Hybrid Ontario (+15), Ontario cities (+12)
-- **Technical Keywords** (0-10): Mechatronics, embedded, manufacturing
+- **Technical Keywords** (0-10): Profile-specific technical keywords
 - **Company Classification** (±20): Hardware boost (+10) or software penalty (-20)
 
 **Grading**: A (85+), B (70+), C (55+), D (40+), F (<40)
+
+#### Relative Seniority Scoring (Issue #244)
+
+The scoring system uses **relative seniority matching** based on each candidate's `target_seniority` preferences:
+
+**Seniority Hierarchy** (9 levels):
+- **Level 0**: Junior, Entry-level, Intern, Associate
+- **Level 1**: Mid-level, Engineer, Analyst, Specialist (IC without "senior")
+- **Level 2**: Senior, Staff, Principal
+- **Level 3**: Lead, Team Lead, Tech Lead
+- **Level 4**: Architect, Distinguished, Fellow
+- **Level 5**: Manager, Engineering Manager
+- **Level 6**: Director, Senior Manager, Group Manager
+- **Level 7**: VP, Vice President, Head of, Executive Director
+- **Level 8**: Chief, CTO, CPO, CEO
+
+**Scoring Logic**:
+- **Perfect match** to target level: 30 points
+- **One level away**: 25 points (stretch opportunity or slightly junior)
+- **Two levels away**: 15 points
+- **Three levels away**: 10 points
+- **Four+ levels away**: 5 points
+
+**Examples**:
+- **Mario** (targets "senior, staff, lead") → "Senior QA Engineer" = 30pts, "Lead QA" = 30pts, "QA Manager" = 25pts, "Director QA" = 15pts
+- **Wes** (targets "director, vp, head of") → "Director of Engineering" = 30pts, "VP Engineering" = 30pts, "Senior Manager" = 25pts
+- **Adam** (targets "senior, staff, principal") → "Staff Engineer" = 30pts, "Principal Engineer" = 30pts, "Lead Engineer" = 25pts
+
+This ensures all candidates receive equal scoring for jobs matching **their** target level, eliminating the previous bias toward executive roles.
 
 #### Company Classification Filtering (Issue #122)
 

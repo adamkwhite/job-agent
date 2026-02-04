@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Relative Seniority Scoring System** (Feb 3, 2026 - Issue #244)
+  - Implemented relative seniority scoring to eliminate systematic bias toward executive roles
+  - Jobs now scored based on match to candidate's `target_seniority` preferences (not absolute VP/Director bias)
+  - Added 9-level seniority hierarchy (Junior → C-level) with intelligent matching
+  - Perfect match to target: 30pts, one level away: 25pts, two levels: 15pts, three levels: 10pts, four+ levels: 5pts
+  - **Impact after rescoring 975 jobs:**
+    - Adam: +50% A/B jobs (2→3)
+    - Mario: 0 A/B jobs (working as designed - QA roles appropriately score C/D)
+    - Eli: 0% change (perfect stability, 46→46)
+    - Wes: +23.9% A/B jobs (71→88, gained 17 Director-level opportunities)
+  - **Implementation:**
+    - Added `SENIORITY_HIERARCHY` constant mapping career levels 0-8
+    - Implemented `_detect_seniority_level()` and `_detect_all_target_levels()` helpers
+    - Replaced absolute `_score_seniority()` with relative scoring algorithm
+    - Preserved `_score_seniority_absolute()` as fallback for profiles without target_seniority
+  - **Testing:** 29 new unit tests, all 1,470 tests passing, 94% coverage maintained, zero regressions
+  - **Documentation:** Updated CLAUDE.md, email templates, SCORING_UPDATE_CHECKLIST.md with relative scoring explanation
+  - Execution: Hybrid parallel mode (Group 1: 3 parallel agents, Groups 2-3: serial with checkpoints)
+  - Files modified: `src/agents/base_scorer.py`, `tests/unit/test_base_scorer.py`, `CLAUDE.md`, `src/send_profile_digest.py`, `docs/development/SCORING_UPDATE_CHECKLIST.md`
+
 ### Fixed
 - **Digest Dry-Run Email Subject Bug** (Feb 2, 2026 - Issue #238, PR #241)
   - Fixed misleading "🎯 0 Job Matches" subject line when only C-grade (55-69) jobs exist
