@@ -47,7 +47,7 @@ class MultiPersonScorer:
         for profile_id, scorer in self.scorers.items():
             # Apply profile's hard filters first (Issue #212)
             filter_pipeline = self.filters[profile_id]
-            should_score, filter_reason = filter_pipeline.apply_hard_filters(job)
+            should_score, _ = filter_pipeline.apply_hard_filters(job)
 
             if not should_score:
                 # Job filtered for this profile - skip scoring

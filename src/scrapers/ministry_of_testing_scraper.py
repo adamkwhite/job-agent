@@ -11,11 +11,121 @@ from datetime import datetime
 
 from models import OpportunityData
 
+# Constants for duplicated string literals (SonarCloud fix)
+UNITED_KINGDOM = "united kingdom"
+UNKNOWN_COMPANY = "Unknown Company"
+
 
 class MinistryOfTestingScraper:
     """Scraper for Ministry of Testing job board"""
 
     BASE_URL = "https://www.ministryoftesting.com/jobs"
+
+    # Province/state → country mapping (extracted to reduce cognitive complexity)
+    PROVINCE_COUNTRY_MAP = {
+        # Canadian provinces
+        "ontario": "canada",
+        "quebec": "canada",
+        "british columbia": "canada",
+        "bc": "canada",
+        "alberta": "canada",
+        "manitoba": "canada",
+        "saskatchewan": "canada",
+        "nova scotia": "canada",
+        "new brunswick": "canada",
+        "newfoundland": "canada",
+        "prince edward island": "canada",
+        "pei": "canada",
+        # UK regions
+        "england": UNITED_KINGDOM,
+        "scotland": UNITED_KINGDOM,
+        "wales": UNITED_KINGDOM,
+        "northern ireland": UNITED_KINGDOM,
+    }
+
+    # Common cities that should NOT be extracted as companies
+    COMMON_CITIES = {
+        # US cities
+        "Austin",
+        "San Francisco",
+        "Los Angeles",
+        "New York",
+        "Seattle",
+        "Portland",
+        "Boston",
+        "Chicago",
+        "Denver",
+        "Atlanta",
+        "Phoenix",
+        "San Diego",
+        "Dallas",
+        "Houston",
+        "Philadelphia",
+        "Washington",
+        "Miami",
+        "Minneapolis",
+        "Detroit",
+        "Nashville",
+        "Charlotte",
+        "San Jose",
+        "Jacksonville",
+        "Indianapolis",
+        "Columbus",
+        "Fort Worth",
+        "North Carolina",
+        "South Carolina",
+        # Canadian cities
+        "Toronto",
+        "Montreal",
+        "Vancouver",
+        "Ottawa",
+        "Calgary",
+        "Edmonton",
+        "Quebec",
+        "Winnipeg",
+        "Hamilton",
+        "Kitchener",
+        "London",
+        "Victoria",
+        "Halifax",
+        "Saskatoon",
+        "Regina",
+        "Mississauga",
+        "Brampton",
+        "Markham",
+        "Vaughan",
+        "Richmond Hill",
+        # UK cities
+        "Birmingham",
+        "Manchester",
+        "Leeds",
+        "Liverpool",
+        "Newcastle",
+        "Sheffield",
+        "Bristol",
+        "Leicester",
+        "Coventry",
+        "Bradford",
+        "Northampton",
+        "Knutsford",
+        "Newcastle Upon Tyne",
+        "Richmond",
+        "Tewkesbury",
+        "City Of London",
+        "Wideopen",
+        "Didcot",
+        "Bournemouth",
+        # European cities
+        "Limburg",
+        "Brussels",
+        "Aarhus",
+        # Indian cities
+        "Pune",
+        "Bangalore",
+        "Mumbai",
+        "Delhi",
+        "Hyderabad",
+    }
 
     def __init__(self):
         """Initialize scraper"""
@@ -112,46 +222,53 @@ class MinistryOfTestingScraper:
         """
         location_lower = location.lower()
 
-        # Province/state → country mapping
-        province_country_map = {
-            # Canadian provinces
-            "ontario": "canada",
-            "quebec": "canada",
-            "british columbia": "canada",
-            "bc": "canada",
-            "alberta": "canada",
-            "manitoba": "canada",
-            "saskatchewan": "canada",
-            "nova scotia": "canada",
-            "new brunswick": "canada",
-            "newfoundland": "canada",
-            "prince edward island": "canada",
-            "pei": "canada",
-            # UK regions
-            "england": "united kingdom",
-            "scotland": "united kingdom",
-            "wales": "united kingdom",
-            "northern ireland": "united kingdom",
-        }
-
         for target in target_locations:
-            target_lower = target.lower()
-
-            # Exact match or contains
-            if target_lower in location_lower:
+            if self._is_location_match(location_lower, target.lower()):
                 return True
 
-            # Handle "remote" specially (matches "Remote", "CA (Remote)", etc.)
-            if target_lower == "remote" and "remote" in location_lower:
+        return False
+
+    def _is_location_match(self, location_lower: str, target_lower: str) -> bool:
+        """
+        Helper method to check if a single target matches the location.
+        Extracted to reduce cognitive complexity of _matches_location().
+
+        Args:
+            location_lower: Lowercase location string
+            target_lower: Lowercase target location string
+
+        Returns:
+            True if target matches location
+        """
+        # Exact match or contains
+        if target_lower in location_lower:
+            return True
+
+        # Handle "remote" specially (matches "Remote", "CA (Remote)", etc.)
+        if target_lower == "remote" and "remote" in location_lower:
+            return True
+
+        # Check province/state mapping (e.g., "Ontario" → "Canada")
+        if target_lower in self.PROVINCE_COUNTRY_MAP.values():
+            return self._matches_province_in_country(location_lower, target_lower)
+
+        return False
+
+    def _matches_province_in_country(self, location_lower: str, target_country: str) -> bool:
+        """
+        Check if location contains a province/state from the target country.
+        Extracted to reduce cognitive complexity.
+
+        Args:
+            location_lower: Lowercase location string
+            target_country: Target country (lowercase)
+
+        Returns:
+            True if location contains a province from the target country
+        """
+        for province, country in self.PROVINCE_COUNTRY_MAP.items():
+            if country == target_country and province in location_lower:
                 return True
-
-            # Check province/state mapping (e.g., "Ontario" → "Canada")
-            if target_lower in province_country_map.values():
-                # Target is a country, check if location contains a province/state
-                for province, country in province_country_map.items():
-                    if country == target_lower and province in location_lower:
-                        return True
-
         return False
 
     def _parse_date(self, date_str: str) -> str:
@@ -196,125 +313,69 @@ class MinistryOfTestingScraper:
             Company name
         """
         # Check for "Company - Title" format
+        company_from_title = self._try_extract_company_from_title(title)
+        if company_from_title:
+            return company_from_title
+
+        # Check for company in location (e.g., "Acme Corp, Toronto, ON")
+        if "," in location:
+            first_part = location.split(",")[0].strip()
+            if not self._is_known_location_element(first_part):
+                # Could be a company, but we're being conservative
+                # In Ministry of Testing format, first part is usually city
+                pass  # Fall through to return UNKNOWN_COMPANY
+
+        # Default: Unknown (company will be researched later)
+        return UNKNOWN_COMPANY
+
+    def _try_extract_company_from_title(self, title: str) -> str | None:
+        """
+        Try to extract company from title in "Company - Title" format.
+        Extracted to reduce cognitive complexity.
+
+        Args:
+            title: Job title
+
+        Returns:
+            Company name if found, None otherwise
+        """
         if " - " in title:
             parts = title.split(" - ", 1)
             if len(parts[0]) < 50:  # Reasonable company name length
                 return parts[0].strip()
+        return None
 
-        # Common city names that should NOT be extracted as companies
-        common_cities = {
-            # US cities
-            "Austin",
-            "San Francisco",
-            "Los Angeles",
-            "New York",
-            "Seattle",
-            "Portland",
-            "Boston",
-            "Chicago",
-            "Denver",
-            "Atlanta",
-            "Phoenix",
-            "San Diego",
-            "Dallas",
-            "Houston",
-            "Philadelphia",
-            "Washington",
-            "Miami",
-            "Minneapolis",
-            "Detroit",
-            "Nashville",
-            "Charlotte",
-            "San Jose",
-            "Jacksonville",
-            "Indianapolis",
-            "Columbus",
-            "Fort Worth",
-            "North Carolina",
-            "South Carolina",
-            # Canadian cities
-            "Toronto",
-            "Montreal",
-            "Vancouver",
-            "Ottawa",
-            "Calgary",
-            "Edmonton",
-            "Quebec",
-            "Winnipeg",
-            "Hamilton",
-            "Kitchener",
-            "London",
-            "Victoria",
-            "Halifax",
-            "Saskatoon",
-            "Regina",
-            "Mississauga",
-            "Brampton",
-            "Markham",
-            "Vaughan",
-            "Richmond Hill",
-            # UK cities
-            "Birmingham",
-            "Manchester",
-            "Leeds",
-            "Liverpool",
-            "Newcastle",
-            "Sheffield",
-            "Bristol",
-            "Leicester",
-            "Coventry",
-            "Bradford",
-            "Northampton",
-            "Knutsford",
-            "Newcastle Upon Tyne",
-            "Richmond",
-            "Tewkesbury",
-            "City Of London",
-            "Wideopen",
-            "Didcot",
-            "Bournemouth",
-            # European cities
-            "Limburg",
-            "Brussels",
-            "Aarhus",
-            # Indian cities
-            "Pune",
-            "Bangalore",
-            "Mumbai",
-            "Delhi",
-            "Hyderabad",
-        }
+    def _is_known_location_element(self, location_part: str) -> bool:
+        """
+        Check if location part is a known city, country, or region.
+        Extracted to reduce cognitive complexity of _extract_company().
 
-        # Check for company in location (e.g., "Acme Corp, Toronto, ON")
-        if "," in location:
-            parts = location.split(",")
-            first_part = parts[0].strip()
+        Args:
+            location_part: First part of location string
 
-            # Check if first part is a known city
-            if first_part in common_cities:
-                return "Unknown Company"
+        Returns:
+            True if it's a known location element (not a company)
+        """
+        # Check if it's a known city
+        if location_part in self.COMMON_CITIES:
+            return True
 
-            # Check if first part is a known country/region
-            if first_part in ["Remote", "United States", "Canada", "United Kingdom"]:
-                return "Unknown Company"
+        # Check if it's a known country/region
+        if location_part in ["Remote", "United States", "Canada", "United Kingdom"]:
+            return True
 
-            # Check if first part matches US state pattern (2 letters)
-            if re.match(r"^[A-Z]{2}$", first_part):
-                return "Unknown Company"
+        # Check if it matches US state pattern (2 letters)
+        if re.match(r"^[A-Z]{2}$", location_part):
+            return True
 
-            # Check if first part looks like a city (ends with region info)
-            # e.g., "Flemish Region", "Brussels Region", "England"
-            if "Region" in first_part or first_part in ["England", "Scotland", "Wales"]:
-                return "Unknown Company"
+        # Check if it looks like a city with region info
+        # e.g., "Flemish Region", "Brussels Region", "England"
+        if "Region" in location_part or location_part in ["England", "Scotland", "Wales"]:
+            return True
 
-            # If first part is reasonably sized and not a city/state, might be company
-            if len(first_part) < 50:
-                # Could be a company, but we're being conservative
-                # In Ministry of Testing format, first part is usually city
-                return "Unknown Company"
-
-        # Default: Unknown (company will be researched later)
-        return "Unknown Company"
+        # Check if reasonably sized (conservative - treat as location)
+        # Being conservative: assume it's a city if < 50 chars, not company
+        return len(location_part) < 50
 
 
 def main():

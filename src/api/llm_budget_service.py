@@ -191,8 +191,11 @@ class LLMBudgetService:
 
         # Check if budget exceeded
         if data["total_cost"] >= self.monthly_limit:
+            # Use parameterized logging to prevent log injection (SonarCloud fix)
             logger.warning(
-                f"Monthly budget limit reached: ${data['total_cost']:.2f} >= ${self.monthly_limit:.2f}"
+                "Monthly budget limit reached: $%.2f >= $%.2f",
+                data.get("total_cost", 0.0),
+                self.monthly_limit,
             )
 
     def _send_budget_alert(self, current_spend: float) -> None:
@@ -204,17 +207,21 @@ class LLMBudgetService:
         threshold_amount = self.monthly_limit * self.alert_threshold
         percentage = (current_spend / self.monthly_limit) * 100
 
+        # Use parameterized logging to prevent log injection (SonarCloud fix)
         logger.warning(
-            f"Budget alert: ${current_spend:.2f} spent "
-            f"({percentage:.0f}% of ${self.monthly_limit:.2f} limit)"
+            "Budget alert: $%.2f spent (%.0f%% of $%.2f limit)",
+            current_spend,
+            percentage,
+            self.monthly_limit,
         )
 
         # TODO: Integrate with existing email notification system
         # For now, just log the alert
         # In future PR, this will call the notifier service
         logger.info(
-            f"Alert would be sent: Threshold ${threshold_amount:.2f} reached, "
-            f"current spend ${current_spend:.2f}"
+            "Alert would be sent: Threshold $%.2f reached, current spend $%.2f",
+            threshold_amount,
+            current_spend,
         )
 
     def should_pause_extraction(self) -> bool:
