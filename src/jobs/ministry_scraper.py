@@ -10,14 +10,20 @@ Usage:
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
+
+from dotenv import load_dotenv
+from firecrawl import FirecrawlApp
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from database import JobDatabase
 from scrapers.ministry_of_testing_scraper import MinistryOfTestingScraper
 from utils.multi_scorer import get_multi_scorer
+
+load_dotenv()
 
 
 class MinistryScraper:
@@ -35,6 +41,12 @@ class MinistryScraper:
         self.multi_scorer = get_multi_scorer()
         self.mot_scraper = MinistryOfTestingScraper()
 
+        # Initialize Firecrawl API client
+        api_key = os.getenv("FIRECRAWL_API_KEY")
+        if not api_key:
+            raise ValueError("FIRECRAWL_API_KEY not found in environment")
+        self.firecrawl = FirecrawlApp(api_key=api_key)
+
     def scrape_ministry_jobs(
         self,
         target_locations: list[str] | None = None,
@@ -42,11 +54,7 @@ class MinistryScraper:
         min_score: int = 47,
     ) -> dict:
         """
-        Scrape Ministry of Testing jobs
-
-        NOTE: This method requires Firecrawl MCP tool calls to be made.
-        In Claude Code, the MCP tool mcp__firecrawl-mcp__firecrawl_scrape
-        will be called automatically to fetch pages.
+        Scrape Ministry of Testing jobs using Firecrawl API
 
         Args:
             target_locations: Locations to filter for (default: Canada, Remote, US)
@@ -76,23 +84,35 @@ class MinistryScraper:
             "profile_scores": {},
         }
 
-        # Scrape each page (Firecrawl MCP calls happen in Claude Code)
+        # Scrape each page using Firecrawl API
         for page_num in range(1, max_pages + 1):
             url = f"https://www.ministryoftesting.com/jobs?page={page_num}"
 
             print(f"\n📄 Page {page_num}: {url}")
-            print("   🔄 Requesting Firecrawl scrape...")
+            print("   🔄 Fetching with Firecrawl API...")
 
-            # This is where Claude Code will make the MCP tool call:
-            # mcp__firecrawl-mcp__firecrawl_scrape with url=url, formats=["markdown"]
-            # The result will be passed to parse_page_and_store()
+            try:
+                # Scrape page with Firecrawl
+                document = self.firecrawl.scrape(url, formats=["markdown"])
+                markdown = document.markdown if document.markdown else ""
 
-            print("   ⚠️  Firecrawl MCP tool call required - this will be done by Claude Code")
-            print("   See run_ministry_scraper.py for automated version")
+                if not markdown:
+                    print("   ⚠️  No content returned from Firecrawl")
+                    continue
 
-            # Placeholder for manual integration
-            # In practice, Claude Code will call Firecrawl and pass result here
-            break
+                print(f"   ✓ Fetched {len(markdown)} characters")
+
+                # Parse and store jobs from this page
+                stats = self.parse_page_and_store(
+                    markdown=markdown,
+                    target_locations=target_locations,
+                    min_score=min_score,
+                    stats=stats,
+                )
+
+            except Exception as e:
+                print(f"   ✗ Error scraping page {page_num}: {e}")
+                continue
 
         return stats
 
@@ -106,7 +126,7 @@ class MinistryScraper:
         """
         Parse a scraped Ministry of Testing page and store qualifying jobs
 
-        This method is called after Firecrawl MCP returns markdown content.
+        This method is called after Firecrawl API returns markdown content.
 
         Args:
             markdown: Page markdown from Firecrawl
@@ -241,11 +261,7 @@ def main():
 
     scraper = MinistryScraper(profile=args.profile)
 
-    print("\n⚠️  NOTE: This script requires Firecrawl MCP integration")
-    print("         See scripts/run_ministry_scraper.py for automated version")
-    print("         Or run from Claude Code which will make MCP calls automatically\n")
-
-    # Run scraper (requires MCP integration)
+    # Run scraper
     stats = scraper.scrape_ministry_jobs(
         target_locations=args.locations,
         max_pages=args.max_pages,
