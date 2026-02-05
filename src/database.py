@@ -68,6 +68,13 @@ class JobDatabase:
                 fit_score INTEGER,
                 fit_grade TEXT,
                 score_breakdown TEXT,
+                filter_reason TEXT,
+                filtered_at TEXT,
+                manual_review_flag INTEGER DEFAULT 0,
+                stale_check_result TEXT DEFAULT 'not_checked',
+                url_validated BOOLEAN,
+                url_validated_at TEXT,
+                url_validation_reason TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
@@ -83,6 +90,18 @@ class JobDatabase:
 
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_company ON jobs(company)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_jobs_filter_reason ON jobs(filter_reason)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_jobs_stale_check_result ON jobs(stale_check_result)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_jobs_url_validated ON jobs(url_validated)
         """)
 
         # Migration: Add scoring columns if they don't exist
@@ -301,8 +320,8 @@ class JobDatabase:
                 job_hash, title, company, location, link, description,
                 salary, job_type, posted_date, source, source_email,
                 received_at, keywords_matched, raw_email_content,
-                profile, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                profile, created_at, updated_at, filter_reason, filtered_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 job_hash,
@@ -322,6 +341,8 @@ class JobDatabase:
                 self.profile,
                 now,
                 now,
+                job_data.get("filter_reason"),
+                job_data.get("filtered_at"),
             ),
         )
 
