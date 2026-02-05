@@ -411,7 +411,27 @@ class JobDatabase:
         conn.close()
 
     def update_job_score(self, job_id: int, score: int, grade: str, breakdown: str):
-        """Update job with fit score and grade"""
+        """
+        DEPRECATED: Use upsert_job_score() for multi-profile support.
+
+        This method updates legacy jobs.fit_score columns which are no longer
+        the single source of truth. Use upsert_job_score() to write to the
+        job_scores table instead (Issue #184).
+
+        Args:
+            job_id: Job ID to update
+            score: Fit score (0-110)
+            grade: Fit grade (A, B, C, D, F)
+            breakdown: JSON string with score breakdown
+        """
+        import warnings
+
+        warnings.warn(
+            "update_job_score() is deprecated. Use upsert_job_score() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
