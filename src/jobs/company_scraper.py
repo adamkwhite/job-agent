@@ -364,7 +364,7 @@ class CompanyScraper:
         score: int,
         grade: str,
         breakdown: dict,
-        classification_metadata: dict,
+        classification_metadata: dict,  # noqa: ARG002 - passed for API compatibility
         filter_reason: str,
         stats: dict,
     ) -> None:
@@ -391,45 +391,16 @@ class CompanyScraper:
 
         job_id = self.database.add_job(job_dict)
         if job_id:
-            self.database.update_job_score(job_id, score, grade, json.dumps(breakdown))
+            # New filtered job - score for all profiles
+            self._run_multi_profile_scoring(job_dict, job_id)
         else:
-            # Duplicate filtered job - still score for current profile
-            self._score_duplicate_for_profile(
-                job_dict, score, grade, breakdown, classification_metadata
+            # Duplicate filtered job - score for all profiles
+            job_hash = self.database.generate_job_hash(
+                job_dict["title"], job_dict["company"], job_dict["link"]
             )
-
-    def _score_duplicate_for_profile(
-        self,
-        job_dict: dict,
-        score: int,
-        grade: str,
-        breakdown: dict,
-        classification_metadata: dict | None,
-    ) -> int | None:
-        """
-        Score a duplicate job for the current profile
-
-        Returns:
-            Job ID if found, None otherwise
-        """
-        job_hash = self.database.generate_job_hash(
-            job_dict["title"], job_dict["company"], job_dict["link"]
-        )
-        existing_job_id = self.database.get_job_id_by_hash(job_hash)
-
-        if existing_job_id:
-            self.database.upsert_job_score(
-                job_id=existing_job_id,
-                profile_id=self.profile,
-                score=score,
-                grade=grade,
-                breakdown=json.dumps(breakdown),
-                classification_metadata=json.dumps(classification_metadata)
-                if classification_metadata
-                else None,
-            )
-
-        return existing_job_id
+            existing_job_id = self.database.get_job_id_by_hash(job_hash)
+            if existing_job_id:
+                self._run_multi_profile_scoring(job_dict, existing_job_id)
 
     def _handle_new_job(
         self,
@@ -446,13 +417,10 @@ class CompanyScraper:
         """Handle storage and processing of a new job"""
         stats["jobs_stored"] += 1
 
-        # Update score
-        self.database.update_job_score(job_id, score, grade, json.dumps(breakdown))
-
         # Display job information
         self._display_new_job_info(job, score, grade, breakdown, extraction_method)
 
-        # Multi-profile scoring
+        # Multi-profile scoring (includes current profile)
         self._run_multi_profile_scoring(job_dict, job_id)
 
         # Send notification if above threshold
@@ -520,25 +488,24 @@ class CompanyScraper:
         self,
         job: OpportunityData,
         job_dict: dict,
-        score: int,
-        grade: str,
-        breakdown: dict,
-        classification_metadata: dict,
+        score: int,  # noqa: ARG002 - passed for API compatibility
+        grade: str,  # noqa: ARG002 - passed for API compatibility
+        breakdown: dict,  # noqa: ARG002 - passed for API compatibility
+        classification_metadata: dict,  # noqa: ARG002 - passed for API compatibility
         stats: dict,
     ) -> None:
         """Handle processing of a duplicate job"""
         stats["duplicates_skipped"] += 1
         print(f"\n- Duplicate: {job.title} at {job.company}")
 
-        # Score duplicate for current profile
-        existing_job_id = self._score_duplicate_for_profile(
-            job_dict, score, grade, breakdown, classification_metadata
+        # Get existing job ID
+        job_hash = self.database.generate_job_hash(
+            job_dict["title"], job_dict["company"], job_dict["link"]
         )
+        existing_job_id = self.database.get_job_id_by_hash(job_hash)
 
         if existing_job_id:
-            print(f"  ✓ Scored for {self.profile}: {grade} ({score}/115)")
-
-            # Also try multi-profile scoring for duplicates
+            # Score for all profiles using multi-scorer
             try:
                 from utils.multi_scorer import get_multi_scorer
 
@@ -547,10 +514,9 @@ class CompanyScraper:
                 if profile_scores:
                     print("  ✓ Multi-profile scores:")
                     for pid, (s, g) in profile_scores.items():
-                        if pid != self.profile:  # Don't repeat current profile
-                            print(f"    {pid}: {s}/{g}")
-            except Exception:
-                pass  # Multi-profile scoring is optional
+                        print(f"    {pid}: {s}/{g}")
+            except Exception as e:
+                print(f"  ⚠ Multi-profile scoring failed: {e}")
 
 
 def main():

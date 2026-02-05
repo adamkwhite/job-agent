@@ -169,14 +169,12 @@ class TestMultiProfileDuplicateScoring:
         assert found_id == job_id, "Should find the job by hash"
 
     def test_score_duplicate_for_profile_method(self, temp_db):
-        """Test the _score_duplicate_for_profile() extracted method"""
-        from jobs.company_scraper import CompanyScraper
+        """Test multi-profile scoring for duplicate jobs via multi_scorer"""
+        from utils.multi_scorer import get_multi_scorer
 
-        # Create Wes's scraper and add a job
-        wes_scraper = CompanyScraper(profile="wes")
-        wes_scraper.database = JobDatabase(profile="wes", db_path=temp_db)
+        db = JobDatabase(profile="wes", db_path=temp_db)
 
-        # Add a job
+        # Add a job as Wes
         job_dict = {
             "title": "VP of Product",
             "company": "TestCo",
@@ -187,25 +185,20 @@ class TestMultiProfileDuplicateScoring:
             "received_at": datetime.now().isoformat(),
         }
 
-        job_id = wes_scraper.database.add_job(job_dict)
+        job_id = db.add_job(job_dict)
         assert job_id is not None
 
-        # Create Mario's scraper
-        mario_scraper = CompanyScraper(profile="mario")
-        mario_scraper.database = JobDatabase(profile="mario", db_path=temp_db)
+        # Score the job for all profiles using multi-scorer
+        multi_scorer = get_multi_scorer()
+        profile_scores = multi_scorer.score_job_for_all(job_dict, job_id)
 
-        # Score the duplicate for Mario using the extracted method
-        existing_job_id = mario_scraper._score_duplicate_for_profile(
-            job_dict=job_dict,
-            score=75,
-            grade="C+",
-            breakdown={"seniority": 20, "domain": 15},
-            classification_metadata={"filtered": False},
-        )
+        # Verify all profiles have scores
+        assert "wes" in profile_scores
+        assert "mario" in profile_scores
+        assert "adam" in profile_scores
+        assert "eli" in profile_scores
 
-        assert existing_job_id == job_id, "Should return the existing job ID"
-
-        # Verify Mario has a score
+        # Verify Mario has a score in database
         conn = sqlite3.connect(temp_db)
         cursor = conn.cursor()
 
@@ -220,7 +213,9 @@ class TestMultiProfileDuplicateScoring:
             (job_id,),
         )
         score_data = cursor.fetchone()
-        assert score_data == (75, "C+"), "Score data should match"
+        assert score_data is not None, "Mario should have score data"
+        assert score_data[0] is not None, "Mario should have a fit_score"
+        assert score_data[1] is not None, "Mario should have a fit_grade"
 
         conn.close()
 
@@ -303,10 +298,8 @@ class TestMultiProfileDuplicateScoring:
         mario_scraper = CompanyScraper(profile="mario")
         mario_scraper.database = JobDatabase(profile="mario", db_path=temp_db)
 
-        # Mock get_multi_scorer to avoid import issues
-        mock_multi_scorer = mocker.MagicMock()
-        mock_multi_scorer.score_job_for_all.return_value = {}
-        mocker.patch("utils.multi_scorer.get_multi_scorer", return_value=mock_multi_scorer)
+        # Don't mock multi_scorer - let it run for real to score Mario
+        # This tests the actual integration with multi-profile scoring
 
         # Create OpportunityData object
         job = OpportunityData(
@@ -349,7 +342,9 @@ class TestMultiProfileDuplicateScoring:
             (wes_job_id,),
         )
         score_data = cursor.fetchone()
-        assert score_data == (75, "C+"), "Score data should match"
+        assert score_data is not None, "Mario should have score data"
+        assert score_data[0] is not None, "Mario should have a fit_score"
+        assert score_data[1] is not None, "Mario should have a fit_grade"
 
         conn.close()
 
@@ -412,21 +407,23 @@ class TestMultiProfileDuplicateScoring:
         assert stats["jobs_stored"] == 1
         assert stats["notifications_sent"] == 1
 
-        # Verify score was updated in jobs table (legacy schema used by update_job_score)
-        conn = sqlite3.connect(temp_db)
-        cursor = conn.cursor()
-
-        cursor.execute("SELECT fit_score, fit_grade FROM jobs WHERE id = ?", (job_id,))
-        score_data = cursor.fetchone()
-        assert score_data == (85, "B+"), "Score should be updated in jobs table"
-
-        conn.close()
-
-        # Verify multi-profile scoring was called
+        # Verify multi-profile scoring was called (scores go to job_scores table, not jobs table)
         mock_multi_scorer.score_job_for_all.assert_called_once()
 
         # Verify notification was sent (score 85 >= threshold 80)
         mock_notifier.notify_job.assert_called_once()
+
+        # Verify score is in job_scores table (not jobs table anymore)
+        conn = sqlite3.connect(temp_db)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM job_scores WHERE job_id = ? AND profile_id = 'wes'", (job_id,)
+        )
+        wes_count = cursor.fetchone()[0]
+        assert wes_count == 1, "Wes should have a score in job_scores table"
+
+        conn.close()
 
     def test_handle_hard_filtered_job_method(self, temp_db):
         """Test the _handle_hard_filtered_job() extracted method"""
@@ -516,13 +513,24 @@ class TestMultiProfileDuplicateScoring:
         # Verify stats updated
         assert stats["jobs_context_filtered"] == 1
 
-        # Verify job was stored with score and filter reason
+        # Verify job was stored with filter reason
         conn = sqlite3.connect(temp_db)
         cursor = conn.cursor()
 
-        cursor.execute("SELECT fit_score, fit_grade FROM jobs WHERE company = 'LowFitCo'")
-        score_data = cursor.fetchone()
-        assert score_data == (45, "D"), "Filtered job should have score"
+        cursor.execute("SELECT filter_reason FROM jobs WHERE company = 'LowFitCo'")
+        filter_data = cursor.fetchone()
+        assert filter_data is not None, "Filtered job should be stored"
+        assert filter_data[0] == "Score too low", "Filter reason should be stored"
+
+        # Verify score is in job_scores table (multi-profile scoring)
+        cursor.execute("SELECT job_id FROM jobs WHERE company = 'LowFitCo'")
+        job_id = cursor.fetchone()[0]
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM job_scores WHERE job_id = ? AND profile_id = 'wes'", (job_id,)
+        )
+        wes_count = cursor.fetchone()[0]
+        assert wes_count == 1, "Wes should have a score in job_scores table"
 
         conn.close()
 
@@ -531,9 +539,14 @@ class TestMultiProfileDuplicateScoring:
         from jobs.company_scraper import CompanyScraper
         from models import OpportunityData
 
-        # Mock multi-profile scorer to avoid import issues
+        # Mock multi-profile scorer to avoid import issues - return scores for all profiles
         mock_multi_scorer = mocker.MagicMock()
-        mock_multi_scorer.score_job_for_all.return_value = {"adam": (70, "C")}
+        mock_multi_scorer.score_job_for_all.return_value = {
+            "wes": (75, "B"),
+            "adam": (70, "C"),
+            "mario": (65, "C"),
+            "eli": (80, "B+"),
+        }
         mocker.patch("utils.multi_scorer.get_multi_scorer", return_value=mock_multi_scorer)
 
         # Create Wes's scraper
@@ -644,11 +657,15 @@ class TestMultiProfileDuplicateScoring:
         stored_jobs = cursor.fetchone()[0]
         assert stored_jobs >= 2, "Should have stored 2 leadership jobs"
 
-        # Verify Wes's scores are in the jobs table (legacy schema used by update_job_score)
+        # Verify Wes's scores are in the job_scores table (new multi-profile schema)
         cursor.execute(
-            "SELECT COUNT(*) FROM jobs WHERE company IN ('RoboTech Inc', 'HardwareCo') AND fit_score IS NOT NULL"
+            """
+            SELECT COUNT(*) FROM job_scores js
+            JOIN jobs j ON js.job_id = j.id
+            WHERE j.company IN ('RoboTech Inc', 'HardwareCo') AND js.profile_id = 'wes'
+            """
         )
         wes_scored_jobs = cursor.fetchone()[0]
-        assert wes_scored_jobs >= 2, "Wes should have scored 2 jobs (stored in jobs table)"
+        assert wes_scored_jobs >= 2, "Wes should have scored 2 jobs (stored in job_scores table)"
 
         conn.close()

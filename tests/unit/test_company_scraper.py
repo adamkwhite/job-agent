@@ -192,7 +192,7 @@ class TestProcessScrapedJobs:
         assert stats["jobs_stored"] == 0
 
     def test_process_scraped_jobs_stores_high_score_job(self, company_scraper):
-        """Should store jobs above minimum score"""
+        """Should store jobs above minimum score using multi-scorer"""
         jobs = [
             (
                 OpportunityData(
@@ -213,7 +213,6 @@ class TestProcessScrapedJobs:
         )
         company_scraper.database.job_exists = MagicMock(return_value=False)
         company_scraper.database.add_job = MagicMock(return_value=1)
-        company_scraper.database.update_job_score = MagicMock()
         company_scraper.notifier.notify_job = MagicMock()
 
         stats = company_scraper.process_scraped_jobs(
@@ -224,7 +223,7 @@ class TestProcessScrapedJobs:
         assert stats["jobs_above_threshold"] == 1
         assert stats["jobs_stored"] == 1
         company_scraper.database.add_job.assert_called_once()
-        company_scraper.database.update_job_score.assert_called_once()
+        # Multi-profile scoring happens via _run_multi_profile_scoring (no direct update_job_score call)
 
     def test_process_scraped_jobs_sends_notifications_for_high_scores(self, company_scraper):
         """Should send notifications for jobs above notify threshold"""
@@ -632,8 +631,7 @@ class TestFilterPipelineIntegration:
             mock_pipeline.apply_context_filters.assert_called_once()
             # Should add filtered job to database for audit
             scraper.database.add_job.assert_called_once()
-            # Should update job score even though filtered
-            scraper.database.update_job_score.assert_called_once()
+            # Multi-profile scoring happens via _run_multi_profile_scoring (no direct update_job_score call)
 
     @patch("src.jobs.company_scraper.get_profile_manager")
     @patch("src.jobs.company_scraper.JobFilterPipeline")
