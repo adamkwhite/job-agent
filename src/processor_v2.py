@@ -291,8 +291,30 @@ class JobProcessorV2:
         job_id = self.database.add_job(job_dict)
 
         if not job_id:
+            # Duplicate detected - score for all profiles
             print(f"\n- Duplicate: {job_dict['title']} at {job_dict['company']}")
-            return
+
+            # Get existing job_id for scoring
+            job_hash = self.database.generate_job_hash(
+                job_dict["title"], job_dict["company"], job_dict["link"]
+            )
+            existing_job_id = self.database.get_job_id_by_hash(job_hash)
+
+            if existing_job_id:
+                # Score for all profiles
+                try:
+                    multi_scorer = get_multi_scorer()
+                    profile_scores = multi_scorer.score_job_for_all(job_dict, existing_job_id)
+                    profile_summary = ", ".join(
+                        f"{pid}:{s}/{g}" for pid, (s, g) in profile_scores.items()
+                    )
+                    print(f"  ✓ Multi-profile scores: {profile_summary}")
+                    self._increment_stat(stats, "jobs_scored")
+                except Exception as mp_error:
+                    print(f"  ⚠ Multi-profile scoring failed: {mp_error}")
+                    self._append_error(stats, f"Multi-profile scoring failed: {mp_error}")
+
+            return  # Skip new job processing (filters, notifications)
 
         self._increment_stat(stats, "jobs_stored")
         print("\n✓ New Job Stored:")
@@ -325,30 +347,39 @@ class JobProcessorV2:
     def _score_and_update_job(
         self, job_id: int, job_dict: dict, stats: dict[str, int | list[str]]
     ) -> tuple[int | None, str | None, dict | None]:
-        """Score a job and update database for the selected profile"""
+        """Score a job for all profiles (multi-profile support)"""
         try:
-            # Score for the selected profile
-            score, grade, breakdown, _classification_metadata = self.scorer.score_job(job_dict)
-            self.database.update_job_score(job_id, score, grade, json.dumps(breakdown))
+            # Score for all profiles using multi-scorer
+            multi_scorer = get_multi_scorer()
+            profile_scores = multi_scorer.score_job_for_all(job_dict, job_id)
 
-            self._increment_stat(stats, "jobs_scored")
-            print(f"  ✓ Scored: {grade} ({score}/115)")
-            print(
-                f"    Breakdown: Seniority={breakdown['seniority']}, Domain={breakdown['domain']}, Role={breakdown['role_type']}"
-            )
+            if profile_scores:
+                # Get current profile's score for logging/filtering
+                current_score = profile_scores.get(self.profile, (0, "F"))
+                score, grade = current_score
 
-            # Also score for all profiles (multi-person support)
-            try:
-                multi_scorer = get_multi_scorer()
-                profile_scores = multi_scorer.score_job_for_all(job_dict, job_id)
+                # Log multi-profile summary
                 profile_summary = ", ".join(
                     f"{pid}:{s}/{g}" for pid, (s, g) in profile_scores.items()
                 )
                 print(f"  ✓ Multi-profile scores: {profile_summary}")
-            except Exception as mp_error:
-                print(f"  ⚠ Multi-profile scoring failed: {mp_error}")
 
-            return score, grade, breakdown
+                # Get breakdown for current profile
+                score_record = self.database.get_job_score(job_id, self.profile)
+                if score_record and score_record.get("score_breakdown"):
+                    breakdown = json.loads(score_record["score_breakdown"])
+                    print(
+                        f"    {self.profile}: Seniority={breakdown['seniority']}, "
+                        f"Domain={breakdown['domain']}, Role={breakdown['role_type']}"
+                    )
+                else:
+                    breakdown = {}
+
+                self._increment_stat(stats, "jobs_scored")
+                return score, grade, breakdown
+            else:
+                print("  ⚠ No profiles scored this job (all filtered)")
+                return None, None, None
 
         except Exception as e:
             print(f"  ✗ Scoring failed: {e}")

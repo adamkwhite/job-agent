@@ -207,8 +207,8 @@ class TestProcessorV2HelperMethods:
         assert stats["jobs_passed_filter"] == 1
 
     def test_store_and_process_job_duplicate(self, processor):
-        """Test _store_and_process_job handles duplicate jobs"""
-        stats: dict[str, int | list[str]] = {"jobs_stored": 0}
+        """Test _store_and_process_job handles duplicate jobs and scores them"""
+        stats: dict[str, int | list[str]] = {"jobs_stored": 0, "jobs_scored": 0, "errors": []}
 
         job_dict = {
             "title": "Software Engineer",
@@ -216,13 +216,27 @@ class TestProcessorV2HelperMethods:
             "link": "https://test.com",
         }
 
-        # Mock database to return None (duplicate)
+        # Mock database to return None (duplicate) and provide existing job_id
         processor.database.add_job = MagicMock(return_value=None)
+        processor.database.generate_job_hash = MagicMock(return_value="hash123")
+        processor.database.get_job_id_by_hash = MagicMock(return_value=42)
 
-        processor._store_and_process_job(job_dict, stats)
+        # Mock multi-scorer
+        with patch("src.processor_v2.get_multi_scorer") as mock_get_scorer:
+            mock_scorer = MagicMock()
+            mock_scorer.score_job_for_all = MagicMock(
+                return_value={"wes": (85, "A"), "adam": (72, "B")}
+            )
+            mock_get_scorer.return_value = mock_scorer
 
-        # Should not increment jobs_stored
-        assert stats["jobs_stored"] == 0
+            processor._store_and_process_job(job_dict, stats)
+
+            # Should not increment jobs_stored (duplicate)
+            assert stats["jobs_stored"] == 0
+            # Should increment jobs_scored (scored for all profiles)
+            assert stats["jobs_scored"] == 1
+            # Should have called multi-scorer
+            mock_scorer.score_job_for_all.assert_called_once_with(job_dict, 42)
 
     def test_store_and_process_job_new(self, processor):
         """Test _store_and_process_job processes new jobs"""
@@ -242,57 +256,78 @@ class TestProcessorV2HelperMethods:
 
         # Mock database to return job_id (new job)
         processor.database.add_job = MagicMock(return_value=123)
-
-        # Mock scoring
-        processor.scorer.score_job = MagicMock(
-            return_value=(85, "A", {"seniority": 30, "domain": 30, "role_type": 25}, {})
+        processor.database.get_job_score = MagicMock(
+            return_value={"score_breakdown": '{"seniority": 30, "domain": 30, "role_type": 25}'}
         )
-        processor.database.update_job_score = MagicMock()
 
         # Mock notification
         processor.notifier.notify_job = MagicMock(return_value={"email": True, "sms": True})
         processor.database.mark_notified = MagicMock()
 
-        processor._store_and_process_job(job_dict, stats)
+        # Mock multi-scorer
+        with patch("src.processor_v2.get_multi_scorer") as mock_get_scorer:
+            mock_scorer = MagicMock()
+            mock_scorer.score_job_for_all = MagicMock(
+                return_value={"wes": (85, "A"), "adam": (72, "B")}
+            )
+            mock_get_scorer.return_value = mock_scorer
 
-        # Should increment all counters
-        assert stats["jobs_stored"] == 1
-        assert stats["jobs_scored"] == 1
-        assert stats["notifications_sent"] == 1
+            processor._store_and_process_job(job_dict, stats)
+
+            # Should increment all counters
+            assert stats["jobs_stored"] == 1
+            assert stats["jobs_scored"] == 1
+            assert stats["notifications_sent"] == 1
+            # Should have called multi-scorer
+            mock_scorer.score_job_for_all.assert_called_once_with(job_dict, 123)
 
     def test_score_and_update_job_success(self, processor):
-        """Test _score_and_update_job successfully scores job"""
+        """Test _score_and_update_job successfully scores job with multi-scorer"""
         stats: dict[str, int | list[str]] = {"jobs_scored": 0, "errors": []}
 
-        job_dict = {"title": "Software Engineer"}
+        job_dict = {"title": "Software Engineer", "company": "Test Corp"}
 
-        processor.scorer.score_job = MagicMock(
-            return_value=(85, "A", {"seniority": 30, "domain": 30, "role_type": 25}, {})
+        # Mock database get_job_score to return score breakdown
+        processor.database.get_job_score = MagicMock(
+            return_value={"score_breakdown": '{"seniority": 30, "domain": 30, "role_type": 25}'}
         )
-        processor.database.update_job_score = MagicMock()
 
-        score, grade, breakdown = processor._score_and_update_job(123, job_dict, stats)
+        # Mock multi-scorer
+        with patch("src.processor_v2.get_multi_scorer") as mock_get_scorer:
+            mock_scorer = MagicMock()
+            mock_scorer.score_job_for_all = MagicMock(
+                return_value={"wes": (85, "A"), "adam": (72, "B")}
+            )
+            mock_get_scorer.return_value = mock_scorer
 
-        assert score == 85
-        assert grade == "A"
-        assert breakdown == {"seniority": 30, "domain": 30, "role_type": 25}
-        assert stats["jobs_scored"] == 1
+            score, grade, breakdown = processor._score_and_update_job(123, job_dict, stats)
+
+            assert score == 85  # wes's score (processor.profile defaults to "wes")
+            assert grade == "A"
+            assert breakdown == {"seniority": 30, "domain": 30, "role_type": 25}
+            assert stats["jobs_scored"] == 1
+            # Should have called multi-scorer
+            mock_scorer.score_job_for_all.assert_called_once_with(job_dict, 123)
 
     def test_score_and_update_job_failure(self, processor):
-        """Test _score_and_update_job handles scoring errors"""
+        """Test _score_and_update_job handles scoring errors from multi-scorer"""
         stats: dict[str, int | list[str]] = {"jobs_scored": 0, "errors": []}
 
-        job_dict = {"title": "Software Engineer"}
+        job_dict = {"title": "Software Engineer", "company": "Test Corp"}
 
-        processor.scorer.score_job = MagicMock(side_effect=Exception("Scoring failed"))
+        # Mock multi-scorer to raise an exception
+        with patch("src.processor_v2.get_multi_scorer") as mock_get_scorer:
+            mock_scorer = MagicMock()
+            mock_scorer.score_job_for_all = MagicMock(side_effect=Exception("Scoring failed"))
+            mock_get_scorer.return_value = mock_scorer
 
-        score, grade, breakdown = processor._score_and_update_job(123, job_dict, stats)
+            score, grade, breakdown = processor._score_and_update_job(123, job_dict, stats)
 
-        assert score is None
-        assert grade is None
-        assert breakdown is None
-        assert stats["jobs_scored"] == 0
-        errors_list = stats["errors"]
+            assert score is None
+            assert grade is None
+            assert breakdown is None
+            assert stats["jobs_scored"] == 0
+            errors_list = stats["errors"]
         assert isinstance(errors_list, list)
         assert len(errors_list) == 1
 
