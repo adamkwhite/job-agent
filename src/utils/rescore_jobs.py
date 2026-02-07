@@ -1,8 +1,6 @@
 """
 Re-score existing jobs without re-scraping
 
-mypy: ignore-errors
-
 Allows updating scores for jobs when:
 - Profile configurations change (target seniority, keywords, etc.)
 - Scoring algorithm updates
@@ -308,7 +306,7 @@ class JobRescorer:
         Returns:
             dict: Statistics about the operation
         """
-        stats = {
+        stats: dict[str, Any] = {
             "jobs_processed": 0,
             "profiles_scored": 0,
             "errors": 0,
@@ -342,14 +340,15 @@ class JobRescorer:
                             if profiles and profile_id not in profiles:
                                 continue
 
-                            stats["profiles_scored"] += 1
+                            stats["profiles_scored"] = int(stats["profiles_scored"]) + 1
 
                             # Track significant changes (Δ ≥ 10 points)
                             old_score = existing_scores.get(profile_id)
                             if old_score is not None:
                                 delta = abs(score - old_score)
                                 if delta >= 10:
-                                    stats["significant_changes"].append(
+                                    significant_changes: list = stats["significant_changes"]  # type: ignore
+                                    significant_changes.append(
                                         {
                                             "job_id": job_id,
                                             "title": job["title"],
@@ -364,11 +363,11 @@ class JobRescorer:
                                         (job["title"], old_score, score, delta)
                                     )
 
-                stats["jobs_processed"] += 1
+                stats["jobs_processed"] = int(stats["jobs_processed"]) + 1
 
             except Exception as e:
                 print(f"  ❌ Error scoring {job.get('title', 'Unknown')}: {e}")
-                stats["errors"] += 1
+                stats["errors"] = int(stats["errors"]) + 1
 
         # Print summary
         print(f"\n{'=' * 70}")
@@ -377,17 +376,16 @@ class JobRescorer:
         print(f"Jobs processed: {stats['jobs_processed']}")
         print(f"Profile scores updated: {stats['profiles_scored']}")
         print(f"Errors: {stats['errors']}")
-        print(f"Significant changes (Δ ≥ 10): {len(stats['significant_changes'])}")
+        significant_changes: list = stats["significant_changes"]  # type: ignore
+        print(f"Significant changes (Δ ≥ 10): {len(significant_changes)}")
 
-        if stats["significant_changes"]:
+        if significant_changes:
             print(f"\n{'=' * 70}")
             print("TOP SCORE CHANGES")
             print(f"{'=' * 70}\n")
 
             # Show top 10 changes by delta
-            top_changes = sorted(
-                stats["significant_changes"], key=lambda x: x["delta"], reverse=True
-            )[:10]
+            top_changes = sorted(significant_changes, key=lambda x: x["delta"], reverse=True)[:10]
 
             for change in top_changes:
                 delta_sign = "+" if change["new_score"] > change["old_score"] else ""
