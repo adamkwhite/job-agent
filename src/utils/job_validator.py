@@ -126,8 +126,9 @@ class JobValidator:
         # 1. Alert/banner messages (highest signal)
         alerts = soup.find_all(
             ["div", "section"],
-            class_=lambda c: c
-            and any(x in c.lower() for x in ["alert", "banner", "message", "notice"]),
+            class_=lambda c: (
+                c and any(x in c.lower() for x in ["alert", "banner", "message", "notice"])
+            ),
         )
         check_areas.extend(alerts)
 
