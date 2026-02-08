@@ -13,24 +13,29 @@ from database import JobDatabase
 from utils.connections_manager import ConnectionsManager
 
 
-def generate_html(profile_id: str | None = None):
-    """Generate HTML page with all jobs (sorted by score)
+def generate_html(profile_id: str = "wes"):
+    """Generate HTML page with jobs scored for a specific profile
 
     Args:
-        profile_id: Optional profile ID to show connections for
+        profile_id: Profile ID for scoring and connections (default: "wes")
     """
     db = JobDatabase()
-    jobs = db.get_recent_jobs(limit=100)
+    jobs = db.get_jobs_for_profile_digest(
+        profile_id=profile_id,
+        min_grade="F",  # Include all grades
+        min_location_score=0,  # No location filtering
+        limit=100,
+        max_age_days=30,
+    )
 
-    # Initialize connections manager if profile provided
-    connections_manager = None
-    if profile_id:
-        connections_manager = ConnectionsManager(profile_name=profile_id)
-        if connections_manager.connections_exist:
-            print(f"✓ Loaded LinkedIn connections for profile: {profile_id}")
+    # Initialize connections manager for profile
+    connections_manager = ConnectionsManager(profile_name=profile_id)
+    if connections_manager.connections_exist:
+        print(f"✓ Loaded LinkedIn connections for profile: {profile_id}")
 
-    # Sort by fit_score descending (None scores go to bottom)
-    jobs = sorted(jobs, key=lambda x: x.get("fit_score") or 0, reverse=True)
+    print(f"✓ Generating HTML for profile: {profile_id}")
+
+    # Jobs are already sorted by fit_score from get_jobs_for_profile_digest()
 
     html = (
         """<!DOCTYPE html>
@@ -405,7 +410,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--profile",
         type=str,
-        help="Profile ID to show connections for (e.g., 'wes', 'adam')",
+        default="wes",
+        help="Profile ID for scoring and connections (default: wes)",
     )
     args = parser.parse_args()
 

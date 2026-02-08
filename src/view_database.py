@@ -2,6 +2,7 @@
 View jobs stored in the database
 """
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -11,15 +12,19 @@ sys.path.insert(0, str(Path(__file__).parent))
 from database import JobDatabase
 
 
-def view_database():
-    """Display all jobs in the database"""
+def view_database(profile_id: str = "wes"):
+    """Display jobs scored for a specific profile
+
+    Args:
+        profile_id: Profile ID for scoring (default: "wes")
+    """
     db = JobDatabase()
 
     # Get stats
     stats = db.get_stats()
 
     print("=" * 70)
-    print("DATABASE CONTENTS")
+    print(f"DATABASE CONTENTS - Profile: {profile_id}")
     print("=" * 70)
     print(f"\nTotal jobs: {stats['total_jobs']}")
     print(f"Notified: {stats['notified_jobs']}")
@@ -28,21 +33,28 @@ def view_database():
     for source, count in stats.get("jobs_by_source", {}).items():
         print(f"  {source}: {count}")
 
-    # Get all jobs
-    jobs = db.get_recent_jobs(limit=100)
+    # Get profile-specific jobs
+    jobs = db.get_jobs_for_profile_digest(
+        profile_id=profile_id,
+        min_grade="F",  # Include all grades
+        min_location_score=0,  # No location filtering
+        limit=100,
+        max_age_days=30,
+    )
 
     if not jobs:
         print("\nNo jobs in database")
         return
 
     print(f"\n{'=' * 70}")
-    print(f"ALL JOBS ({len(jobs)})")
+    print(f"JOBS FOR PROFILE: {profile_id} ({len(jobs)})")
     print(f"{'=' * 70}\n")
 
     for i, job in enumerate(jobs, 1):
         print(f"{i}. {job['title']}")
         print(f"   Company: {job['company']}")
         print(f"   Location: {job['location'] or 'Not specified'}")
+        print(f"   Score: {job.get('fit_score', 'N/A')} ({job.get('fit_grade', 'N/A')})")
 
         # Parse keywords
         try:
@@ -60,4 +72,13 @@ def view_database():
 
 
 if __name__ == "__main__":
-    view_database()
+    parser = argparse.ArgumentParser(description="View jobs in database for a profile")
+    parser.add_argument(
+        "--profile",
+        type=str,
+        default="wes",
+        help="Profile ID for scoring (default: wes)",
+    )
+    args = parser.parse_args()
+
+    view_database(profile_id=args.profile)
