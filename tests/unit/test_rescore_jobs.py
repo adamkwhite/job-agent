@@ -408,3 +408,194 @@ class TestJobRescorer:
         # Should NOT track as significant change
         assert len(stats["significant_changes"]) == 0
         assert stats["jobs_processed"] == 1
+
+
+class TestCLI:
+    """Test CLI argument parsing and main() function"""
+
+    def test_main_recent_mode(self, test_db_path, sample_jobs, mocker, monkeypatch):
+        """Test main() with recent mode"""
+        # Add sample jobs with timestamps
+        db = JobDatabase(db_path=test_db_path)
+        base_date = datetime.now() - timedelta(days=3)
+        for i, job_data in enumerate(sample_jobs):
+            job_data["received_at"] = (base_date + timedelta(days=i)).isoformat()
+            db.add_job(job_data)
+
+        # Mock sys.argv
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "rescore_jobs.py",
+                "--mode",
+                "recent",
+                "--days",
+                "7",
+                "--profiles",
+                "wes",
+                "--dry-run",
+            ],
+        )
+
+        # Mock JobRescorer to avoid actual rescoring
+        mock_rescorer = mocker.MagicMock()
+        mock_rescorer.rescore_recent_jobs.return_value = {
+            "jobs_processed": 3,
+            "profiles_scored": 3,
+            "errors": 0,
+            "significant_changes": [],
+        }
+
+        mocker.patch("utils.rescore_jobs.JobRescorer", return_value=mock_rescorer)
+
+        # Import and run main
+        from utils.rescore_jobs import main
+
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+
+        # Should exit with 0 (success)
+        assert exc_info.value.code == 0
+        mock_rescorer.rescore_recent_jobs.assert_called_once_with(
+            days=7, profiles=["wes"], dry_run=True
+        )
+
+    def test_main_date_range_mode(self, test_db_path, mocker, monkeypatch):
+        """Test main() with date-range mode"""
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "rescore_jobs.py",
+                "--mode",
+                "date-range",
+                "--start-date",
+                "2024-01-01",
+                "--end-date",
+                "2024-01-31",
+                "--profiles",
+                "wes",
+                "adam",
+            ],
+        )
+
+        mock_rescorer = mocker.MagicMock()
+        mock_rescorer.rescore_by_date_range.return_value = {
+            "jobs_processed": 0,
+            "profiles_scored": 0,
+            "errors": 0,
+            "significant_changes": [],
+        }
+
+        mocker.patch("utils.rescore_jobs.JobRescorer", return_value=mock_rescorer)
+
+        from utils.rescore_jobs import main
+
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+
+        assert exc_info.value.code == 0
+        mock_rescorer.rescore_by_date_range.assert_called_once_with(
+            start_date="2024-01-01",
+            end_date="2024-01-31",
+            profiles=["wes", "adam"],
+            dry_run=False,
+        )
+
+    def test_main_company_mode(self, test_db_path, mocker, monkeypatch):
+        """Test main() with company mode"""
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "rescore_jobs.py",
+                "--mode",
+                "company",
+                "--company",
+                "Tesla",
+            ],
+        )
+
+        mock_rescorer = mocker.MagicMock()
+        mock_rescorer.rescore_by_company.return_value = {
+            "jobs_processed": 2,
+            "profiles_scored": 2,
+            "errors": 0,
+            "significant_changes": [],
+        }
+
+        mocker.patch("utils.rescore_jobs.JobRescorer", return_value=mock_rescorer)
+
+        from utils.rescore_jobs import main
+
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+
+        assert exc_info.value.code == 0
+        mock_rescorer.rescore_by_company.assert_called_once_with(
+            company_name="Tesla", profiles=None, dry_run=False
+        )
+
+    def test_main_backfill_mode(self, test_db_path, mocker, monkeypatch):
+        """Test main() with backfill mode"""
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "rescore_jobs.py",
+                "--mode",
+                "backfill",
+                "--profile",
+                "mario",
+                "--max-jobs",
+                "500",
+            ],
+        )
+
+        mock_rescorer = mocker.MagicMock()
+        mock_rescorer.backfill_profile.return_value = {
+            "jobs_processed": 100,
+            "profiles_scored": 100,
+            "errors": 0,
+            "significant_changes": [],
+        }
+
+        mocker.patch("utils.rescore_jobs.JobRescorer", return_value=mock_rescorer)
+
+        from utils.rescore_jobs import main
+
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+
+        assert exc_info.value.code == 0
+        mock_rescorer.backfill_profile.assert_called_once_with(
+            profile_id="mario", max_jobs=500, dry_run=False
+        )
+
+    def test_main_with_errors(self, test_db_path, mocker, monkeypatch):
+        """Test main() exits with error code when errors occur"""
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "rescore_jobs.py",
+                "--mode",
+                "recent",
+                "--days",
+                "7",
+            ],
+        )
+
+        mock_rescorer = mocker.MagicMock()
+        mock_rescorer.rescore_recent_jobs.return_value = {
+            "jobs_processed": 5,
+            "profiles_scored": 5,
+            "errors": 3,  # Has errors
+            "significant_changes": [],
+        }
+
+        mocker.patch("utils.rescore_jobs.JobRescorer", return_value=mock_rescorer)
+
+        from utils.rescore_jobs import main
+
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+
+        # Should exit with 1 (error)
+        assert exc_info.value.code == 1
