@@ -17,7 +17,7 @@ def pytest_configure(config):
     )
 
 
-def pytest_collection_modifyitems(_config, items):
+def pytest_collection_modifyitems(config, items):  # noqa: ARG001
     """Skip exploration tests with missing dependencies."""
     skip_scrapegraphai = pytest.mark.skip(reason="scrapegraphai not available or incompatible")
 
