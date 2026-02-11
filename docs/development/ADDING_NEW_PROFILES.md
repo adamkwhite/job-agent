@@ -12,6 +12,8 @@ The Job Agent supports multiple user profiles, each with their own:
 
 Profiles are stored in `profiles/*.json` and automatically loaded by the system. **No code changes are required** when adding new profiles.
 
+**Architecture Note (Issue #184)**: Scraping is decoupled from scoring. When you run the scraper with any profile's `--profile` flag, jobs are automatically scored for ALL enabled profiles. You don't need to scrape separately for each profile.
+
 ## Quick Start
 
 1. Create `profiles/yourname.json` with job preferences
@@ -189,7 +191,20 @@ PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile y
 
 ```bash
 # Run unified scraper for your profile
+# Note: Jobs are scored for ALL profiles, not just 'yourname'
 PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --profile yourname --email-only
+```
+
+#### Backfill Scores for Existing Jobs
+
+If you're adding a profile to a system with existing jobs, backfill scores:
+
+```bash
+# Score all existing jobs for your new profile
+PYTHONPATH=$PWD job-agent-venv/bin/python src/utils/rescore_jobs.py --mode backfill --profile yourname
+
+# Or limit to recent jobs (faster)
+PYTHONPATH=$PWD job-agent-venv/bin/python src/utils/rescore_jobs.py --mode backfill --profile yourname --max-jobs 500
 ```
 
 ### 5. Use in TUI

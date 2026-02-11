@@ -273,21 +273,7 @@ class JobProcessorV2:
 
     def _store_and_process_job(self, job_dict: dict, stats: dict[str, int | list[str]]) -> None:
         """Store a job and process it (score + notify)"""
-        # Stage 1: Hard filters (before storage and scoring)
-        if self.filter_pipeline:
-            should_score, filter_reason = self.filter_pipeline.apply_hard_filters(job_dict)
-            if not should_score:
-                self._increment_stat(stats, "jobs_hard_filtered")
-                print(f"\n⊘ Hard filtered: {job_dict['title']}")
-                print(f"  Reason: {filter_reason}")
-
-                # Store filtered job with filter_reason
-                job_dict["filter_reason"] = filter_reason
-                job_dict["filtered_at"] = datetime.now().isoformat()
-                self.database.add_job(job_dict)
-                return
-
-        # Store the job
+        # Store the job (filtering now happens per-profile in multi_scorer)
         job_id = self.database.add_job(job_dict)
 
         if not job_id:
@@ -323,10 +309,10 @@ class JobProcessorV2:
         print(f"  Keywords: {', '.join(job_dict.get('keywords_matched', []))}")
         print(f"  Link: {job_dict['link']}")
 
-        # Stage 2: Score the job
+        # Score the job (multi-profile with per-profile filtering)
         score, grade, breakdown = self._score_and_update_job(job_id, job_dict, stats)
 
-        # Stage 3: Context filters (after scoring)
+        # Context filters (after scoring, uses current profile's context)
         if score is not None and grade is not None and breakdown is not None:
             if self.filter_pipeline:
                 should_keep, filter_reason = self.filter_pipeline.apply_context_filters(

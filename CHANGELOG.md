@@ -29,6 +29,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Files modified: `src/agents/base_scorer.py`, `tests/unit/test_base_scorer.py`, `CLAUDE.md`, `src/send_profile_digest.py`, `docs/development/SCORING_UPDATE_CHECKLIST.md`
 
 ### Fixed
+- **Multi-Profile Filtering Bug** (Feb 10, 2026 - Issue #258, PR #259)
+  - Fixed pre-storage hard filtering that blocked jobs for ALL profiles before multi-profile scoring
+  - **Problem:** Hard filters in `processor_v2.py` and `company_scraper.py` evaluated jobs before multi-scoring, preventing other profiles from seeing jobs that only matched their criteria
+  - **Solution:** Removed pre-storage filtering - jobs now stored immediately and scored for all profiles via multi_scorer
+  - Per-profile filtering still applies AFTER multi-scoring through context filters (using current profile's preferences)
+  - **Impact:** Jobs that pass filters for ANY profile now get multi-scored, enabling true multi-profile job matching
+  - **Testing:** Created 3 structural tests verifying code removal, rewrote 2 legacy tests to match new architecture
+  - All 1,468 tests passing, SonarCloud quality gate passing
+  - Files modified: `src/processor_v2.py`, `src/jobs/company_scraper.py`, `tests/unit/test_multi_profile_filtering.py`, `tests/unit/test_company_scraper.py`
+
 - **Digest Dry-Run Email Subject Bug** (Feb 2, 2026 - Issue #238, PR #241)
   - Fixed misleading "🎯 0 Job Matches" subject line when only C-grade (55-69) jobs exist
   - Dry-run preview now uses same tiered subject logic as actual email send

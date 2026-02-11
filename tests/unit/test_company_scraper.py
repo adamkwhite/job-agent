@@ -519,8 +519,12 @@ class TestFilterPipelineIntegration:
     @patch("src.jobs.company_scraper.get_profile_manager")
     @patch("src.jobs.company_scraper.JobFilterPipeline")
     def test_hard_filters_block_before_scoring(self, mock_pipeline_class, mock_get_pm):
-        """Should apply hard filters before scoring and store with filter_reason"""
-        # Setup profile and filter pipeline
+        """
+        Test Issue #258 fix: Jobs are NOT filtered before scoring.
+        All jobs go through multi-profile scoring regardless of hard filters.
+        Hard filters are now applied per-profile inside multi_scorer.
+        """
+        # Setup profile
         mock_profile = MagicMock()
         mock_profile.scoring = {"hard_filter_keywords": {"seniority_blocks": ["junior"]}}
         mock_pm = MagicMock()
@@ -528,49 +532,66 @@ class TestFilterPipelineIntegration:
         mock_get_pm.return_value = mock_pm
 
         mock_pipeline = MagicMock()
-        mock_pipeline.apply_hard_filters.return_value = (False, "hard_filter_junior")
+        # Context filters should pass (return True) in this test
+        mock_pipeline.apply_context_filters.return_value = (True, None)
         mock_pipeline_class.return_value = mock_pipeline
 
-        # Create scraper with profile
         with (
             patch("src.jobs.company_scraper.CompanyService"),
             patch("src.jobs.company_scraper.FirecrawlCareerScraper"),
             patch("src.jobs.company_scraper.JobFilter"),
-            patch("src.jobs.company_scraper.JobScorer"),
-            patch("src.jobs.company_scraper.JobDatabase"),
+            patch("src.jobs.company_scraper.JobScorer") as mock_scorer_class,
+            patch("src.jobs.company_scraper.JobDatabase") as mock_db_class,
             patch("src.jobs.company_scraper.JobNotifier"),
         ):
+            # Configure mocks
+            mock_db = MagicMock()
+            mock_db.add_job.return_value = 123  # Job ID
+            mock_db_class.return_value = mock_db
+
+            # Mock scorer to return 4-tuple: (score, grade, breakdown, metadata)
+            mock_scorer = MagicMock()
+            mock_scorer.score_job.return_value = (
+                55,  # score
+                "D",  # grade
+                {"seniority": 15, "domain": 20, "role_type": 10},  # breakdown
+                {},  # metadata
+            )
+            mock_scorer_class.return_value = mock_scorer
+
             scraper = CompanyScraper(profile="wes")
             scraper.job_filter.is_leadership_role = MagicMock(return_value=True)
-            scraper.database.add_job = MagicMock(return_value=None)  # Simulate storage
 
-            jobs = [
-                (
-                    OpportunityData(
-                        type="direct_job",
-                        title="Junior Director",
-                        company="Test Company",
-                        location="Remote",
-                        link="https://test.com/job",
-                        source="company_monitoring",
-                    ),
-                    "regex",
+            # Mock the multi_scorer that gets imported dynamically inside process_scraped_jobs
+            with patch("utils.multi_scorer.get_multi_scorer") as mock_get_multi_scorer:
+                mock_multi_scorer = MagicMock()
+                mock_get_multi_scorer.return_value = mock_multi_scorer
+
+                jobs = [
+                    (
+                        OpportunityData(
+                            type="direct_job",
+                            title="Junior Director",  # Would have been hard-filtered in old code
+                            company="Test Company",
+                            location="Remote",
+                            link="https://test.com/job",
+                            source="company_monitoring",
+                        ),
+                        "regex",
+                    )
+                ]
+
+                stats = scraper.process_scraped_jobs(
+                    "Test Company", jobs, min_score=50, notify_threshold=80
                 )
-            ]
 
-            stats = scraper.process_scraped_jobs(
-                "Test Company", jobs, min_score=50, notify_threshold=80
-            )
+                # NEW BEHAVIOR (Issue #258): No pre-scoring hard filtering
+                assert stats["jobs_hard_filtered"] == 0
+                mock_pipeline.apply_hard_filters.assert_not_called()
 
-            # Should apply hard filter and increment stats
-            assert stats["jobs_hard_filtered"] == 1
-            assert stats["jobs_stored"] == 0
-            mock_pipeline.apply_hard_filters.assert_called_once()
-            # Should store filtered job with filter_reason
-            scraper.database.add_job.assert_called_once()
-            call_args = scraper.database.add_job.call_args[0][0]
-            assert call_args["filter_reason"] == "hard_filter_junior"
-            assert "filtered_at" in call_args
+                # Job should be stored and multi-scored
+                assert mock_db.add_job.call_count == 1
+                assert mock_multi_scorer.score_job_for_all.call_count == 1
 
     @patch("src.jobs.company_scraper.get_profile_manager")
     @patch("src.jobs.company_scraper.JobFilterPipeline")
@@ -636,7 +657,11 @@ class TestFilterPipelineIntegration:
     @patch("src.jobs.company_scraper.get_profile_manager")
     @patch("src.jobs.company_scraper.JobFilterPipeline")
     def test_filtered_stats_aggregation(self, mock_pipeline_class, mock_get_pm):
-        """Should aggregate filtered stats from multiple jobs"""
+        """
+        Test Issue #258 fix: No pre-scoring hard filtering.
+        Only context filters (after scoring) can block jobs.
+        Stats should reflect: no hard filtered jobs, context filters still work.
+        """
         mock_profile = MagicMock()
         mock_profile.scoring = {"hard_filter_keywords": {}, "context_filters": {}}
         mock_pm = MagicMock()
@@ -644,15 +669,11 @@ class TestFilterPipelineIntegration:
         mock_get_pm.return_value = mock_pm
 
         mock_pipeline = MagicMock()
-        # First job: hard filtered, second: context filtered, third: passes
-        mock_pipeline.apply_hard_filters.side_effect = [
-            (False, "hard_filter_junior"),
-            (True, None),
-            (True, None),
-        ]
+        # Context filters (applied AFTER scoring): filter 1st job, pass 2nd and 3rd
         mock_pipeline.apply_context_filters.side_effect = [
-            (False, "context_filter_software_engineering"),
-            (True, None),
+            (False, "context_filter_software_engineering"),  # Job 1 filtered
+            (True, None),  # Job 2 passes
+            (True, None),  # Job 3 passes
         ]
         mock_pipeline_class.return_value = mock_pipeline
 
@@ -660,61 +681,87 @@ class TestFilterPipelineIntegration:
             patch("src.jobs.company_scraper.CompanyService"),
             patch("src.jobs.company_scraper.FirecrawlCareerScraper"),
             patch("src.jobs.company_scraper.JobFilter"),
-            patch("src.jobs.company_scraper.JobScorer"),
-            patch("src.jobs.company_scraper.JobDatabase"),
+            patch("src.jobs.company_scraper.JobScorer") as mock_scorer_class,
+            patch("src.jobs.company_scraper.JobDatabase") as mock_db_class,
             patch("src.jobs.company_scraper.JobNotifier"),
         ):
+            # Configure mocks
+            mock_db = MagicMock()
+            # Job IDs: all jobs stored (even context-filtered ones for audit)
+            mock_db.add_job.side_effect = [1, 2, 3]
+            mock_db_class.return_value = mock_db
+
+            # Mock scorer to return 4-tuple: (score, grade, breakdown, metadata)
+            mock_scorer = MagicMock()
+            mock_scorer.score_job.return_value = (
+                75,  # score
+                "B",  # grade
+                {"seniority": 25, "domain": 20, "role_type": 15},  # breakdown
+                {},  # metadata
+            )
+            mock_scorer_class.return_value = mock_scorer
+
             scraper = CompanyScraper(profile="wes")
             scraper.job_filter.is_leadership_role = MagicMock(return_value=True)
-            scraper.scorer.score_job = MagicMock(
-                return_value=(75, "B", {"seniority": 25, "domain": 20, "role_type": 15}, {})
-            )
-            # Hard filtered returns None (audit), context filtered returns 1 (audit), passed returns 2 (stored)
-            scraper.database.add_job = MagicMock(side_effect=[None, 1, 2])
-            scraper.database.update_job_score = MagicMock()
 
-            jobs = [
-                (
-                    OpportunityData(
-                        type="direct_job",
-                        title="Junior Director",
-                        company="Test",
-                        location="Remote",
-                        link="https://test.com/job1",
-                        source="company_monitoring",
-                    ),
-                    "regex",
-                ),
-                (
-                    OpportunityData(
-                        type="direct_job",
-                        title="Director of Software Engineering",
-                        company="Test",
-                        location="Remote",
-                        link="https://test.com/job2",
-                        source="company_monitoring",
-                    ),
-                    "regex",
-                ),
-                (
-                    OpportunityData(
-                        type="direct_job",
-                        title="VP of Engineering",
-                        company="Test",
-                        location="Remote",
-                        link="https://test.com/job3",
-                        source="company_monitoring",
-                    ),
-                    "regex",
-                ),
-            ]
+            # Mock the multi_scorer that gets imported dynamically inside process_scraped_jobs
+            with patch("utils.multi_scorer.get_multi_scorer") as mock_get_multi_scorer:
+                mock_multi_scorer = MagicMock()
+                mock_get_multi_scorer.return_value = mock_multi_scorer
 
-            stats = scraper.process_scraped_jobs("Test Company", jobs)
+                jobs = [
+                    (
+                        OpportunityData(
+                            type="direct_job",
+                            title="Director of Software Engineering",  # Will be context-filtered
+                            company="Test",
+                            location="Remote",
+                            link="https://test.com/job1",
+                            source="company_monitoring",
+                        ),
+                        "regex",
+                    ),
+                    (
+                        OpportunityData(
+                            type="direct_job",
+                            title="VP of Hardware Engineering",  # Passes
+                            company="Test",
+                            location="Remote",
+                            link="https://test.com/job2",
+                            source="company_monitoring",
+                        ),
+                        "regex",
+                    ),
+                    (
+                        OpportunityData(
+                            type="direct_job",
+                            title="Director of Product",  # Passes
+                            company="Test",
+                            location="Remote",
+                            link="https://test.com/job3",
+                            source="company_monitoring",
+                        ),
+                        "regex",
+                    ),
+                ]
 
-            # Verify stats
-            assert stats["jobs_hard_filtered"] == 1
-            assert stats["jobs_context_filtered"] == 1
-            assert stats["jobs_stored"] == 1  # Only the third job that passed all filters
+                stats = scraper.process_scraped_jobs("Test Company", jobs)
+
+                # NEW BEHAVIOR (Issue #258)
+                assert stats["jobs_hard_filtered"] == 0  # No pre-scoring hard filtering
+                assert stats["jobs_context_filtered"] == 1  # One job context-filtered after scoring
+                assert stats["jobs_processed"] == 3  # All jobs processed
+
+                # Verify no hard filtering happened before scoring
+                mock_pipeline.apply_hard_filters.assert_not_called()
+
+                # Verify all jobs stored (even context-filtered for audit)
+                assert mock_db.add_job.call_count == 3
+
+                # Verify multi-profile scoring called for ALL jobs (including context-filtered)
+                # Context filtering only affects whether job is "passing" for current profile
+                # but all jobs get scored for all profiles regardless
+                assert mock_multi_scorer.score_job_for_all.call_count == 3
 
 
 class TestSkipRecentHours:

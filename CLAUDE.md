@@ -10,7 +10,7 @@ Job discovery automation for multiple user profiles (Wes, Adam, Eli). Features i
 
 - **Email processors**: LinkedIn, Supra, F6S, Artemis, Built In, Ministry of Testing
 - **Company monitoring**: Firecrawl-based scraping of robotics/deeptech companies
-- **Scoring**: 100-point system with per-profile hard filters (Issue #212 fix)
+- **Scoring**: 100-point system with multi-profile scoring and per-profile filtering (Issue #258 fix)
 - **LLM extraction**: Dual regex+LLM via Claude 3.5 Sonnet ($15/month budget)
 - **Database**: SQLite with multi-profile scoring and deduplication
 - **Notifications**: A/B grade jobs (70+) only
@@ -132,11 +132,13 @@ Each scored job includes classification metadata:
 1. IMAP monitoring of dedicated Gmail account
 2. Email parsing to extract job details (title, company, link, location)
 3. Keyword-based filtering (include/exclude lists)
-4. Job scoring against candidate profile
+4. **Multi-profile scoring** - Each job scored for ALL enabled profiles (stored in `job_scores` table)
 5. Job deduplication and storage
 6. Notification triggers for A/B grade jobs only (70+)
 
 **Supported Sources**: LinkedIn, Supra Product Leadership Jobs, F6S, Artemis, Built In
+
+**Architecture (Issue #184)**: Scraping is now decoupled from scoring. Jobs are scraped once and automatically scored for all profiles.
 
 ### 3. Email Digest System (`src/send_profile_digest.py`)
 - Generates HTML email with top-scoring jobs
@@ -153,12 +155,18 @@ Combines ALL job sources into one automated workflow:
 - **Company monitoring** (robotics/deeptech companies via Firecrawl)
 
 ```bash
-PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --profile <wes|adam|eli|mario>
 ```
+
+**How it works (Issue #184 - Decoupled Architecture)**:
+- `--profile` flag determines **which email inbox to connect to** for scraping
+- Jobs are **automatically scored for ALL profiles** (not just the specified profile)
+- Each job stored once in `jobs` table, with scores in `job_scores` table
+- No need to run multiple times for different profiles
 
 **Key features**:
 - Single command runs all sources
-- Unified scoring and deduplication
+- Multi-profile scoring (all profiles scored automatically)
 - Configurable thresholds per source
 - Comprehensive stats and logging
 - Cron-friendly for weekly automation
@@ -176,6 +184,36 @@ PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py
 
 ### 7. LLM Extraction Pipeline (PRODUCTION)
 Dual regex+LLM extraction via Claude 3.5 Sonnet. Finds jobs regex misses (e.g., non-standard formats). $15/month budget, 30s timeout. Config: `config/llm-extraction-settings.json`. Toggle with `"enabled": true/false`.
+
+### 8. Independent Re-scoring Utility (`src/utils/rescore_jobs.py`) **Issue #184 Phase 4**
+Re-score existing jobs without re-scraping. Useful for:
+- Profile configuration changes (target seniority, keywords, etc.)
+- Scoring algorithm updates
+- Backfilling scores for new profiles
+- Testing scoring changes before deploying
+
+```bash
+# Re-score last 7 days for all profiles
+PYTHONPATH=$PWD job-agent-venv/bin/python src/utils/rescore_jobs.py --mode recent --days 7
+
+# Re-score specific date range
+PYTHONPATH=$PWD job-agent-venv/bin/python src/utils/rescore_jobs.py --mode date-range --start-date 2024-01-01 --end-date 2024-01-31
+
+# Backfill scores for new profile (e.g., Mario)
+PYTHONPATH=$PWD job-agent-venv/bin/python src/utils/rescore_jobs.py --mode backfill --profile mario --max-jobs 500
+
+# Re-score specific company
+PYTHONPATH=$PWD job-agent-venv/bin/python src/utils/rescore_jobs.py --mode company --company Tesla
+
+# Dry run (preview changes)
+PYTHONPATH=$PWD job-agent-venv/bin/python src/utils/rescore_jobs.py --mode recent --days 7 --dry-run
+```
+
+**Key features**:
+- Re-scores without re-scraping (preserves API credits)
+- Shows significant score changes (Δ ≥ 10 points)
+- Supports selective re-scoring by date, company, or profile
+- Dry-run mode for testing
 
 ## Testing & Coverage Requirements
 
@@ -222,9 +260,19 @@ SKIP=python-safety-dependencies-check git commit -m "message"
 ./run-tui.sh
 ```
 
-**Weekly Scraper** (all sources):
+**Weekly Scraper** (all sources, scores for ALL profiles):
 ```bash
-PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --profile <wes|adam|eli>
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --profile <wes|adam|eli|mario>
+# --profile determines email inbox to scrape; jobs scored for ALL profiles automatically
+```
+
+**Re-score Existing Jobs** (no scraping):
+```bash
+# Re-score recent jobs
+PYTHONPATH=$PWD job-agent-venv/bin/python src/utils/rescore_jobs.py --mode recent --days 7
+
+# Backfill new profile
+PYTHONPATH=$PWD job-agent-venv/bin/python src/utils/rescore_jobs.py --mode backfill --profile mario
 ```
 
 **Send Digest**:
@@ -308,12 +356,13 @@ The job agent supports multiple user profiles with separate email accounts, scor
 - **Adam** (`profiles/adam.json`) - Senior/Staff roles in Software/Product
 - **Eli** (`profiles/eli.json`) - Director/VP/CTO roles in Fintech/Healthtech/PropTech
 
-**Key Features**:
-- Jobs scraped from profile-specific email inboxes (or digest-only for profiles without inbox)
-- Each job scored for ALL enabled profiles (stored in `job_scores` table)
-- Digests sent separately to each profile with personalized matches
-- Database tracks which inbox jobs came from (`jobs.profile` column)
-- TUI automatically loads all enabled profiles (no code changes needed)
+**Key Features (Issue #184 - Decoupled Architecture)**:
+- **Scraping**: Profile flag determines which email inbox to connect to
+- **Scoring**: Jobs automatically scored for ALL enabled profiles (stored in `job_scores` table)
+- **Digests**: Sent separately to each profile with personalized matches
+- **Database**: Single `jobs` table, multi-profile scores in `job_scores` table
+- **Re-scoring**: Independent utility allows updating scores without re-scraping
+- **TUI**: Automatically loads all enabled profiles (no code changes needed)
 
 **📖 To add a new profile, see the step-by-step guide: [`docs/development/ADDING_NEW_PROFILES.md`](docs/development/ADDING_NEW_PROFILES.md)**
 
