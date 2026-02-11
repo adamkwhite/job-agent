@@ -519,7 +519,11 @@ class TestFilterPipelineIntegration:
     @patch("src.jobs.company_scraper.get_profile_manager")
     @patch("src.jobs.company_scraper.JobFilterPipeline")
     def test_hard_filters_block_before_scoring(self, mock_pipeline_class, mock_get_pm):
-        """Should apply hard filters before scoring and store with filter_reason"""
+        """
+        DEPRECATED (Issue #258): Hard filters no longer block before scoring.
+        Jobs are now scored for all profiles with per-profile filtering in multi_scorer.
+        This test is updated to verify the new behavior.
+        """
         # Setup profile and filter pipeline
         mock_profile = MagicMock()
         mock_profile.scoring = {"hard_filter_keywords": {"seniority_blocks": ["junior"]}}
@@ -562,15 +566,11 @@ class TestFilterPipelineIntegration:
                 "Test Company", jobs, min_score=50, notify_threshold=80
             )
 
-            # Should apply hard filter and increment stats
-            assert stats["jobs_hard_filtered"] == 1
-            assert stats["jobs_stored"] == 0
-            mock_pipeline.apply_hard_filters.assert_called_once()
-            # Should store filtered job with filter_reason
-            scraper.database.add_job.assert_called_once()
-            call_args = scraper.database.add_job.call_args[0][0]
-            assert call_args["filter_reason"] == "hard_filter_junior"
-            assert "filtered_at" in call_args
+            # NEW BEHAVIOR (Issue #258): Hard filters no longer block before scoring
+            # Jobs are scored for all profiles, filtering happens per-profile in multi_scorer
+            # So hard_filter is NOT called before scoring anymore
+            assert stats["jobs_hard_filtered"] == 0  # No pre-scoring hard filtering
+            mock_pipeline.apply_hard_filters.assert_not_called()  # Not called anymore
 
     @patch("src.jobs.company_scraper.get_profile_manager")
     @patch("src.jobs.company_scraper.JobFilterPipeline")
@@ -636,7 +636,10 @@ class TestFilterPipelineIntegration:
     @patch("src.jobs.company_scraper.get_profile_manager")
     @patch("src.jobs.company_scraper.JobFilterPipeline")
     def test_filtered_stats_aggregation(self, mock_pipeline_class, mock_get_pm):
-        """Should aggregate filtered stats from multiple jobs"""
+        """
+        DEPRECATED (Issue #258): Updated to reflect new architecture.
+        No hard filtering before scoring - only context filters apply.
+        """
         mock_profile = MagicMock()
         mock_profile.scoring = {"hard_filter_keywords": {}, "context_filters": {}}
         mock_pm = MagicMock()
@@ -644,9 +647,10 @@ class TestFilterPipelineIntegration:
         mock_get_pm.return_value = mock_pm
 
         mock_pipeline = MagicMock()
-        # First job: hard filtered, second: context filtered, third: passes
+        # NEW BEHAVIOR: No pre-scoring hard filters
+        # First two jobs: pass (no hard filtering), second: context filtered, third: passes
         mock_pipeline.apply_hard_filters.side_effect = [
-            (False, "hard_filter_junior"),
+            (True, None),  # Not filtered before scoring
             (True, None),
             (True, None),
         ]
@@ -711,10 +715,11 @@ class TestFilterPipelineIntegration:
 
             stats = scraper.process_scraped_jobs("Test Company", jobs)
 
-            # Verify stats
-            assert stats["jobs_hard_filtered"] == 1
-            assert stats["jobs_context_filtered"] == 1
-            assert stats["jobs_stored"] == 1  # Only the third job that passed all filters
+            # Verify stats (NEW BEHAVIOR: No pre-scoring hard filtering)
+            assert stats["jobs_hard_filtered"] == 0  # No pre-scoring hard filters
+            assert stats["jobs_context_filtered"] == 1  # Context filter still applies
+            # All jobs get scored and stored (multi-profile filtering happens separately)
+            assert stats["jobs_processed"] == 3
 
 
 class TestSkipRecentHours:
