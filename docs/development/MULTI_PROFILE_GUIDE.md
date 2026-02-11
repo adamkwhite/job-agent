@@ -11,12 +11,15 @@ The job agent supports multiple user profiles, each with separate:
 - **Wes** (`profiles/wes.json`) - VP/Director roles in Robotics/Hardware
 - **Adam** (`profiles/adam.json`) - Senior/Staff roles in Software/Product
 
-## How It Works
+## How It Works (Issue #184 - Decoupled Architecture)
 
-1. Jobs are scraped from profile-specific email inboxes
-2. Each job is scored for ALL enabled profiles (stored in `job_scores` table)
-3. Digests are sent separately to each profile with their personalized matches
-4. The `jobs` table tracks which email inbox the job came from (`profile` column)
+1. **Scraping**: The `--profile` flag determines which email inbox to connect to for scraping
+2. **Scoring**: Each job is automatically scored for ALL enabled profiles (stored in `job_scores` table)
+3. **Digests**: Sent separately to each profile with their personalized matches
+4. **Database**: The `jobs` table tracks which email inbox the job came from (`profile` column)
+5. **Re-scoring**: Independent utility allows updating scores without re-scraping
+
+**Key insight**: You only need to scrape once (from any profile's inbox) and all profiles get scored automatically. No need to run the scraper multiple times.
 
 ### Database Schema
 

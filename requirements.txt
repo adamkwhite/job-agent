@@ -17,7 +17,7 @@ coverage==7.11.0
 cryptography==46.0.3
 distlib==0.4.0
 dparse==0.6.4
-filelock==3.20.1
+filelock>=3.20.3
 firecrawl-py>=4.5.0
 Flask==3.0.0
 # LLM Extraction dependencies (runtime only, not needed for tests/CI)

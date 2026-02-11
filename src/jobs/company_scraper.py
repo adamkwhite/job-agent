@@ -236,17 +236,10 @@ class CompanyScraper:
             # Prepare job dictionary
             job_dict = self._prepare_job_dict(job)
 
-            # Stage 1: Hard filters (before scoring)
-            if self.filter_pipeline:
-                should_score, filter_reason = self.filter_pipeline.apply_hard_filters(job_dict)
-                if not should_score:
-                    self._handle_hard_filtered_job(job, job_dict, filter_reason, stats)
-                    continue
-
-            # Stage 2: Scoring
+            # Scoring (filtering now happens per-profile in multi_scorer)
             score, grade, breakdown, classification_metadata = self.scorer.score_job(job_dict)
 
-            # Stage 3: Context filters (after scoring)
+            # Context filters (after scoring, uses current profile's context)
             if self.filter_pipeline:
                 should_keep, filter_reason = self.filter_pipeline.apply_context_filters(
                     job_dict, score, breakdown
