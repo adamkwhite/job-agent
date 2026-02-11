@@ -10,7 +10,7 @@ Job discovery automation for multiple user profiles (Wes, Adam, Eli). Features i
 
 - **Email processors**: LinkedIn, Supra, F6S, Artemis, Built In, Ministry of Testing
 - **Company monitoring**: Firecrawl-based scraping of robotics/deeptech companies
-- **Scoring**: 100-point system with per-profile hard filters (Issue #212 fix)
+- **Scoring**: 100-point system with multi-profile scoring and per-profile filtering (Issue #258 fix)
 - **LLM extraction**: Dual regex+LLM via Claude 3.5 Sonnet ($15/month budget)
 - **Database**: SQLite with multi-profile scoring and deduplication
 - **Notifications**: A/B grade jobs (70+) only
