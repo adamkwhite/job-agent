@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 
 from jobs.company_scraper import CompanyScraper
 from jobs.ministry_scraper import MinistryScraper
+from jobs.testdevjobs_scraper import TestDevJobsWeeklyScraper
 from processor_v2 import JobProcessorV2
 
 load_dotenv()
@@ -57,6 +58,9 @@ class WeeklyUnifiedScraper:
         # Ministry of Testing scraper
         self.ministry_scraper = MinistryScraper(profile=profile)
 
+        # TestDevJobs scraper
+        self.testdevjobs_scraper = TestDevJobsWeeklyScraper(profile=profile)
+
     def run_all(
         self,
         fetch_emails: bool = True,
@@ -68,6 +72,8 @@ class WeeklyUnifiedScraper:
         scrape_ministry: bool = True,
         _ministry_max_pages: int = 3,
         _ministry_min_score: int = 47,
+        scrape_testdevjobs: bool = True,
+        _testdevjobs_min_score: int = 47,
     ) -> dict:
         """
         Run all job processing sources
@@ -82,6 +88,8 @@ class WeeklyUnifiedScraper:
             scrape_ministry: Whether to scrape Ministry of Testing
             ministry_max_pages: Max pages to scrape from Ministry (default: 3)
             ministry_min_score: Minimum score for Ministry jobs (default: 47 for Mario)
+            scrape_testdevjobs: Whether to scrape TestDevJobs
+            testdevjobs_min_score: Minimum score for TestDevJobs jobs (default: 47 for Mario)
 
         Returns:
             Combined stats from all sources
@@ -93,12 +101,14 @@ class WeeklyUnifiedScraper:
         print(f"📧 Email processing: {fetch_emails}")
         print(f"🏢 Company monitoring: {scrape_companies}")
         print(f"🧪 Ministry of Testing: {scrape_ministry}")
+        print(f"🔬 TestDevJobs: {scrape_testdevjobs}")
         print("=" * 80 + "\n")
 
         all_stats = {
             "email": {},
             "companies": {},
             "ministry": {},
+            "testdevjobs": {},
             "total_jobs_found": 0,
             "total_jobs_stored": 0,
             "total_notifications": 0,
@@ -162,8 +172,36 @@ class WeeklyUnifiedScraper:
                     "error": str(e),
                 }
 
+        # PART 4: TestDevJobs
+        if scrape_testdevjobs:
+            print("\n" + "=" * 80)
+            print("PART 4: TESTDEVJOBS (REMOTE QA/TESTING JOBS)")
+            print("=" * 80 + "\n")
+
+            try:
+                testdevjobs_stats = self.testdevjobs_scraper.scrape_testdevjobs(
+                    min_score=_testdevjobs_min_score,
+                )
+                all_stats["testdevjobs"] = testdevjobs_stats
+
+                # Update totals
+                all_stats["total_jobs_found"] += testdevjobs_stats.get("jobs_found", 0)
+                all_stats["total_jobs_stored"] += testdevjobs_stats.get("jobs_stored", 0)
+
+            except Exception as e:
+                print(f"✗ TestDevJobs scraper error: {e}")
+                all_stats["testdevjobs"] = {
+                    "jobs_found": 0,
+                    "jobs_stored": 0,
+                    "jobs_scored": 0,
+                    "profile_scores": {},
+                    "error": str(e),
+                }
+
         # Final summary
-        self._print_summary(all_stats, fetch_emails, scrape_companies, scrape_ministry)
+        self._print_summary(
+            all_stats, fetch_emails, scrape_companies, scrape_ministry, scrape_testdevjobs
+        )
 
         return all_stats
 
@@ -197,6 +235,7 @@ class WeeklyUnifiedScraper:
         ran_emails: bool,
         ran_companies: bool,
         ran_ministry: bool = False,
+        ran_testdevjobs: bool = False,
     ) -> None:
         """Print final summary"""
         print("\n" + "=" * 80)
@@ -235,6 +274,13 @@ class WeeklyUnifiedScraper:
             print(f"  Jobs found: {ministry_stats.get('jobs_found', 0)}")
             print(f"  Jobs stored: {ministry_stats.get('jobs_stored', 0)}")
             print(f"  Jobs scored: {ministry_stats.get('jobs_scored', 0)}")
+
+        if ran_testdevjobs:
+            testdevjobs_stats = all_stats["testdevjobs"]
+            print("\n🔬 TestDevJobs:")
+            print(f"  Jobs found: {testdevjobs_stats.get('jobs_found', 0)}")
+            print(f"  Jobs stored: {testdevjobs_stats.get('jobs_stored', 0)}")
+            print(f"  Jobs scored: {testdevjobs_stats.get('jobs_scored', 0)}")
 
         print("\n📊 TOTALS:")
         print(f"  Jobs found: {all_stats['total_jobs_found']}")
@@ -379,6 +425,7 @@ def run_all_inboxes(
         "email_totals": {},
         "companies": {},
         "ministry": {},
+        "testdevjobs": {},
         "grand_totals": {},
         "errors": [],
     }
@@ -401,6 +448,10 @@ def run_all_inboxes(
         # PART 3: Scrape Ministry ONCE (shared resource)
         ministry_stats = _scrape_shared_ministry()
         aggregated_stats["ministry"] = ministry_stats
+
+        # PART 4: Scrape TestDevJobs ONCE (shared resource)
+        testdevjobs_stats = _scrape_shared_testdevjobs()
+        aggregated_stats["testdevjobs"] = testdevjobs_stats
 
     # Calculate grand totals
     aggregated_stats["grand_totals"] = _calculate_grand_totals(aggregated_stats)
@@ -436,6 +487,7 @@ def _process_all_inboxes(profiles: list, email_limit: int | None = None) -> dict
                 email_limit=email_limit,
                 scrape_companies=False,
                 scrape_ministry=False,
+                scrape_testdevjobs=False,
             )
 
             results[profile.id] = {
@@ -542,6 +594,28 @@ def _scrape_shared_ministry() -> dict:
         return {"pages_scraped": 0, "jobs_found": 0, "jobs_stored": 0, "error": str(e)}
 
 
+def _scrape_shared_testdevjobs() -> dict:
+    """
+    Scrape TestDevJobs ONCE (shared across all profiles).
+
+    Returns:
+        TestDevJobs scraping stats (or error dict)
+    """
+    print("\n" + "=" * 80)
+    print("SHARED RESOURCE: TESTDEVJOBS (ALL PROFILES)")
+    print("=" * 80 + "\n")
+
+    try:
+        scraper = WeeklyUnifiedScraper(profile=None)
+        testdevjobs_stats = scraper.testdevjobs_scraper.scrape_testdevjobs(min_score=47)
+        print("\n✓ TestDevJobs scraping completed")
+        return testdevjobs_stats
+
+    except Exception as e:
+        print(f"\n✗ TestDevJobs scraping error: {e}")
+        return {"jobs_found": 0, "jobs_stored": 0, "error": str(e)}
+
+
 def _calculate_grand_totals(aggregated_stats: dict) -> dict:
     """
     Calculate grand totals across all sources.
@@ -555,17 +629,20 @@ def _calculate_grand_totals(aggregated_stats: dict) -> dict:
     email_totals = aggregated_stats.get("email_totals", {})
     company_stats = aggregated_stats.get("companies", {})
     ministry_stats = aggregated_stats.get("ministry", {})
+    testdevjobs_stats = aggregated_stats.get("testdevjobs", {})
 
     return {
         "total_jobs_found": (
             email_totals.get("total_jobs_found", 0)
             + company_stats.get("jobs_scraped", 0)
             + ministry_stats.get("jobs_found", 0)
+            + testdevjobs_stats.get("jobs_found", 0)
         ),
         "total_jobs_stored": (
             email_totals.get("total_jobs_stored", 0)
             + company_stats.get("jobs_stored", 0)
             + ministry_stats.get("jobs_stored", 0)
+            + testdevjobs_stats.get("jobs_stored", 0)
         ),
         "total_notifications": (
             email_totals.get("total_notifications", 0) + company_stats.get("notifications_sent", 0)
@@ -637,6 +714,15 @@ def _print_all_inboxes_summary(
             print(f"  Pages scraped: {ministry_stats.get('pages_scraped', 0)}")
             print(f"  Jobs found: {ministry_stats.get('jobs_found', 0)}")
             print(f"  Jobs stored: {ministry_stats.get('jobs_stored', 0)}")
+
+        # TestDevJobs results
+        testdevjobs_stats = aggregated_stats.get("testdevjobs", {})
+        print("\n🔬 TESTDEVJOBS:")
+        if "error" in testdevjobs_stats:
+            print(f"  ✗ ERROR: {testdevjobs_stats['error']}")
+        else:
+            print(f"  Jobs found: {testdevjobs_stats.get('jobs_found', 0)}")
+            print(f"  Jobs stored: {testdevjobs_stats.get('jobs_stored', 0)}")
 
     # Grand totals
     grand_totals = aggregated_stats.get("grand_totals", {})
