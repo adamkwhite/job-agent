@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from agents.job_filter_pipeline import JobFilterPipeline
 from agents.profile_scorer import ProfileScorer
+from api.company_service import CompanyService
 from database import JobDatabase
 from enrichment.enrichment_pipeline import EnrichmentPipeline
 from imap_client import IMAPEmailClient
@@ -81,6 +82,7 @@ class JobProcessorV2:
         self.filter = JobFilter()
         self.database = JobDatabase(profile=profile)
         self.notifier = JobNotifier()
+        self.company_service = CompanyService()
 
         # Use ProfileScorer for the selected profile
         pm = get_profile_manager()
@@ -271,8 +273,36 @@ class JobProcessorV2:
         # Return valid + flagged jobs (exclude invalid)
         return valid_jobs + flagged_jobs
 
+    def _check_and_add_company(self, company_name: str, source: str = "email") -> None:
+        """
+        Check if company exists in monitoring database, add if not.
+        Auto-discovered companies are added as INACTIVE until manually reviewed.
+
+        Args:
+            company_name: Name of the company
+            source: Source of discovery (e.g., "email", "linkedin")
+        """
+        if not company_name or company_name == "Unknown Company":
+            return
+
+        # Check if company already exists
+        if self.company_service.company_exists(company_name):
+            return
+
+        # Add new company as inactive for manual review
+        result = self.company_service.add_discovered_company(
+            name=company_name, source=f"{source}_auto_discovery"
+        )
+
+        if result["success"]:
+            print(f"  🆕 Auto-discovered new company: {company_name} (inactive, needs review)")
+        # Silently skip if duplicate (race condition between check and insert)
+
     def _store_and_process_job(self, job_dict: dict, stats: dict[str, int | list[str]]) -> None:
         """Store a job and process it (score + notify)"""
+        # Auto-discover company if not in database
+        self._check_and_add_company(job_dict.get("company", ""), source="email")
+
         # Store the job (filtering now happens per-profile in multi_scorer)
         job_id = self.database.add_job(job_dict)
 

@@ -154,19 +154,35 @@ Combines ALL job sources into one automated workflow:
 - **Email processing** (LinkedIn, Supra, F6S, Artemis, Built In, etc.)
 - **Company monitoring** (robotics/deeptech companies via Firecrawl)
 
+**Single inbox mode**:
 ```bash
 PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --profile <wes|adam|eli|mario>
 ```
 
+**Multi-inbox mode** (`--all-inboxes`):
+Processes ALL profiles with configured email credentials in one command:
+```bash
+# Process all inboxes + companies + ministry
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --all-inboxes
+
+# Only emails from all inboxes
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --all-inboxes --email-only
+
+# Only companies (no emails)
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --all-inboxes --companies-only
+```
+
 **How it works (Issue #184 - Decoupled Architecture)**:
 - `--profile` flag determines **which email inbox to connect to** for scraping
+- `--all-inboxes` flag processes **ALL configured email inboxes sequentially** (Wes, Adam, etc.)
 - Jobs are **automatically scored for ALL profiles** (not just the specified profile)
 - Each job stored once in `jobs` table, with scores in `job_scores` table
-- No need to run multiple times for different profiles
+- Companies/Ministry scraped ONCE (shared resources)
 
 **Key features**:
 - Single command runs all sources
 - Multi-profile scoring (all profiles scored automatically)
+- Multi-inbox support for simplified automation
 - Configurable thresholds per source
 - Comprehensive stats and logging
 - Cron-friendly for weekly automation
@@ -262,8 +278,13 @@ SKIP=python-safety-dependencies-check git commit -m "message"
 
 **Weekly Scraper** (all sources, scores for ALL profiles):
 ```bash
+# Single inbox mode
 PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --profile <wes|adam|eli|mario>
 # --profile determines email inbox to scrape; jobs scored for ALL profiles automatically
+
+# Multi-inbox mode (process ALL configured inboxes)
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --all-inboxes
+# Processes all inboxes (Wes, Adam, etc.) + companies/ministry in one command
 ```
 
 **Re-score Existing Jobs** (no scraping):
