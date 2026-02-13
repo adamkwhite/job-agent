@@ -24,6 +24,8 @@ def company_scraper():
         patch("src.jobs.company_scraper.JobNotifier"),
     ):
         scraper = CompanyScraper()
+        # Mock increment_company_failures to return int (Issue #192 - failure logging)
+        scraper.company_service.increment_company_failures = MagicMock(return_value=1)
         return scraper
 
 
@@ -882,3 +884,225 @@ class TestSkipRecentHours:
         # Should filter to 2 "From Wes" companies, then skip 1 (checked recently)
         assert stats["companies_skipped"] == 1
         assert stats["companies_checked"] == 1
+
+
+class TestFailureLogging:
+    """Test failure logging functionality (Issue #192)"""
+
+    def test_init_creates_failure_log_attributes(self, company_scraper):
+        """Should initialize failure logging attributes on init"""
+        # Should have failure log path
+        assert hasattr(company_scraper, "failure_log_path")
+        assert "logs/scraper_failures.log" in str(company_scraper.failure_log_path)
+
+        # Should have failure log file object
+        assert hasattr(company_scraper, "failure_log")
+
+        # Should initialize failures list
+        assert hasattr(company_scraper, "failures")
+        assert isinstance(company_scraper.failures, list)
+
+    def test_log_failure_writes_to_file_and_memory(self, company_scraper, tmp_path):
+        """Should log failure to file and track in memory"""
+        # Use real file for this test
+        log_file = tmp_path / "test_failures.log"
+        company_scraper.failure_log_path = log_file
+        company_scraper.failure_log = open(log_file, "a", encoding="utf-8")  # noqa: SIM115
+        company_scraper.failures = []
+
+        # Log a failure
+        company_scraper._log_failure(
+            company_name="Test Company",
+            url="https://test.com/careers",
+            failure_count=2,
+            reason="0 jobs extracted",
+        )
+
+        # Close and read the file
+        company_scraper.failure_log.close()
+        log_content = log_file.read_text()
+
+        # Should write to file
+        assert "Test Company" in log_content
+        assert "https://test.com/careers" in log_content
+        assert "2/5" in log_content
+        assert "0 jobs extracted" in log_content
+
+        # Should track in memory
+        assert len(company_scraper.failures) == 1
+        assert company_scraper.failures[0]["company"] == "Test Company"
+        assert company_scraper.failures[0]["url"] == "https://test.com/careers"
+        assert company_scraper.failures[0]["failure_count"] == 2
+        assert company_scraper.failures[0]["reason"] == "0 jobs extracted"
+
+    def test_log_failure_flushes_immediately(self, company_scraper):
+        """Should flush log file immediately for real-time logging"""
+        mock_log_file = MagicMock()
+        company_scraper.failure_log = mock_log_file
+        company_scraper.failures = []
+
+        company_scraper._log_failure(
+            company_name="Test Company",
+            url="https://test.com/careers",
+            failure_count=1,
+            reason="0 jobs extracted",
+        )
+
+        # Should flush after write
+        mock_log_file.flush.assert_called_once()
+
+    def test_scrape_logs_no_jobs_extracted_failure(self, company_scraper):
+        """Should log failure when no jobs are extracted"""
+        companies = [
+            {
+                "id": 1,
+                "name": "Empty Company",
+                "careers_url": "https://empty.com/careers",
+                "notes": "Test",
+            }
+        ]
+
+        company_scraper.company_service.get_all_companies = MagicMock(return_value=companies)
+        company_scraper.firecrawl_scraper.scrape_jobs = MagicMock(return_value=[])  # No jobs
+        company_scraper.company_service.increment_company_failures = MagicMock(return_value=2)
+        company_scraper.company_service.update_last_checked = MagicMock()
+        company_scraper._log_failure = MagicMock()
+
+        company_scraper.scrape_all_companies()
+
+        # Should log the failure
+        company_scraper._log_failure.assert_called_once_with(
+            company_name="Empty Company",
+            url="https://empty.com/careers",
+            failure_count=2,
+            reason="0 jobs extracted",
+        )
+
+    def test_scrape_logs_exception_failure(self, company_scraper):
+        """Should log failure when exception occurs during scraping"""
+        companies = [
+            {"id": 1, "name": "Error Company", "careers_url": "https://error.com", "notes": "Test"}
+        ]
+
+        company_scraper.company_service.get_all_companies = MagicMock(return_value=companies)
+        company_scraper.firecrawl_scraper.scrape_jobs = MagicMock(
+            side_effect=Exception("Firecrawl API error")
+        )
+        company_scraper._log_failure = MagicMock()
+
+        stats = company_scraper.scrape_all_companies()
+
+        # Should log the exception
+        assert company_scraper._log_failure.called
+        call_args = company_scraper._log_failure.call_args[1]
+        assert call_args["company_name"] == "Error Company"
+        assert call_args["url"] == "https://error.com"
+        assert "Firecrawl API error" in call_args["reason"]
+
+        # Should still track error in stats
+        assert stats["scraping_errors"] == 1
+
+    def test_print_failure_summary_shows_all_failures(self, company_scraper, capsys):
+        """Should print summary of all failures"""
+        company_scraper.failures = [
+            {
+                "timestamp": "2024-01-15T10:00:00",
+                "company": "Company A",
+                "url": "https://a.com/careers",
+                "failure_count": 2,
+                "reason": "0 jobs extracted",
+            },
+            {
+                "timestamp": "2024-01-15T10:05:00",
+                "company": "Company B",
+                "url": "https://b.com/careers",
+                "failure_count": 5,
+                "reason": "Exception: API error",
+            },
+        ]
+        company_scraper.failure_log_path = "logs/scraper_failures.log"
+
+        company_scraper._print_failure_summary()
+
+        captured = capsys.readouterr()
+
+        # Should show failure count
+        assert "2 companies failed" in captured.out
+
+        # Should show first failure
+        assert "Company A" in captured.out
+        assert "https://a.com/careers" in captured.out
+        assert "2/5" in captured.out
+        assert "0 jobs extracted" in captured.out
+
+        # Should show second failure with AUTO-DISABLED status
+        assert "Company B" in captured.out
+        assert "🚫 AUTO-DISABLED" in captured.out
+        assert "5" in captured.out
+        assert "API error" in captured.out
+
+        # Should show log file location
+        assert "logs/scraper_failures.log" in captured.out
+
+    def test_print_failure_summary_no_output_when_no_failures(self, company_scraper, capsys):
+        """Should not print anything when there are no failures"""
+        company_scraper.failures = []
+
+        company_scraper._print_failure_summary()
+
+        captured = capsys.readouterr()
+        assert captured.out == ""
+
+    def test_close_failure_log_closes_file(self, company_scraper):
+        """Should close the log file"""
+        mock_log_file = MagicMock()
+        mock_log_file.closed = False
+        company_scraper.failure_log = mock_log_file
+
+        company_scraper._close_failure_log()
+
+        mock_log_file.close.assert_called_once()
+
+    def test_close_failure_log_handles_already_closed(self, company_scraper):
+        """Should handle already closed log file"""
+        mock_log_file = MagicMock()
+        mock_log_file.closed = True
+        company_scraper.failure_log = mock_log_file
+
+        # Should not raise exception
+        company_scraper._close_failure_log()
+
+        # Should not call close again
+        mock_log_file.close.assert_not_called()
+
+    def test_destructor_closes_log_file(self, company_scraper):
+        """Should close log file in destructor"""
+        mock_log_file = MagicMock()
+        mock_log_file.closed = False
+        company_scraper.failure_log = mock_log_file
+        company_scraper._close_failure_log = MagicMock()
+
+        # Trigger destructor
+        company_scraper.__del__()
+
+        # Should call close method
+        company_scraper._close_failure_log.assert_called_once()
+
+    def test_scrape_all_companies_calls_failure_summary_and_close(self, company_scraper):
+        """Should print failure summary and close log at end of scraping"""
+        companies = [
+            {"id": 1, "name": "Test Company", "careers_url": "https://test.com", "notes": "Test"}
+        ]
+
+        company_scraper.company_service.get_all_companies = MagicMock(return_value=companies)
+        company_scraper.firecrawl_scraper.scrape_jobs = MagicMock(return_value=[])
+        company_scraper.company_service.increment_company_failures = MagicMock(return_value=1)
+        company_scraper.company_service.update_last_checked = MagicMock()
+        company_scraper._print_failure_summary = MagicMock()
+        company_scraper._close_failure_log = MagicMock()
+
+        company_scraper.scrape_all_companies()
+
+        # Should call both methods at end
+        company_scraper._print_failure_summary.assert_called_once()
+        company_scraper._close_failure_log.assert_called_once()

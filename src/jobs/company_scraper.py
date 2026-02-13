@@ -58,6 +58,73 @@ class CompanyScraper:
         self.database = JobDatabase(profile=profile)
         self.notifier = JobNotifier()
 
+        # Initialize failure logging
+        self.failure_log_path = Path("logs/scraper_failures.log")
+        self.failure_log_path.parent.mkdir(parents=True, exist_ok=True)
+        self.failure_log = open(self.failure_log_path, "a", encoding="utf-8")  # noqa: SIM115
+        self.failures: list[dict[str, Any]] = []  # Track for summary
+
+    def __del__(self):
+        """Ensure failure log is closed on cleanup"""
+        self._close_failure_log()
+
+    def _log_failure(self, company_name: str, url: str, failure_count: int, reason: str) -> None:
+        """
+        Log scraping failure to dedicated file and memory
+
+        Args:
+            company_name: Name of company that failed
+            url: Career page URL that failed
+            failure_count: Current consecutive failure count
+            reason: Reason for failure (e.g., "0 jobs extracted", "Exception: ...")
+        """
+        timestamp = datetime.now().isoformat()
+        log_entry = {
+            "timestamp": timestamp,
+            "company": company_name,
+            "url": url,
+            "failure_count": failure_count,
+            "reason": reason,
+        }
+
+        # Write to file immediately (real-time logging)
+        self.failure_log.write(
+            f"{timestamp} | {company_name} | {url} | "
+            f"{failure_count}/{AUTO_DISABLE_THRESHOLD} | {reason}\n"
+        )
+        self.failure_log.flush()  # Ensure immediate write
+
+        # Track for summary
+        self.failures.append(log_entry)
+
+    def _close_failure_log(self) -> None:
+        """Close the failure log file"""
+        if hasattr(self, "failure_log") and not self.failure_log.closed:
+            self.failure_log.close()
+
+    def _print_failure_summary(self) -> None:
+        """Print summary of all failures that occurred during scraping"""
+        if not self.failures:
+            return
+
+        print("\n" + "=" * 80)
+        print(f"FAILURE SUMMARY - {len(self.failures)} companies failed")
+        print("=" * 80)
+
+        for failure in self.failures:
+            status = (
+                "🚫 AUTO-DISABLED"
+                if failure["failure_count"] >= AUTO_DISABLE_THRESHOLD
+                else f"⚠️  {failure['failure_count']}/{AUTO_DISABLE_THRESHOLD}"
+            )
+            print(f"\n{status} {failure['company']}")
+            print(f"  URL: {failure['url']}")
+            print(f"  Reason: {failure['reason']}")
+            print(f"  Time: {failure['timestamp']}")
+
+        print(f"\n📝 Full log: {self.failure_log_path}")
+        print("=" * 80)
+
     def scrape_all_companies(
         self,
         min_score: int = 50,
@@ -184,6 +251,14 @@ class CompanyScraper:
                         f"  ⚠ No jobs extracted (failure {failure_count}/{AUTO_DISABLE_THRESHOLD})"
                     )
 
+                    # Log failure to dedicated file
+                    self._log_failure(
+                        company_name=company["name"],
+                        url=company["careers_url"],
+                        failure_count=failure_count,
+                        reason="0 jobs extracted",
+                    )
+
                     if failure_count >= AUTO_DISABLE_THRESHOLD:
                         # Auto-disable company after 5 consecutive failures
                         self.company_service.disable_company(company["id"])
@@ -198,7 +273,21 @@ class CompanyScraper:
             except Exception as e:
                 print(f"  ✗ Error scraping {company['name']}: {e}")
                 stats["scraping_errors"] += 1
+
+                # Log exception failure (get current failure count from database)
+                current_failure_count = company.get("consecutive_failures", 0) + 1
+                self._log_failure(
+                    company_name=company["name"],
+                    url=company["careers_url"],
+                    failure_count=current_failure_count,
+                    reason=f"Exception: {str(e)}",
+                )
+
                 continue
+
+        # Print failure summary and close log
+        self._print_failure_summary()
+        self._close_failure_log()
 
         return stats
 
