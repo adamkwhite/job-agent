@@ -191,6 +191,7 @@ class WeeklyUnifiedScraper:
             except Exception as e:
                 print(f"✗ TestDevJobs scraper error: {e}")
                 all_stats["testdevjobs"] = {
+                    "pages_scraped": 0,
                     "jobs_found": 0,
                     "jobs_stored": 0,
                     "jobs_scored": 0,
@@ -278,6 +279,7 @@ class WeeklyUnifiedScraper:
         if ran_testdevjobs:
             testdevjobs_stats = all_stats["testdevjobs"]
             print("\n🔬 TestDevJobs:")
+            print(f"  Pages scraped: {testdevjobs_stats.get('pages_scraped', 0)}")
             print(f"  Jobs found: {testdevjobs_stats.get('jobs_found', 0)}")
             print(f"  Jobs stored: {testdevjobs_stats.get('jobs_stored', 0)}")
             print(f"  Jobs scored: {testdevjobs_stats.get('jobs_scored', 0)}")
@@ -721,6 +723,7 @@ def _print_all_inboxes_summary(
         if "error" in testdevjobs_stats:
             print(f"  ✗ ERROR: {testdevjobs_stats['error']}")
         else:
+            print(f"  Pages scraped: {testdevjobs_stats.get('pages_scraped', 0)}")
             print(f"  Jobs found: {testdevjobs_stats.get('jobs_found', 0)}")
             print(f"  Jobs stored: {testdevjobs_stats.get('jobs_stored', 0)}")
 

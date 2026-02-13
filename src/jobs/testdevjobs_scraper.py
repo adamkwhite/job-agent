@@ -91,24 +91,36 @@ class TestDevJobsWeeklyScraper:
     def scrape_testdevjobs(
         self,
         min_score: int = 47,
+        locations: list[str] | None = None,
     ) -> dict:
         """
         Scrape TestDevJobs remote jobs using Firecrawl API
 
         Args:
             min_score: Minimum score to store/notify (default 47)
+            locations: List of locations to scrape (default: Canada, US, Europe, Worldwide)
 
         Returns:
             Stats dictionary
         """
+        # Default to key locations for broad coverage
+        if locations is None:
+            locations = [
+                "remote-canada",
+                "remote-united-states",
+                "remote-europe",
+                "remote-worldwide",
+            ]
+
         print("\n" + "=" * 80)
-        print("TESTDEVJOBS SCRAPER")
+        print("TESTDEVJOBS SCRAPER - MULTI-LOCATION")
         print("=" * 80)
-        print("URL: https://testdevjobs.com/remote-jobs")
+        print(f"Locations: {', '.join(locations)}")
         print(f"Min score: {min_score}")
         print("=" * 80 + "\n")
 
         stats = {
+            "pages_scraped": 0,
             "jobs_found": 0,
             "jobs_stored": 0,
             "jobs_scored": 0,
@@ -116,32 +128,35 @@ class TestDevJobsWeeklyScraper:
             "profile_scores": {},
         }
 
-        url = "https://testdevjobs.com/remote-jobs"
+        # Scrape each location
+        for i, location in enumerate(locations, 1):
+            url = f"https://testdevjobs.com/location/{location}/"
 
-        print(f"📄 Fetching: {url}")
-        print("   🔄 Fetching with Firecrawl API...")
+            print(f"\n📄 Location {i}/{len(locations)}: {location}")
+            print(f"   🔄 Fetching: {url}")
 
-        try:
-            # Scrape page with Firecrawl
-            document = self.firecrawl.scrape(url, formats=["markdown"])
-            markdown = document.markdown if document.markdown else ""
+            try:
+                # Scrape page with Firecrawl
+                document = self.firecrawl.scrape(url, formats=["markdown"])
+                markdown = document.markdown if document.markdown else ""
 
-            if not markdown:
-                print("   ⚠️  No content returned from Firecrawl")
-                return stats
+                if not markdown:
+                    print("   ⚠️  No content returned from Firecrawl")
+                    continue
 
-            print(f"   ✓ Fetched {len(markdown)} characters")
+                print(f"   ✓ Fetched {len(markdown)} characters")
+                stats["pages_scraped"] += 1  # type: ignore[operator]
 
-            # Parse and store jobs
-            stats = self.parse_page_and_store(
-                markdown=markdown,
-                min_score=min_score,
-                stats=stats,
-            )
+                # Parse and store jobs from this location
+                stats = self.parse_page_and_store(
+                    markdown=markdown,
+                    min_score=min_score,
+                    stats=stats,
+                )
 
-        except Exception as e:
-            print(f"   ✗ Error scraping TestDevJobs: {e}")
-            return stats
+            except Exception as e:
+                print(f"   ✗ Error scraping {location}: {e}")
+                continue
 
         return stats
 
@@ -173,8 +188,9 @@ class TestDevJobsWeeklyScraper:
         # Parse jobs from markdown
         jobs = self.testdev_scraper.parse_jobs_from_page(markdown)
 
-        stats["jobs_found"] = len(jobs)
-        print(f"   ✓ Found {len(jobs)} jobs")
+        page_jobs_count = len(jobs)
+        stats["jobs_found"] += page_jobs_count  # type: ignore[operator]
+        print(f"   ✓ Found {page_jobs_count} jobs")
 
         # Store and score each job
         for job in jobs:
@@ -252,6 +268,7 @@ class TestDevJobsWeeklyScraper:
         print("\n" + "=" * 80)
         print("TESTDEVJOBS SCRAPER - SUMMARY")
         print("=" * 80)
+        print(f"Pages scraped: {stats.get('pages_scraped', 0)}")
         print(f"Jobs found: {stats['jobs_found']}")
         print(f"Jobs stored: {stats['jobs_stored']}")
         print(f"Jobs scored: {stats['jobs_scored']}")
@@ -286,13 +303,19 @@ def main():
     parser = argparse.ArgumentParser(description="Scrape TestDevJobs remote jobs")
     parser.add_argument("--profile", type=str, help="Profile to score for (optional)")
     parser.add_argument("--min-score", type=int, default=47, help="Min score to store (default 47)")
+    parser.add_argument(
+        "--locations",
+        type=str,
+        nargs="+",
+        help="Locations to scrape (default: Canada, US, Europe, Worldwide)",
+    )
 
     args = parser.parse_args()
 
     scraper = TestDevJobsWeeklyScraper(profile=args.profile)
 
     # Run scraper
-    stats = scraper.scrape_testdevjobs(min_score=args.min_score)
+    stats = scraper.scrape_testdevjobs(min_score=args.min_score, locations=args.locations)
 
     scraper.print_summary(stats)
 
