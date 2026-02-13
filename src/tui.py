@@ -58,7 +58,8 @@ def select_sources() -> tuple[list[str], str | None]:
 
     Returns:
         (sources, inbox_profile):
-            - sources: List of source codes ["companies", "email", "robotics", "ministry"]
+            - sources: List of source codes ["companies", "email"]
+                      Note: "companies" includes Ministry of Testing
             - inbox_profile: Profile ID if email selected, else None
     """
     console.print("\n[bold yellow]Step 1:[/bold yellow] Select Job Sources\n")
@@ -67,9 +68,8 @@ def select_sources() -> tuple[list[str], str | None]:
     table.add_column("Source", style="cyan", width=8)
     table.add_column("Description", style="white", width=40)
 
-    table.add_row("1", "Company Monitoring (68 companies)")
+    table.add_row("1", "Company Monitoring (68 companies + Ministry of Testing)")
     table.add_row("2", "Email Processing (requires inbox selection)")
-    table.add_row("3", "Ministry of Testing")
     table.add_row("a", "Select All Sources")
     table.add_row("", "")  # Blank row separator
     table.add_row("api", "API Credits (Check LLM/Firecrawl status)")
@@ -101,12 +101,11 @@ def select_sources() -> tuple[list[str], str | None]:
     # Parse source selections
     sources = []
     if choice == "a" or choice == "all":
-        sources = ["companies", "email", "ministry"]
+        sources = ["companies", "email"]
     else:
         source_map = {
             "1": "companies",
             "2": "email",
-            "3": "ministry",
         }
         for item in choice.split(","):
             item = item.strip()
@@ -138,7 +137,7 @@ def _select_inbox() -> str | None:
     """Select which email inbox to check (only for email processing)
 
     Returns:
-        Profile ID of selected inbox, or None if cancelled
+        Profile ID of selected inbox, "all" for all inboxes, or None if cancelled
     """
     console.print("\n[bold yellow]Email Inbox Selection:[/bold yellow]\n")
 
@@ -165,15 +164,18 @@ def _select_inbox() -> str | None:
         table.add_row(str(i), profile.name, profile.email_username)
         profile_map[str(i)] = profile.id
 
+    table.add_row("a", "All Inboxes", f"Process all {len(profiles_with_email)} configured inboxes")
     table.add_row("c", "Cancel", "Skip email processing")
 
     console.print(table)
 
-    choices = list(profile_map.keys()) + ["c"]
-    choice = Prompt.ask("\n[bold]Select inbox[/bold]", choices=choices, default="1")
+    choices = list(profile_map.keys()) + ["a", "c"]
+    choice = Prompt.ask("\n[bold]Select inbox[/bold]", choices=choices, default="a")
 
     if choice == "c":
         return None
+    elif choice == "a":
+        return "all"  # Special value for all inboxes
     else:
         return profile_map[choice]
 
@@ -876,15 +878,18 @@ def confirm_execution(
 
     # Show inbox if email processing
     if inbox_profile:
-        pm = get_profile_manager()
-        profile_obj = pm.get_profile(inbox_profile)
-        inbox_name = profile_obj.name if profile_obj else inbox_profile
-        inbox_email = (
-            profile_obj.email_username
-            if (profile_obj and hasattr(profile_obj, "email_username"))
-            else "unknown"
-        )
-        summary_text += f"\n[bold]Email Inbox:[/bold] {inbox_name} ({inbox_email})"
+        if inbox_profile == "all":
+            summary_text += "\n[bold]Email Inbox:[/bold] All Configured Inboxes"
+        else:
+            pm = get_profile_manager()
+            profile_obj = pm.get_profile(inbox_profile)
+            inbox_name = profile_obj.name if profile_obj else inbox_profile
+            inbox_email = (
+                profile_obj.email_username
+                if (profile_obj and hasattr(profile_obj, "email_username"))
+                else "unknown"
+            )
+            summary_text += f"\n[bold]Email Inbox:[/bold] {inbox_name} ({inbox_email})"
 
     summary_text += f"\n[bold]Action:[/bold] {action_text}"
 
@@ -937,24 +942,27 @@ def run_scraper(sources: list[str], inbox_profile: str | None = None) -> bool:
     # Build command
     cmd = ["job-agent-venv/bin/python", "src/jobs/weekly_unified_scraper.py"]
 
-    # Add profile only if email processing selected
+    # Add profile or all-inboxes flag if email processing selected
     if inbox_profile and "email" in sources:
-        cmd.extend(["--profile", inbox_profile])
+        if inbox_profile == "all":
+            cmd.append("--all-inboxes")
+            console.print("[dim]Processing all configured email inboxes[/dim]")
+        else:
+            cmd.extend(["--profile", inbox_profile])
 
-        # Show which inbox we're using
-        pm = get_profile_manager()
-        profile_obj = pm.get_profile(inbox_profile)
-        if profile_obj and hasattr(profile_obj, "email_username"):
-            console.print(f"[dim]Email inbox: {profile_obj.email_username}[/dim]")
+            # Show which inbox we're using
+            pm = get_profile_manager()
+            profile_obj = pm.get_profile(inbox_profile)
+            if profile_obj and hasattr(profile_obj, "email_username"):
+                console.print(f"[dim]Email inbox: {profile_obj.email_username}[/dim]")
 
     # Add source filters
-    all_sources = ["companies", "email", "ministry"]
+    all_sources = ["companies", "email"]
     if len(sources) < len(all_sources):  # Not "all" sources
         if "email" in sources and len(sources) == 1:
             cmd.append("--email-only")
         elif "companies" in sources and len(sources) == 1:
             cmd.append("--companies-only")
-        # Note: Ministry doesn't have a specific flag yet
 
     console.print(f"[dim]Command: {' '.join(cmd)}[/dim]\n")
 
