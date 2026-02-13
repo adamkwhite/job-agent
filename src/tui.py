@@ -94,8 +94,9 @@ def select_profile() -> str | None:
     table.add_row("q", "Quit", "", "")
 
     console.print(table)
+    console.print("\n[dim]Note: Profile selection determines which email inbox to scrape.[/dim]")
     console.print(
-        "\n[dim]Note: Profile selection determines which email inbox to check and where digests are sent.[/dim]"
+        "[dim]      Jobs are automatically scored for ALL profiles. Digest tracking is profile-specific.[/dim]"
     )
 
     choices = list(profile_map.keys()) + ["a", "c", "h", "q"]
@@ -805,7 +806,12 @@ def select_digest_options() -> dict:
     table.add_row("3", "Force Resend", "✅ Yes", "❌ No", "Re-send previous jobs")
 
     console.print(table)
-    console.print("\n[dim]Note: Use 'Dry Run' during testing to avoid marking jobs as sent.[/dim]")
+    console.print(
+        "\n[dim]Note: Use 'Dry Run' during testing to avoid marking jobs as sent for this profile.[/dim]"
+    )
+    console.print(
+        "[dim]      Digest tracking is profile-specific - same job can be sent to multiple profiles.[/dim]"
+    )
 
     choice = Prompt.ask("\n[bold]Select digest mode[/bold]", choices=["1", "2", "3"], default="2")
 
