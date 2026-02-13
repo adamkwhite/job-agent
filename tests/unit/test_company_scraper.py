@@ -24,6 +24,8 @@ def company_scraper():
         patch("src.jobs.company_scraper.JobNotifier"),
     ):
         scraper = CompanyScraper()
+        # Mock increment_company_failures to return int (Issue #192 - failure logging)
+        scraper.company_service.increment_company_failures = MagicMock(return_value=1)
         return scraper
 
 
