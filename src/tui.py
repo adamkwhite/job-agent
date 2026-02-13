@@ -18,6 +18,7 @@ from rich.table import Table
 # Add to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
+from api.company_service import CompanyService
 from utils.health_checker import SystemHealthChecker
 from utils.profile_manager import get_profile_manager
 from utils.score_thresholds import Grade
@@ -26,7 +27,6 @@ from utils.score_thresholds import Grade
 SEPARATOR_TOP = "\n[bold cyan]═══════════════════════════════════════════════[/bold cyan]"
 SEPARATOR_BOTTOM = "[bold cyan]═══════════════════════════════════════════════[/bold cyan]\n"
 SEPARATOR_FULL = "\n[bold cyan]═══════════════════════════════════════════════[/bold cyan]\n"
-PRESS_ENTER_PROMPT = "\n[dim]Press Enter to return to menu...[/dim]"
 
 console = Console()
 
@@ -34,6 +34,12 @@ console = Console()
 def clear_screen():
     """Clear the terminal screen"""
     os.system("clear" if os.name != "nt" else "cls")  # nosec B605
+
+
+def press_enter_to_continue():
+    """Display styled 'Press Enter' prompt and wait for input"""
+    console.print("\n[dim]Press Enter to return to menu...[/dim]")
+    input()
 
 
 def show_header():
@@ -83,6 +89,7 @@ def select_profile() -> str | None:
         profile_map[str(i)] = profile.id
 
     table.add_row("a", "API Credits", "Check LLM/Firecrawl status", "")
+    table.add_row("c", "Companies", "Review auto-discovered companies", "")
     table.add_row("h", "System Health", "View health dashboard", "")
     table.add_row("q", "Quit", "", "")
 
@@ -91,13 +98,15 @@ def select_profile() -> str | None:
         "\n[dim]Note: Profile selection determines which email inbox to check and where digests are sent.[/dim]"
     )
 
-    choices = list(profile_map.keys()) + ["a", "h", "q"]
+    choices = list(profile_map.keys()) + ["a", "c", "h", "q"]
     choice = Prompt.ask("\n[bold]Select profile[/bold]", choices=choices, default="1")
 
     if choice == "q":
         return None
     elif choice == "a":
         return "credits"
+    elif choice == "c":
+        return "companies"
     elif choice == "h":
         return "health"
     else:
@@ -258,7 +267,7 @@ def show_criteria():
 
     console.print(SEPARATOR_FULL)
 
-    input(PRESS_ENTER_PROMPT)
+    press_enter_to_continue()
 
 
 def show_system_health():  # pragma: no cover
@@ -513,7 +522,7 @@ def check_api_credits():  # pragma: no cover
         "[dim]Note: Firecrawl credits are managed through your Firecrawl account dashboard.[/dim]"
     )
 
-    input(PRESS_ENTER_PROMPT)
+    press_enter_to_continue()
 
 
 def review_llm_failures():  # pragma: no cover
@@ -544,7 +553,7 @@ def review_llm_failures():  # pragma: no cover
 
         if not failures:
             console.print("[green]✅ No pending LLM extraction failures to review![/green]\n")
-            input(PRESS_ENTER_PROMPT)
+            press_enter_to_continue()
             return
 
         # Summary stats
@@ -921,6 +930,187 @@ def send_digest(profile: str, dry_run: bool = False, force_resend: bool = False)
     return result.returncode
 
 
+def manage_companies():
+    """Review and manage auto-discovered companies"""
+    console.print(SEPARATOR_TOP)
+    console.print("[bold cyan]Company Management - Auto-Discovered Companies[/bold cyan]")
+    console.print(SEPARATOR_BOTTOM)
+
+    # Get all inactive companies with auto-discovery notes
+    company_service = CompanyService()
+    all_companies = company_service.get_all_companies(active_only=False)
+
+    auto_discovered = [
+        c for c in all_companies if c.get("active") == 0 and "Auto-discovered" in c.get("notes", "")
+    ]
+
+    if not auto_discovered:
+        console.print("\n[green]✓ No auto-discovered companies pending review![/green]")
+        console.print(
+            "\n[dim]Companies are auto-discovered when jobs are scraped from emails.[/dim]"
+        )
+        press_enter_to_continue()
+        return
+
+    console.print(
+        f"\n[yellow]Found {len(auto_discovered)} auto-discovered companies pending review[/yellow]\n"
+    )
+
+    # Display summary table
+    table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+    table.add_column("#", style="cyan", width=5)
+    table.add_column("Company Name", style="green", width=30)
+    table.add_column("Discovered", style="blue", width=20)
+    table.add_column("Source", style="yellow", width=20)
+
+    for i, company in enumerate(auto_discovered, 1):
+        created_at = company.get("created_at", "")[:10]  # Just the date
+        source = "Email" if "email" in company.get("notes", "").lower() else "Unknown"
+        table.add_row(str(i), company.get("name", "Unknown"), created_at, source)
+
+    console.print(table)
+    console.print(
+        "\n[dim]These companies were automatically discovered from job postings but need manual review.[/dim]"
+    )
+
+    # Review options
+    console.print("\n[bold]Actions:[/bold]")
+    console.print("  [cyan]r[/cyan] - Review companies one by one")
+    console.print("  [cyan]l[/cyan] - List all with details")
+    console.print("  [cyan]b[/cyan] - Back to main menu")
+
+    choice = Prompt.ask("\n[bold]Select action[/bold]", choices=["r", "l", "b"], default="r")
+
+    if choice == "b":
+        return
+    elif choice == "l":
+        _list_companies_detailed(auto_discovered)
+        press_enter_to_continue()
+        return
+    elif choice == "r":
+        _review_companies_interactive(auto_discovered, company_service)
+
+
+def _list_companies_detailed(companies: list[dict]):
+    """Display detailed list of companies"""
+    console.print(SEPARATOR_FULL)
+    console.print("[bold cyan]Detailed Company List[/bold cyan]\n")
+
+    for i, company in enumerate(companies, 1):
+        console.print(f"\n[bold cyan]{i}. {company.get('name', 'Unknown')}[/bold cyan]")
+        console.print(f"   ID: {company.get('id')}")
+        console.print(f"   Created: {company.get('created_at', 'Unknown')}")
+        console.print(f"   Placeholder URL: {company.get('careers_url', 'None')}")
+        console.print(f"   Notes: {company.get('notes', 'None')}")
+
+
+def _review_companies_interactive(companies: list[dict], company_service: CompanyService):
+    """Review companies one by one interactively"""
+    total = len(companies)
+    activated = 0
+    skipped = 0
+    deleted = 0
+
+    for i, company in enumerate(companies, 1):
+        console.print(SEPARATOR_FULL)
+        console.print(f"[bold cyan]Company {i} of {total}[/bold cyan]\n")
+
+        # Display company details
+        panel_content = f"""[bold green]{company.get("name", "Unknown")}[/bold green]
+
+[yellow]Details:[/yellow]
+  ID: {company.get("id")}
+  Created: {company.get("created_at", "Unknown")}
+  Current URL: {company.get("careers_url", "None")}
+
+[yellow]Notes:[/yellow]
+  {company.get("notes", "None")}"""
+
+        console.print(Panel(panel_content, title="Company Information", border_style="cyan"))
+
+        # Action options
+        console.print("\n[bold]Actions:[/bold]")
+        console.print("  [green]a[/green] - Activate (requires careers URL)")
+        console.print("  [yellow]s[/yellow] - Skip for now")
+        console.print("  [red]d[/red] - Delete (not relevant)")
+        console.print("  [cyan]q[/cyan] - Quit review")
+
+        action = Prompt.ask(
+            "\n[bold]Choose action[/bold]", choices=["a", "s", "d", "q"], default="s"
+        )
+
+        if action == "q":
+            break
+        elif action == "s":
+            skipped += 1
+            console.print("[yellow]⊘ Skipped[/yellow]")
+            continue
+        elif action == "d":
+            if Confirm.ask(f"\n[red]Delete '{company.get('name')}'?[/red]", default=False):
+                # Delete company from database
+                import sqlite3
+
+                conn = sqlite3.connect(company_service.db_path)
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM companies WHERE id = ?", (company.get("id"),))
+                conn.commit()
+                conn.close()
+                deleted += 1
+                console.print("[red]✓ Deleted[/red]")
+            else:
+                console.print("[yellow]⊘ Skipped deletion[/yellow]")
+                skipped += 1
+        elif action == "a":
+            # Activate company
+            console.print("\n[bold yellow]Activating company...[/bold yellow]")
+            careers_url = Prompt.ask(
+                "\n[bold]Enter careers page URL[/bold]",
+                default=company.get("careers_url", ""),
+            )
+
+            if careers_url and careers_url != "https://placeholder.com/careers":
+                # Update company
+                import sqlite3
+                from datetime import datetime
+
+                conn = sqlite3.connect(company_service.db_path)
+                cursor = conn.cursor()
+
+                now = datetime.now().isoformat()
+                cursor.execute(
+                    """
+                    UPDATE companies
+                    SET careers_url = ?, active = 1, notes = ?, updated_at = ?
+                    WHERE id = ?
+                """,
+                    (
+                        careers_url,
+                        f"Activated from TUI on {now}. Originally: {company.get('notes', '')}",
+                        now,
+                        company.get("id"),
+                    ),
+                )
+                conn.commit()
+                conn.close()
+
+                activated += 1
+                console.print(f"[green]✓ Activated: {company.get('name')}[/green]")
+                console.print(f"[dim]   URL: {careers_url}[/dim]")
+            else:
+                console.print("[yellow]⊘ Activation cancelled (invalid URL)[/yellow]")
+                skipped += 1
+
+    # Summary
+    console.print(SEPARATOR_FULL)
+    console.print("[bold green]Review Summary[/bold green]\n")
+    console.print(f"  Companies reviewed: {i}/{total}")
+    console.print(f"  [green]Activated:[/green] {activated}")
+    console.print(f"  [yellow]Skipped:[/yellow] {skipped}")
+    console.print(f"  [red]Deleted:[/red] {deleted}")
+
+    press_enter_to_continue()
+
+
 def main():
     """Main TUI loop"""
     try:
@@ -934,6 +1124,9 @@ def main():
                 sys.exit(0)
             elif profile == "credits":
                 check_api_credits()
+                continue
+            elif profile == "companies":
+                manage_companies()
                 continue
             elif profile == "health":
                 show_system_health()

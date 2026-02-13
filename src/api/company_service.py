@@ -93,6 +93,86 @@ class CompanyService:
         finally:
             conn.close()
 
+    def company_exists(self, name: str) -> bool:
+        """
+        Check if a company exists in the database by name (case-insensitive)
+
+        Args:
+            name: Company name to check
+
+        Returns:
+            True if company exists, False otherwise
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT COUNT(*) FROM companies WHERE LOWER(name) = LOWER(?)", (name,))
+
+        count = cursor.fetchone()[0]
+        conn.close()
+
+        return count > 0
+
+    def add_discovered_company(
+        self,
+        name: str,
+        source: str = "email_auto_discovery",
+        careers_url: str = "https://placeholder.com/careers",
+    ) -> dict:
+        """
+        Add a company that was auto-discovered from job postings.
+        Company is added as INACTIVE (active=0) until manually reviewed.
+
+        Args:
+            name: Company name
+            source: Source of discovery (e.g., "email_auto_discovery", "linkedin")
+            careers_url: Placeholder careers URL (will need manual update)
+
+        Returns:
+            Dictionary with success status and company data or error message
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        now = datetime.now().isoformat()
+        notes = f"Auto-discovered from {source} on {now}. Needs manual review and careers URL."
+
+        try:
+            cursor.execute(
+                """
+                INSERT INTO companies (
+                    name, careers_url, scraper_type, active, notes,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+                (name, careers_url, "generic", 0, notes, now, now),  # active=0
+            )
+
+            company_id = cursor.lastrowid
+            conn.commit()
+
+            return {
+                "success": True,
+                "company": {
+                    "id": company_id,
+                    "name": name,
+                    "careers_url": careers_url,
+                    "active": False,
+                    "notes": notes,
+                    "created_at": now,
+                },
+            }
+
+        except sqlite3.IntegrityError:
+            # Duplicate company (UNIQUE constraint violation)
+            return {
+                "success": False,
+                "error": f"Company '{name}' already exists",
+            }
+
+        finally:
+            conn.close()
+
     def add_companies_batch(
         self, companies: list[dict], similarity_threshold: float = 90.0
     ) -> dict:
