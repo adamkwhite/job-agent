@@ -1327,18 +1327,17 @@ def main():
                 else:
                     console.print("\n[green]✓ Digest sent successfully![/green]")
 
-            # Show results and prompt
+            # Show results
             if scrape_success and digest_success:
-                console.print("\n[bold green]All operations completed successfully![/bold green]")
+                console.print("\n[bold green]✓ All operations completed successfully![/bold green]")
             else:
                 console.print(
-                    "\n[bold red]Some operations failed. Check logs for details.[/bold red]"
+                    "\n[bold red]✗ Some operations failed. Check logs for details.[/bold red]"
                 )
 
-            # Ask to continue or quit
-            if not Confirm.ask("\n[bold]Run another job?[/bold]", default=True):
-                console.print("\n[yellow]Goodbye![/yellow]\n")
-                break
+            # Auto-loop back to source selection
+            console.print("\n[dim]Press Enter to continue (or Ctrl+C to exit)...[/dim]")
+            input()
 
     except KeyboardInterrupt:
         console.print("\n\n[yellow]Interrupted by user. Goodbye![/yellow]\n")
