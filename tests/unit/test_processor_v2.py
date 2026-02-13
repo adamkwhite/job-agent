@@ -24,6 +24,7 @@ class TestProcessorV2HelperMethods:
             patch("src.processor_v2.ProfileScorer"),
             patch("src.processor_v2.EnrichmentPipeline"),
             patch("src.processor_v2.get_profile_manager"),
+            patch("api.company_service.CompanyService"),
         ):
             processor = JobProcessorV2()
             return processor
@@ -221,6 +222,9 @@ class TestProcessorV2HelperMethods:
         processor.database.generate_job_hash = MagicMock(return_value="hash123")
         processor.database.get_job_id_by_hash = MagicMock(return_value=42)
 
+        # Mock company service methods
+        processor.company_service.company_exists = MagicMock(return_value=True)
+
         # Mock multi-scorer
         with patch("src.processor_v2.get_multi_scorer") as mock_get_scorer:
             mock_scorer = MagicMock()
@@ -258,6 +262,12 @@ class TestProcessorV2HelperMethods:
         processor.database.add_job = MagicMock(return_value=123)
         processor.database.get_job_score = MagicMock(
             return_value={"score_breakdown": '{"seniority": 30, "domain": 30, "role_type": 25}'}
+        )
+
+        # Mock company service methods
+        processor.company_service.company_exists = MagicMock(return_value=False)
+        processor.company_service.add_discovered_company = MagicMock(
+            return_value={"success": True, "company": {"id": 999}}
         )
 
         # Mock notification
