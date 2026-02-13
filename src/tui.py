@@ -58,7 +58,8 @@ def select_sources() -> tuple[list[str], str | None]:
 
     Returns:
         (sources, inbox_profile):
-            - sources: List of source codes ["companies", "email", "robotics", "ministry"]
+            - sources: List of source codes ["companies", "email"]
+                      Note: "companies" includes Ministry of Testing
             - inbox_profile: Profile ID if email selected, else None
     """
     console.print("\n[bold yellow]Step 1:[/bold yellow] Select Job Sources\n")
@@ -67,9 +68,8 @@ def select_sources() -> tuple[list[str], str | None]:
     table.add_column("Source", style="cyan", width=8)
     table.add_column("Description", style="white", width=40)
 
-    table.add_row("1", "Company Monitoring (68 companies)")
+    table.add_row("1", "Company Monitoring (68 companies + Ministry of Testing)")
     table.add_row("2", "Email Processing (requires inbox selection)")
-    table.add_row("3", "Ministry of Testing")
     table.add_row("a", "Select All Sources")
     table.add_row("", "")  # Blank row separator
     table.add_row("api", "API Credits (Check LLM/Firecrawl status)")
@@ -101,12 +101,11 @@ def select_sources() -> tuple[list[str], str | None]:
     # Parse source selections
     sources = []
     if choice == "a" or choice == "all":
-        sources = ["companies", "email", "ministry"]
+        sources = ["companies", "email"]
     else:
         source_map = {
             "1": "companies",
             "2": "email",
-            "3": "ministry",
         }
         for item in choice.split(","):
             item = item.strip()
@@ -958,13 +957,12 @@ def run_scraper(sources: list[str], inbox_profile: str | None = None) -> bool:
                 console.print(f"[dim]Email inbox: {profile_obj.email_username}[/dim]")
 
     # Add source filters
-    all_sources = ["companies", "email", "ministry"]
+    all_sources = ["companies", "email"]
     if len(sources) < len(all_sources):  # Not "all" sources
         if "email" in sources and len(sources) == 1:
             cmd.append("--email-only")
         elif "companies" in sources and len(sources) == 1:
             cmd.append("--companies-only")
-        # Note: Ministry doesn't have a specific flag yet
 
     console.print(f"[dim]Command: {' '.join(cmd)}[/dim]\n")
 
