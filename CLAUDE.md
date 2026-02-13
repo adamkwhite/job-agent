@@ -276,6 +276,18 @@ SKIP=python-safety-dependencies-check git commit -m "message"
 ./run-tui.sh
 ```
 
+**📖 For detailed TUI workflow guide (sources-first architecture), see: [`docs/development/TUI_WORKFLOW.md`](docs/development/TUI_WORKFLOW.md)**
+
+**Quick TUI Overview:**
+- **Step 1**: Select sources (companies, email, ministry) - profile-agnostic
+- **Step 2**: Select action (scrape, digest, or both)
+- **Step 3**: Run scraper (if needed)
+- **Step 4**: Select digest recipients (multi-select: 1,2 or "all")
+- **Step 5**: Digest options (production, dry-run, force-resend)
+- **Step 6**: Confirm & execute
+
+**Key benefits**: One scrape → multiple digest recipients. Jobs automatically scored for ALL profiles.
+
 **Weekly Scraper** (all sources, scores for ALL profiles):
 ```bash
 # Single inbox mode

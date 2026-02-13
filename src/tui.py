@@ -53,156 +53,188 @@ def show_header():
     console.print(header)
 
 
-def select_profile() -> str | None:
-    """Select user profile dynamically from enabled profiles"""
-    console.print("\n[bold yellow]Step 1:[/bold yellow] Select Profile\n")
+def select_sources() -> tuple[list[str], str | None]:
+    """Select job sources to scrape (no profile needed upfront)
 
-    # Load profiles from profile manager
+    Returns:
+        (sources, inbox_profile):
+            - sources: List of source codes ["companies", "email", "robotics", "ministry"]
+            - inbox_profile: Profile ID if email selected, else None
+    """
+    console.print("\n[bold yellow]Step 1:[/bold yellow] Select Job Sources\n")
+
+    table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+    table.add_column("Source", style="cyan", width=8)
+    table.add_column("Description", style="white", width=40)
+
+    table.add_row("1", "Company Monitoring (68 companies)")
+    table.add_row("2", "Email Processing (requires inbox selection)")
+    table.add_row("3", "Ministry of Testing")
+    table.add_row("a", "Select All Sources")
+    table.add_row("", "")  # Blank row separator
+    table.add_row("api", "API Credits (Check LLM/Firecrawl status)")
+    table.add_row("c", "Companies (Review auto-discovered)")
+    table.add_row("h", "System Health")
+    table.add_row("q", "Quit")
+
+    console.print(table)
+    console.print(
+        "\n[dim]Note: Company monitoring is profile-agnostic (jobs scored for ALL profiles).[/dim]"
+    )
+    console.print("[dim]      Email processing requires selecting which inbox to check.[/dim]")
+    console.print(
+        "\n[dim]Enter comma-separated options (e.g., '1,2' or 'all'). Default is 'all'.[/dim]"
+    )
+
+    choice = Prompt.ask("\n[bold]Select sources[/bold]", default="a").lower().strip()
+
+    # Handle utility actions
+    utility_map = {
+        "q": ([], None),
+        "api": (["utility:credits"], None),
+        "c": (["utility:companies"], None),
+        "h": (["utility:health"], None),
+    }
+    if choice in utility_map:
+        return utility_map[choice]
+
+    # Parse source selections
+    sources = []
+    if choice == "a" or choice == "all":
+        sources = ["companies", "email", "ministry"]
+    else:
+        source_map = {
+            "1": "companies",
+            "2": "email",
+            "3": "ministry",
+        }
+        for item in choice.split(","):
+            item = item.strip()
+            if item in source_map:
+                source = source_map[item]
+                if source not in sources:
+                    sources.append(source)
+
+    # If no valid sources selected, default to companies
+    if not sources:
+        console.print(
+            "[yellow]No valid sources selected. Defaulting to Company Monitoring.[/yellow]"
+        )
+        sources = ["companies"]
+
+    # If email selected, prompt for inbox
+    inbox_profile = None
+    if "email" in sources:
+        inbox_profile = _select_inbox()
+        if not inbox_profile:
+            # Remove email from sources if no inbox selected
+            sources.remove("email")
+            console.print("[yellow]Email processing cancelled (no inbox selected).[/yellow]")
+
+    return sources, inbox_profile
+
+
+def _select_inbox() -> str | None:
+    """Select which email inbox to check (only for email processing)
+
+    Returns:
+        Profile ID of selected inbox, or None if cancelled
+    """
+    console.print("\n[bold yellow]Email Inbox Selection:[/bold yellow]\n")
+
+    # Load profiles with email credentials
     pm = get_profile_manager()
     enabled_profiles = pm.get_enabled_profiles()
 
-    if not enabled_profiles:
-        console.print("[bold red]No enabled profiles found![/bold red]")
+    profiles_with_email = [
+        p for p in enabled_profiles if hasattr(p, "email_username") and p.email_username
+    ]
+
+    if not profiles_with_email:
+        console.print("[red]No email accounts configured in any profile![/red]")
+        console.print("[dim]Check profiles/*/email_username in profile JSON files.[/dim]")
         return None
 
     table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
     table.add_column("Option", style="cyan", width=8)
     table.add_column("Profile", style="green", width=20)
-    table.add_column("Email", style="blue", width=30)
-    table.add_column("Focus", style="yellow")
+    table.add_column("Email Inbox", style="blue", width=35)
 
-    # Build profile focus descriptions
-    focus_map = {
-        "wes": "Robotics/Hardware (VP/Director)",
-        "adam": "Software/Product (Senior/Staff)",
-        "eli": "Fintech/Healthtech (Director/VP/CTO)",
-    }
-
-    # Add profile rows
     profile_map = {}
-    for i, profile in enumerate(enabled_profiles, 1):
-        focus = focus_map.get(
-            profile.id,
-            f"{', '.join(profile.get_domain_keywords()[:2])} ({', '.join(profile.get_target_seniority()[:2])})",
-        )
-        table.add_row(str(i), profile.name, profile.email, focus)
+    for i, profile in enumerate(profiles_with_email, 1):
+        table.add_row(str(i), profile.name, profile.email_username)
         profile_map[str(i)] = profile.id
 
-    table.add_row("a", "API Credits", "Check LLM/Firecrawl status", "")
-    table.add_row("c", "Companies", "Review auto-discovered companies", "")
-    table.add_row("h", "System Health", "View health dashboard", "")
-    table.add_row("q", "Quit", "", "")
+    table.add_row("c", "Cancel", "Skip email processing")
 
     console.print(table)
-    console.print("\n[dim]Note: Profile selection determines which email inbox to scrape.[/dim]")
-    console.print(
-        "[dim]      Jobs are automatically scored for ALL profiles. Digest tracking is profile-specific.[/dim]"
-    )
 
-    choices = list(profile_map.keys()) + ["a", "c", "h", "q"]
-    choice = Prompt.ask("\n[bold]Select profile[/bold]", choices=choices, default="1")
+    choices = list(profile_map.keys()) + ["c"]
+    choice = Prompt.ask("\n[bold]Select inbox[/bold]", choices=choices, default="1")
 
-    if choice == "q":
+    if choice == "c":
         return None
-    elif choice == "a":
-        return "credits"
-    elif choice == "c":
-        return "companies"
-    elif choice == "h":
-        return "health"
     else:
         return profile_map[choice]
 
 
-def select_sources(profile: str) -> list[str]:
-    """Select job sources to scrape"""
-    console.print("\n[bold yellow]Step 2:[/bold yellow] Select Sources\n")
+def select_digest_recipients() -> list[str] | None:
+    """Select which profiles should receive digest emails
 
-    # Get profile object
+    Returns:
+        List of profile IDs to send to, or None to skip digest
+        Special value ["all"] means all enabled profiles
+    """
+    console.print("\n[bold yellow]Step 4:[/bold yellow] Select Digest Recipients\n")
+
+    # Load enabled profiles
     pm = get_profile_manager()
-    profile_obj = pm.get_profile(profile)
+    enabled_profiles = pm.get_enabled_profiles()
 
-    # Column 1: Sources table (compact for side-by-side layout)
-    sources_table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
-    sources_table.add_column("Source", style="cyan", width=12)
-    sources_table.add_column("Description", style="white", width=35)
-    sources_table.add_column("Vol", style="green", width=10)
+    if not enabled_profiles:
+        console.print("[red]No enabled profiles found![/red]")
+        return None
 
-    # Profile-specific email source (only show if profile has email credentials)
-    if profile_obj and hasattr(profile_obj, "email_username") and profile_obj.email_username:
-        email_inbox = profile_obj.email_username
-    else:
-        email_inbox = "No inbox configured"
+    table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+    table.add_column("Option", style="cyan", width=8)
+    table.add_column("Recipient", style="green", width=25)
+    table.add_column("Email", style="blue", width=30)
 
-    sources_table.add_row("Email", f"{email_inbox} (LinkedIn, etc.)", "~50-100")
-    sources_table.add_row("Companies", "68 monitored companies", "~20-40")
+    profile_map = {}
+    for i, profile in enumerate(enabled_profiles, 1):
+        table.add_row(str(i), profile.name, profile.email)
+        profile_map[str(i)] = profile.id
 
-    sources_panel = Panel(
-        sources_table,
-        title="[bold magenta]Job Sources[/bold magenta]",
-        border_style="magenta",
-        expand=False,
-        width=65,
+    table.add_row("a", "All Enabled Profiles", f"Sends to {len(enabled_profiles)} profiles")
+    table.add_row("s", "Skip Digest", "Don't send any digest")
+
+    console.print(table)
+    console.print(
+        "\n[dim]Note: Multiple selections allowed (e.g., '1,2' sends to first two profiles).[/dim]"
+    )
+    console.print(
+        "[dim]      Digest tracking is profile-specific (same job can go to multiple profiles).[/dim]"
     )
 
-    # Column 2: Scoring criteria summary (dynamically from profile)
-    if profile_obj:
-        seniority_display = "/".join(profile_obj.get_target_seniority()[:3])
-        domain_display = "/".join(profile_obj.get_domain_keywords()[:3])
-        location_prefs = profile_obj.scoring.get("location_preferences", {})
-        location_display = "Remote" if location_prefs.get("remote_keywords") else "N/A"
-        if location_prefs.get("preferred_cities"):
-            location_display += f"/{location_prefs['preferred_cities'][0].title()}"
+    choice = Prompt.ask("\n[bold]Select recipients[/bold]", default="a").lower().strip()
 
-        criteria_content = f"""[bold yellow]📊 Scoring (0-115 pts)[/bold yellow]
-
-[cyan]Seniority (30):[/cyan] {seniority_display}
-
-[cyan]Domain (25):[/cyan] {domain_display}
-
-[cyan]Role (20):[/cyan] Engineering
-
-[cyan]Location (15):[/cyan] {location_display}
-
-[bold yellow]🎓 Grades[/bold yellow]
-[green]A ({Grade.A.value}+)[/green] Notify + Digest
-[green]B ({Grade.B.value}+)[/green] Notify + Digest
-[yellow]C ({Grade.C.value}+)[/yellow] Digest only
-[dim]D/F[/dim] Stored/Filtered
-
-[bold yellow]📧 Sent to:[/bold yellow]
-{profile_obj.email}
-[dim]CC:[/dim] adamkwhite@gmail.com"""
-        panel_title = f"[bold cyan]{profile_obj.name}'s Scoring[/bold cyan]"
+    if choice == "s":
+        return None
+    elif choice == "a" or choice == "all":
+        return ["all"]
     else:
-        criteria_content = "[red]Profile not found[/red]"
-        panel_title = "[red]Error[/red]"
+        # Parse comma-separated choices
+        recipients = []
+        for item in choice.split(","):
+            item = item.strip()
+            if item in profile_map:
+                recipients.append(profile_map[item])
 
-    criteria_panel = Panel(
-        criteria_content,
-        title=panel_title,
-        border_style="cyan",
-        padding=(0, 1),
-        expand=False,
-        width=50,
-    )
+        if not recipients:
+            console.print("[yellow]No valid recipients selected. Skipping digest.[/yellow]")
+            return None
 
-    # Display panels stacked vertically
-    console.print(sources_panel)
-    console.print(criteria_panel)
-
-    console.print("\n[dim]Enter comma-separated options (e.g., 'email,companies' or 'all')[/dim]")
-    choice = Prompt.ask("\n[bold]Select sources[/bold]", default="all").lower().strip()
-
-    if choice == "all":
-        return ["email", "companies"]
-    else:
-        sources = [s.strip() for s in choice.split(",")]
-        valid_sources = []
-        for s in sources:
-            if s in ["email", "companies"]:
-                valid_sources.append(s)
-        return valid_sources if valid_sources else ["email"]
+        return recipients
 
 
 def show_criteria():
@@ -751,7 +783,7 @@ def _skip_all_failures(db, failures):  # pragma: no cover
 
 def select_action() -> str | None:
     """Select what action to perform"""
-    console.print("\n[bold yellow]Step 3:[/bold yellow] Select Action\n")
+    console.print("\n[bold yellow]Step 2:[/bold yellow] Select Action\n")
 
     table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
     table.add_column("Option", style="cyan", width=8)
@@ -792,7 +824,7 @@ def select_action() -> str | None:
 
 def select_digest_options() -> dict:
     """Select digest options (dry-run, force-resend)"""
-    console.print("\n[bold yellow]Step 4:[/bold yellow] Digest Options\n")
+    console.print("\n[bold yellow]Step 5:[/bold yellow] Digest Options\n")
 
     table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
     table.add_column("Option", style="cyan", width=8)
@@ -822,19 +854,14 @@ def select_digest_options() -> dict:
 
 
 def confirm_execution(
-    profile: str,
     sources: list[str],
+    inbox_profile: str | None,
     action: str,
+    digest_recipients: list[str] | None,
     digest_options: dict | None = None,
 ) -> bool:
     """Show summary and confirm execution"""
-    console.print("\n[bold yellow]Summary:[/bold yellow]\n")
-
-    # Get profile object
-    pm = get_profile_manager()
-    profile_obj = pm.get_profile(profile)
-    profile_name = profile_obj.name if profile_obj else profile.title()
-    profile_email = profile_obj.email if profile_obj else "unknown"
+    console.print("\n[bold yellow]Step 6: Confirm Execution[/bold yellow]\n")
 
     # Map action codes to display names
     action_display = {
@@ -845,22 +872,44 @@ def confirm_execution(
     action_text = action_display.get(action, action.title())
 
     # Build summary text
-    summary_text = (
-        f"[bold]Profile:[/bold] {profile_name} ({profile_email})\n"
-        f"[bold]Sources:[/bold] {', '.join(sources).title()}\n"
-        f"[bold]Action:[/bold] {action_text}"
-    )
+    summary_text = f"[bold]Sources:[/bold] {', '.join(sources).title()}"
 
-    # Add digest mode if applicable
-    if digest_options and action in ["digest", "both"]:
-        if digest_options.get("dry_run"):
-            digest_mode = "Dry Run (testing)"
-        elif digest_options.get("force_resend"):
-            digest_mode = "Force Resend (re-send previous jobs)"
+    # Show inbox if email processing
+    if inbox_profile:
+        pm = get_profile_manager()
+        profile_obj = pm.get_profile(inbox_profile)
+        inbox_name = profile_obj.name if profile_obj else inbox_profile
+        inbox_email = (
+            profile_obj.email_username
+            if (profile_obj and hasattr(profile_obj, "email_username"))
+            else "unknown"
+        )
+        summary_text += f"\n[bold]Email Inbox:[/bold] {inbox_name} ({inbox_email})"
+
+    summary_text += f"\n[bold]Action:[/bold] {action_text}"
+
+    # Show digest recipients if applicable
+    if digest_recipients and action in ["digest", "both"]:
+        pm = get_profile_manager()
+        if digest_recipients == ["all"]:
+            recipient_text = "All Enabled Profiles"
         else:
-            digest_mode = "Production (real digest)"
-        summary_text += f"\n[bold]Digest Mode:[/bold] {digest_mode}"
-        summary_text += "\n[bold]CC:[/bold] adamkwhite@gmail.com"
+            names = []
+            for pid in digest_recipients:
+                profile_obj = pm.get_profile(pid)
+                names.append(profile_obj.name if profile_obj else pid)
+            recipient_text = ", ".join(names)
+        summary_text += f"\n[bold]Digest Recipients:[/bold] {recipient_text}"
+
+        # Add digest mode
+        if digest_options:
+            if digest_options.get("dry_run"):
+                digest_mode = "Dry Run (testing)"
+            elif digest_options.get("force_resend"):
+                digest_mode = "Force Resend (re-send previous jobs)"
+            else:
+                digest_mode = "Production (real digest)"
+            summary_text += f"\n[bold]Digest Mode:[/bold] {digest_mode}"
 
     summary = Panel(
         summary_text,
@@ -873,67 +922,133 @@ def confirm_execution(
     return Confirm.ask("\n[bold green]Proceed with execution?[/bold green]", default=True)
 
 
-def run_scraper(profile: str, sources: list[str]) -> int:
-    """Execute the unified scraper"""
+def run_scraper(sources: list[str], inbox_profile: str | None = None) -> bool:
+    """Execute the unified scraper
+
+    Args:
+        sources: List of source codes to scrape
+        inbox_profile: Profile ID for email inbox (None if no email scraping)
+
+    Returns:
+        True if successful, False otherwise
+    """
     console.print("\n[bold green]Running Job Scraper...[/bold green]\n")
 
     # Build command
-    cmd = ["job-agent-venv/bin/python", "src/jobs/weekly_unified_scraper.py", "--profile", profile]
+    cmd = ["job-agent-venv/bin/python", "src/jobs/weekly_unified_scraper.py"]
 
-    # Add source-specific flags
-    if len(sources) < 2:  # Not "all" (only 2 sources now: email + companies)
+    # Add profile only if email processing selected
+    if inbox_profile and "email" in sources:
+        cmd.extend(["--profile", inbox_profile])
+
+        # Show which inbox we're using
+        pm = get_profile_manager()
+        profile_obj = pm.get_profile(inbox_profile)
+        if profile_obj and hasattr(profile_obj, "email_username"):
+            console.print(f"[dim]Email inbox: {profile_obj.email_username}[/dim]")
+
+    # Add source filters
+    all_sources = ["companies", "email", "ministry"]
+    if len(sources) < len(all_sources):  # Not "all" sources
         if "email" in sources and len(sources) == 1:
             cmd.append("--email-only")
         elif "companies" in sources and len(sources) == 1:
             cmd.append("--companies-only")
-
-    # Profile-specific email inbox
-    pm = get_profile_manager()
-    profile_obj = pm.get_profile(profile)
-    email_inbox = (
-        profile_obj.email_username
-        if (profile_obj and hasattr(profile_obj, "email_username") and profile_obj.email_username)
-        else "No inbox configured"
-    )
+        # Note: Ministry doesn't have a specific flag yet
 
     console.print(f"[dim]Command: {' '.join(cmd)}[/dim]\n")
-    console.print(f"[dim]Note: Using {email_inbox} (profile: {profile})[/dim]\n")
 
     # Execute
     env = os.environ.copy()
     env["PYTHONPATH"] = str(Path.cwd())
 
     result = subprocess.run(cmd, env=env)
-    return result.returncode
+    return result.returncode == 0
 
 
-def send_digest(profile: str, dry_run: bool = False, force_resend: bool = False) -> int:
-    """Send email digest"""
-    # Extract nested conditional for clarity (SonarCloud fix)
+def send_digest(
+    recipients: list[str] | None, dry_run: bool = False, force_resend: bool = False
+) -> bool:
+    """Send email digest to selected recipients
+
+    Args:
+        recipients: List of profile IDs, or None to skip
+                   Special: ["all"] sends to all enabled profiles
+        dry_run: Preview only, don't send or mark as sent
+        force_resend: Send email but don't mark as sent
+
+    Returns:
+        True if successful, False otherwise
+    """
+    if not recipients:
+        console.print("[yellow]Skipping digest (no recipients selected)[/yellow]")
+        return True
+
+    # Determine mode
     if dry_run:
         mode = "DRY RUN"
     elif force_resend:
         mode = "FORCE RESEND"
     else:
         mode = "PRODUCTION"
+
     console.print(f"\n[bold green]Sending Email Digest ({mode})...[/bold green]\n")
 
-    # Build command
-    cmd = ["job-agent-venv/bin/python", "src/send_profile_digest.py", "--profile", profile]
+    # Handle "all" recipients
+    if recipients == ["all"]:
+        cmd = ["job-agent-venv/bin/python", "src/send_profile_digest.py", "--all"]
+        if dry_run:
+            cmd.append("--dry-run")
+        if force_resend:
+            cmd.append("--force-resend")
 
-    if dry_run:
-        cmd.append("--dry-run")
-    if force_resend:
-        cmd.append("--force-resend")
+        console.print(f"[dim]Command: {' '.join(cmd)}[/dim]")
+        console.print("[dim]Sending to all enabled profiles...[/dim]\n")
 
-    console.print(f"[dim]Command: {' '.join(cmd)}[/dim]\n")
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(Path.cwd())
 
-    # Execute
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(Path.cwd())
+        result = subprocess.run(cmd, env=env)
+        return result.returncode == 0
 
-    result = subprocess.run(cmd, env=env)
-    return result.returncode
+    # Send to individual profiles sequentially
+    pm = get_profile_manager()
+    success_count = 0
+    for profile_id in recipients:
+        profile_obj = pm.get_profile(profile_id)
+        profile_name = profile_obj.name if profile_obj else profile_id
+
+        console.print(f"[cyan]→ Sending to {profile_name}...[/cyan]")
+
+        cmd = ["job-agent-venv/bin/python", "src/send_profile_digest.py", "--profile", profile_id]
+        if dry_run:
+            cmd.append("--dry-run")
+        if force_resend:
+            cmd.append("--force-resend")
+
+        console.print(f"[dim]  Command: {' '.join(cmd)}[/dim]")
+
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(Path.cwd())
+
+        result = subprocess.run(cmd, env=env)
+        if result.returncode == 0:
+            success_count += 1
+            console.print(f"[green]  ✓ Sent to {profile_name}[/green]\n")
+        else:
+            console.print(f"[red]  ✗ Failed to send to {profile_name}[/red]\n")
+
+    # Report overall success
+    if success_count == len(recipients):
+        console.print(
+            f"[bold green]✓ Successfully sent to all {success_count} recipients[/bold green]"
+        )
+        return True
+    else:
+        console.print(
+            f"[bold yellow]⚠ Sent to {success_count}/{len(recipients)} recipients[/bold yellow]"
+        )
+        return success_count > 0
 
 
 def manage_companies():
@@ -1123,28 +1238,24 @@ def main():
         while True:
             show_header()
 
-            # Step 1: Select profile
-            profile = select_profile()
-            if profile is None:
+            # Step 1: Select Sources (no profile needed)
+            sources, inbox_profile = select_sources()
+
+            # Handle utility actions
+            if not sources:  # User quit
                 console.print("\n[yellow]Goodbye![/yellow]\n")
                 sys.exit(0)
-            elif profile == "credits":
+            elif sources == ["utility:credits"]:
                 check_api_credits()
                 continue
-            elif profile == "companies":
+            elif sources == ["utility:companies"]:
                 manage_companies()
                 continue
-            elif profile == "health":
+            elif sources == ["utility:health"]:
                 show_system_health()
                 continue
 
-            # Step 2: Select sources
-            sources = select_sources(profile)
-            if not sources:
-                console.print("\n[red]No valid sources selected. Please try again.[/red]")
-                continue
-
-            # Step 3: Select action
+            # Step 2: Select Action
             action = select_action()
             if action is None:
                 console.print("\n[yellow]Goodbye![/yellow]\n")
@@ -1161,42 +1272,55 @@ def main():
                 show_system_health()
                 continue
 
-            # Step 4: Select digest options (if sending digest)
-            digest_options = {}
-            if action in ["digest", "both"]:
-                digest_options = select_digest_options()
-
-            # Step 5: Confirm and execute
-            if not confirm_execution(profile, sources, action, digest_options):
-                console.print("\n[yellow]Cancelled. Returning to menu...[/yellow]\n")
-                input("Press Enter to continue...")
-                continue
-
-            # Execute
-            success = True
-
+            # Step 3: Run Scraper (if needed)
+            scrape_success = True
             if action in ["scrape", "both"]:
-                returncode = run_scraper(profile, sources)
-                if returncode != 0:
+                scrape_success = run_scraper(sources, inbox_profile)
+                if not scrape_success:
                     console.print("\n[red]✗ Scraper failed![/red]")
-                    success = False
+                    if not Confirm.ask("\n[bold]Continue anyway?[/bold]", default=False):
+                        continue
                 else:
                     console.print("\n[green]✓ Scraper completed successfully![/green]")
 
-            if action in ["digest", "both"] and success:
-                returncode = send_digest(
-                    profile,
+            # Step 4: Select Digest Recipients (if needed)
+            digest_recipients = None
+            if action in ["digest", "both"]:
+                digest_recipients = select_digest_recipients()
+
+                if not digest_recipients:  # User skipped
+                    console.print("\n[yellow]Digest skipped. Returning to menu...[/yellow]\n")
+                    press_enter_to_continue()
+                    continue
+
+            # Step 5: Digest Options (if sending digest)
+            digest_options = {}
+            if digest_recipients:
+                digest_options = select_digest_options()
+
+            # Step 6: Confirm & Execute
+            if not confirm_execution(
+                sources, inbox_profile, action, digest_recipients, digest_options
+            ):
+                console.print("\n[yellow]Cancelled. Returning to menu...[/yellow]\n")
+                press_enter_to_continue()
+                continue
+
+            # Execute digest (scraping already done if needed)
+            digest_success = True
+            if digest_recipients:
+                digest_success = send_digest(
+                    digest_recipients,
                     dry_run=digest_options.get("dry_run", False),
                     force_resend=digest_options.get("force_resend", False),
                 )
-                if returncode != 0:
+                if not digest_success:
                     console.print("\n[red]✗ Digest send failed![/red]")
-                    success = False
                 else:
                     console.print("\n[green]✓ Digest sent successfully![/green]")
 
             # Show results and prompt
-            if success:
+            if scrape_success and digest_success:
                 console.print("\n[bold green]All operations completed successfully![/bold green]")
             else:
                 console.print(
