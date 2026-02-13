@@ -12,6 +12,7 @@ Usage:
 import argparse
 import os
 import sys
+import time
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -46,6 +47,46 @@ class MinistryScraper:
         if not api_key:
             raise ValueError("FIRECRAWL_API_KEY not found in environment")
         self.firecrawl = FirecrawlApp(api_key=api_key)
+
+    def _retry_db_operation(self, operation, max_retries=3, initial_delay=0.1):
+        """
+        BUG FIX #3: Retry database operations with exponential backoff
+        Handles 'database is locked' errors gracefully
+
+        Args:
+            operation: Callable that performs the database operation
+            max_retries: Maximum number of retry attempts (default: 3)
+            initial_delay: Initial delay in seconds (default: 0.1)
+
+        Returns:
+            Result from the operation
+
+        Raises:
+            Exception if all retries fail
+        """
+        delay = initial_delay
+        last_exception = None
+
+        for attempt in range(max_retries):
+            try:
+                return operation()
+            except Exception as e:
+                last_exception = e
+                error_msg = str(e).lower()
+
+                # Only retry on database lock errors
+                if (
+                    "database is locked" in error_msg or "locked" in error_msg
+                ) and attempt < max_retries - 1:
+                    time.sleep(delay)
+                    delay *= 2  # Exponential backoff
+                    continue
+
+                # For other errors, raise immediately
+                raise
+
+        # All retries exhausted
+        raise last_exception
 
     def scrape_ministry_jobs(
         self,
@@ -170,7 +211,14 @@ class MinistryScraper:
 
             # Store job (add_job handles duplicates via UNIQUE constraint on job_hash)
             try:
-                job_id = self.database.add_job(job_dict)
+                # BUG FIX #3: Wrap database operation with retry logic
+                job_id = self._retry_db_operation(lambda j=job_dict: self.database.add_job(j))
+
+                # BUG FIX #1: Check if job_id is None (duplicate job)
+                if job_id is None:
+                    print(f"   ⊙ Duplicate: {job.title} (already in database)")
+                    continue
+
                 stats["jobs_stored"] += 1
             except Exception as e:
                 # Likely a duplicate (UNIQUE constraint on job_hash)
@@ -184,8 +232,17 @@ class MinistryScraper:
 
             # Score for all profiles
             try:
-                profile_scores = self.multi_scorer.score_job_for_all(job_dict, job_id)
+                # BUG FIX #3: Wrap database operation with retry logic
+                profile_scores = self._retry_db_operation(
+                    lambda j=job_dict, jid=job_id: self.multi_scorer.score_job_for_all(j, jid)
+                )
                 stats["jobs_scored"] += 1
+
+                # BUG FIX #2: Handle empty profile_scores (all profiles filtered the job)
+                if not profile_scores:
+                    print(f"   ⊘ {job.title[:50]}")
+                    print("     All profiles filtered this job")
+                    continue
 
                 # Track scores per profile
                 for profile_id, (score, grade) in profile_scores.items():
