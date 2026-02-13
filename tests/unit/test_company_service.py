@@ -493,3 +493,108 @@ def test_failure_then_success_then_failure_workflow(temp_db):
     company = temp_db.get_company(company_id)
     assert company["consecutive_failures"] == 1
     assert company["last_failure_reason"] == "new failure"
+
+
+# ===== Auto-Discovery Tests =====
+
+
+def test_company_exists_case_insensitive(temp_db):
+    """Test company_exists is case-insensitive"""
+    temp_db.add_company("Boston Dynamics", "https://bostondynamics.com/careers")
+
+    # Exact match
+    assert temp_db.company_exists("Boston Dynamics") is True
+
+    # Different case
+    assert temp_db.company_exists("boston dynamics") is True
+    assert temp_db.company_exists("BOSTON DYNAMICS") is True
+    assert temp_db.company_exists("BoStOn DyNaMiCs") is True
+
+    # Non-existent
+    assert temp_db.company_exists("Agility Robotics") is False
+
+
+def test_company_exists_empty_string(temp_db):
+    """Test company_exists returns False for empty string"""
+    assert temp_db.company_exists("") is False
+
+
+def test_company_exists_nonexistent(temp_db):
+    """Test company_exists returns False for non-existent company"""
+    temp_db.add_company("Existing Co", "https://existing.com/careers")
+
+    assert temp_db.company_exists("Nonexistent Co") is False
+
+
+def test_add_discovered_company_success(temp_db):
+    """Test successfully adding a discovered company"""
+    result = temp_db.add_discovered_company(
+        name="Auto Discovered Co", source="email_auto_discovery"
+    )
+
+    assert result["success"] is True
+    assert result["company"]["name"] == "Auto Discovered Co"
+    assert result["company"]["active"] is False  # Inactive by default
+    assert "placeholder" in result["company"]["careers_url"].lower()
+    assert "email_auto_discovery" in result["company"]["notes"]
+    assert "manual review" in result["company"]["notes"].lower()
+
+
+def test_add_discovered_company_custom_url(temp_db):
+    """Test adding discovered company with custom career page URL"""
+    result = temp_db.add_discovered_company(
+        name="Custom URL Co",
+        source="company_monitoring",
+        careers_url="https://custom.com/careers",
+    )
+
+    assert result["success"] is True
+    assert result["company"]["careers_url"] == "https://custom.com/careers"
+
+
+def test_add_discovered_company_duplicate_name(temp_db):
+    """Test adding discovered company with duplicate name (different URL)"""
+    # Add first company
+    temp_db.add_company("Duplicate Test", "https://first.com/careers")
+
+    # Try to add discovered company with same name but different URL
+    result = temp_db.add_discovered_company(name="Duplicate Test", source="email_auto_discovery")
+
+    # Should succeed because URL is different (UNIQUE constraint is on name+URL combo)
+    assert result["success"] is True
+    assert result["company"]["name"] == "Duplicate Test"
+    assert "placeholder" in result["company"]["careers_url"].lower()
+
+
+def test_add_discovered_company_exact_duplicate(temp_db):
+    """Test adding discovered company that exactly matches existing"""
+    # Add discovered company first
+    temp_db.add_discovered_company(name="Exact Dup", source="email")
+
+    # Try to add same company again
+    result = temp_db.add_discovered_company(name="Exact Dup", source="email")
+
+    assert result["success"] is False
+    assert "already exists" in result["error"]
+
+
+def test_add_discovered_company_inactive_by_default(temp_db):
+    """Test that discovered companies are added as inactive"""
+    result = temp_db.add_discovered_company(name="Needs Review Co", source="linkedin")
+
+    company_id = result["company"]["id"]
+    company = temp_db.get_company(company_id)
+
+    assert company["active"] == 0  # Inactive
+    assert company["auto_disabled_at"] is None  # Not auto-disabled, just inactive
+
+
+def test_add_discovered_company_source_in_notes(temp_db):
+    """Test that source is recorded in notes"""
+    result = temp_db.add_discovered_company(name="Source Test Co", source="builtin_auto_discovery")
+
+    company_id = result["company"]["id"]
+    company = temp_db.get_company(company_id)
+
+    assert "builtin_auto_discovery" in company["notes"]
+    assert "manual review" in company["notes"].lower()
