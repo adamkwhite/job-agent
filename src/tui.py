@@ -68,8 +68,8 @@ def select_sources() -> tuple[list[str], str | None]:
     table.add_column("Source", style="cyan", width=8)
     table.add_column("Description", style="white", width=40)
 
-    table.add_row("1", "Company Monitoring (68 companies + Ministry of Testing)")
-    table.add_row("2", "Email Processing (requires inbox selection)")
+    table.add_row("1", "Company Monitoring")
+    table.add_row("2", "Email Processing")
     table.add_row("a", "Select All Sources")
     table.add_row("", "")  # Blank row separator
     table.add_row("api", "API Credits (Check LLM/Firecrawl status)")
