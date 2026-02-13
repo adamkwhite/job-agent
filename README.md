@@ -1,10 +1,12 @@
 # Job Discovery & Application Automation
 
-An intelligent job discovery and scoring system for robotics/hardware executives with automated email processing, web scraping, and personalized job matching.
+An intelligent job discovery and scoring system for multiple user profiles with automated email processing, web scraping, and personalized job matching.
 
 ## Project Overview
 
-This system automates job discovery for Wesley van Ooyen (robotics/hardware executive) using a 100-point intelligent scoring system (max 110 with bonuses), automated web scraping of 1,092+ robotics jobs weekly, and multi-source email processing. The system filters noise by notifying only on A/B grade matches (70+ points) and delivers weekly email digests with top opportunities.
+This system automates job discovery for multiple professionals (Wes, Adam, Eli, Mario) using a 100-point intelligent scoring system (max 110 with bonuses), automated web scraping of 1,000+ jobs weekly, and multi-source email processing. The system filters noise by notifying only on A/B grade matches (70+ points) and delivers weekly email digests with top opportunities personalized to each profile.
+
+**Key Features**: Multi-profile support with profile-specific scoring, interactive TUI for workflow management, automated company monitoring, and LinkedIn connection matching.
 
 **Key Achievement**: Latest digest delivered 5 excellent matches (70+) and 11 good matches (55+) from 50+ processed jobs.
 
@@ -22,38 +24,57 @@ This system automates job discovery for Wesley van Ooyen (robotics/hardware exec
 ## Architecture (V2 - Current)
 
 ### 1. Job Scoring Engine (`src/agents/job_scorer.py`)
-Multi-factor 100-point base scoring system (max 110 with bonuses) evaluating jobs against Wesley's profile:
-- **Seniority** (0-30): VP/Director/Head of roles score highest
-- **Domain** (0-25): Robotics, hardware, automation, IoT, MedTech
-- **Role Type** (0-20): Engineering leadership, with +2 bonuses per matched keyword
+Multi-factor 100-point base scoring system (max 110 with bonuses) with **multi-profile support**:
+- **Seniority** (0-30): Relative scoring based on each profile's target levels (Issue #244)
+- **Domain** (0-25): Profile-specific domain keywords (Robotics, hardware, fintech, etc.)
+- **Role Type** (0-20): Profile-specific role preferences with +2 bonuses per matched keyword
 - **Location** (0-15): Remote (+15), Hybrid Ontario (+15), Ontario cities (+12)
-- **Technical Keywords** (0-10): Mechatronics, embedded, manufacturing
+- **Technical Keywords** (0-10): Profile-specific technical skills
 - **Company Classification** (±20): Hardware boost (+10) or software penalty (-20)
 
 **Grading**: A (85+), B (70+), C (55+), D (40+), F (<40)
 
+**Multi-Profile Scoring (Issue #184)**: Jobs are automatically scored for ALL enabled profiles. Each job gets personalized scores based on individual profile preferences, stored in the `job_scores` table.
+
 **Company Classification Filtering**: Intelligent filtering reduces software engineering roles while preserving hardware/robotics opportunities. Three aggression levels (conservative/moderate/aggressive) control filtering strictness. See `CLAUDE.md` for details.
 
 ### 2. Email Processing Pipeline (`src/processor_v2.py`)
-1. IMAP monitoring of dedicated Gmail account
+1. IMAP monitoring of profile-specific Gmail accounts
 2. Email parsing via specialized parsers (LinkedIn, Supra, F6S, Artemis, Built In)
 3. Keyword-based filtering (include/exclude lists)
-4. Job scoring against candidate profile
+4. **Multi-profile scoring** - Jobs scored for ALL enabled profiles automatically
 5. Job deduplication and SQLite storage
 6. Notification triggers for A/B grade jobs only (70+)
 
 ### 3. Web Scrapers
-- **Robotics Scraper** (`src/jobs/weekly_robotics_scraper.py`): 1,092 jobs from robotics/deeptech Google Sheets
-- **Company Monitoring** (`src/jobs/company_scraper.py`): 26+ companies via Firecrawl MCP
-- **Unified Workflow** (`src/jobs/weekly_unified_scraper.py`): Single command for all sources
+- **Company Monitoring** (`src/jobs/company_scraper.py`): 68 robotics/deeptech companies via Firecrawl MCP
+- **Ministry of Testing** (`src/jobs/ministry_scraper.py`): QA/testing job board
+- **Unified Workflow** (`src/jobs/weekly_unified_scraper.py`): Single command for all sources with multi-profile scoring
 
-### 4. Email Digest System (`src/send_digest_to_wes.py`)
-- Generates HTML email with top-scoring jobs
+### 4. Email Digest System (`src/send_profile_digest.py`)
+- **Profile-specific digests** with personalized job matches
+- Generates HTML email with top-scoring jobs for each profile
 - Attaches interactive jobs.html file with filtering buttons
 - Location-based filtering (Remote/Hybrid/Ontario)
-- Tracks sent jobs to prevent duplicate emails
+- **Profile-specific tracking** - Same job can be sent to multiple profiles independently
+- LinkedIn connection matching (shows "👥 You have X connections" in digests)
 
-### 5. LinkedIn Connections Matching (`src/utils/connections_manager.py`)
+### 5. Interactive TUI (`src/tui.py`)
+**Recommended workflow management interface** with sources-first architecture:
+- **Step 1**: Select sources (companies, email, ministry) - profile-agnostic
+- **Step 2**: Select action (scrape, digest, or both)
+- **Step 3**: Run scraper (if needed)
+- **Step 4**: Select digest recipients (multi-select or "all")
+- **Step 5**: Digest options (production, dry-run, force-resend)
+- **Step 6**: Confirm & execute
+
+**Key Benefits**: One scrape → multiple digest recipients, clear separation of scraping scope and digest recipients.
+
+**Launch TUI**: `./run-tui.sh` or `PYTHONPATH=$PWD job-agent-venv/bin/python src/tui.py`
+
+**Full Documentation**: [`docs/development/TUI_WORKFLOW.md`](docs/development/TUI_WORKFLOW.md)
+
+### 6. LinkedIn Connections Matching (`src/utils/connections_manager.py`)
 - Load LinkedIn connections CSV export
 - Match connections to job companies using fuzzy matching
 - Display connection counts and names in email digests
@@ -149,28 +170,48 @@ cp data/backups/jobs-backup-YYYYMMDD-TYPE.db data/jobs.db
 
 ### 4. Run Components
 
-**Unified Weekly Scraper (Recommended)**:
+**Interactive TUI (Recommended)**:
 ```bash
-# All sources: emails + robotics + company monitoring
-PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py
+# Launch interactive workflow manager
+./run-tui.sh
 
-# Email only
-PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --email-only
+# Or run directly
+PYTHONPATH=$PWD job-agent-venv/bin/python src/tui.py
+```
 
-# Company monitoring only
+**Benefits**: Sources-first workflow, multi-recipient digests, dry-run testing, utility access (API credits, system health).
+
+**Full TUI Guide**: [`docs/development/TUI_WORKFLOW.md`](docs/development/TUI_WORKFLOW.md)
+
+---
+
+**Unified Weekly Scraper (CLI)**:
+```bash
+# Single profile inbox mode
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --profile wes
+
+# Multi-inbox mode (all configured profiles)
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --all-inboxes
+
+# Email only (specific profile)
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --profile adam --email-only
+
+# Company monitoring only (profile-agnostic)
 PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --companies-only
 ```
 
+**Note**: `--profile` selects which email inbox to connect to. Jobs are automatically scored for ALL profiles regardless of which inbox is used.
+
 **Individual Components**:
 ```bash
-# Email processor
-job-agent-venv/bin/python src/processor_v2.py --fetch-emails --limit 50
+# Email processor (specific profile)
+PYTHONPATH=$PWD job-agent-venv/bin/python src/processor_v2.py --profile wes --fetch-emails --limit 50
 
-# Robotics scraper
-job-agent-venv/bin/python src/jobs/weekly_robotics_scraper.py --min-score 70
-
-# Company scraper
+# Company scraper (profile-agnostic)
 PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/company_scraper.py --filter "From Wes"
+
+# Ministry of Testing scraper
+PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/ministry_scraper.py
 ```
 
 **LinkedIn Connections**:
@@ -184,16 +225,19 @@ python scripts/upload_connections.py --profile wes ~/Downloads/Connections.csv
 # 3. Download the Connections.csv file
 ```
 
-**Generate Reports**:
+**Generate Reports & Send Digests**:
 ```bash
-# Create interactive HTML report
-job-agent-venv/bin/python src/generate_jobs_html.py
-
 # Create HTML report with connections for a profile
-job-agent-venv/bin/python src/generate_jobs_html.py --profile wes
+PYTHONPATH=$PWD job-agent-venv/bin/python src/generate_jobs_html.py --profile wes
 
-# Send email digest
+# Send email digest to specific profile
 PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile wes
+
+# Send digests to all profiles
+PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --all
+
+# Dry-run (preview without sending)
+PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile adam --dry-run
 ```
 
 ### 5. Setup Weekly Automation
@@ -258,11 +302,13 @@ SKIP=python-safety-dependencies-check git commit -m "message"
 
 ## Database Schema
 
-**jobs table** (`data/jobs.db`):
+**Multi-Profile Database** (`data/jobs.db`):
+
 ```sql
+-- Jobs table (single source of truth)
 CREATE TABLE jobs (
     id INTEGER PRIMARY KEY,
-    source TEXT,           -- linkedin, supra_newsletter, robotics_deeptech_sheet, etc.
+    source TEXT,           -- linkedin, supra_newsletter, company_monitoring, etc.
     type TEXT,             -- direct_job, funding_lead
     company TEXT,
     title TEXT,
@@ -270,22 +316,54 @@ CREATE TABLE jobs (
     link TEXT,
     keywords_matched TEXT, -- JSON array
     received_at TEXT,
-    fit_score INTEGER,     -- 0-110 points (100 base + adjustments)
-    fit_grade TEXT,        -- A, B, C, D, F
-    score_breakdown TEXT,  -- JSON object with category scores
-    digest_sent_at TEXT,   -- Track sent jobs
     research_notes TEXT,
     UNIQUE(title, company, link)  -- SHA256 deduplication
 );
+
+-- Multi-profile scores (Issue #184)
+CREATE TABLE job_scores (
+    job_id INTEGER,
+    profile_id TEXT,
+    fit_score INTEGER,     -- 0-110 points (100 base + adjustments)
+    fit_grade TEXT,        -- A, B, C, D, F
+    score_breakdown TEXT,  -- JSON object with category scores
+    scored_at TEXT,
+    FOREIGN KEY(job_id) REFERENCES jobs(id),
+    PRIMARY KEY(job_id, profile_id)
+);
+
+-- Profile-specific digest tracking (Issue #262)
+CREATE TABLE digest_tracking (
+    job_id INTEGER,
+    profile_id TEXT,
+    sent_at TEXT,
+    FOREIGN KEY(job_id) REFERENCES jobs(id),
+    PRIMARY KEY(job_id, profile_id)
+);
 ```
 
-## Candidate Profile (Wesley van Ooyen)
+**Key Features**:
+- Jobs stored once, scored for all profiles
+- Same job can have different scores per profile
+- Same job can be sent to multiple profiles independently
 
-- **Background**: Robotics/hardware executive, 11 patents, IoT/MedTech experience
-- **Target Roles**: VP/Director/Head of Engineering or Product
-- **Domains**: Robotics, automation, hardware, IoT, MedTech, mechatronics
-- **Location**: Remote (US/anywhere), Hybrid Ontario (Toronto/Waterloo/Burlington)
-- **Role Preference**: Engineering leadership > Product leadership
+## Multi-Profile Support
+
+The system supports multiple user profiles, each with personalized scoring criteria:
+
+**Supported Profiles** (`profiles/*.json`):
+- **Wesley** - VP/Director roles in Robotics/Hardware
+- **Adam** - Senior/Staff roles in Software/Product
+- **Eli** - Director/VP/CTO roles in Fintech/Healthtech/PropTech
+- **Mario** - Senior/Staff/Lead roles in QA Engineering
+
+**Profile Configuration**:
+- Profile-specific domain keywords and technical skills
+- Relative seniority scoring (Issue #244)
+- Individual email accounts for inbox scraping
+- Independent digest tracking (same job → multiple profiles)
+
+**Adding Profiles**: See [`docs/development/ADDING_NEW_PROFILES.md`](docs/development/ADDING_NEW_PROFILES.md)
 
 ## Success Metrics
 
@@ -341,4 +419,4 @@ This is a personal project, but contributions are welcome. Please:
 **If updating job scoring criteria:**
 - Follow the checklist in `docs/development/SCORING_UPDATE_CHECKLIST.md`
 - Use GitHub issue template: `.github/ISSUE_TEMPLATE/scoring-update.md`
-- Update email template in `src/send_digest_to_wes.py` (lines 222-238)
+- Update email templates in `src/send_profile_digest.py` and profile-specific templates
