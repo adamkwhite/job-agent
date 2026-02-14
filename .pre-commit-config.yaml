@@ -47,6 +47,9 @@ repos:
         name: Check for merge conflict markers
       - id: debug-statements
         name: Check for debugger imports
+      - id: no-commit-to-branch
+        name: Prevent commits to main/master
+        args: ['--branch', 'main', '--branch', 'master']
 
   # Security scanning (high-severity only for speed)
   # Comprehensive scan runs in CI/CD
