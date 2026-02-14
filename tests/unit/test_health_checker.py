@@ -9,6 +9,7 @@ Tests health check data aggregation from:
 """
 
 import json
+import sqlite3
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch
 
@@ -295,10 +296,13 @@ class TestRecentActivity:
 class TestCriticalIssues:
     """Test _get_critical_issues method"""
 
+    @patch.object(SystemHealthChecker, "_get_company_scraper_health")
     @patch.object(SystemHealthChecker, "_get_llm_failure_stats")
     @patch.object(SystemHealthChecker, "_get_budget_health")
     @patch.object(SystemHealthChecker, "_get_recent_activity")
-    def test_no_critical_issues(self, mock_activity, mock_budget, mock_failures):
+    def test_no_critical_issues(
+        self, mock_activity, mock_budget, mock_failures, mock_company_health
+    ):
         """Should return empty list when no critical issues"""
         db = Mock()
 
@@ -314,16 +318,25 @@ class TestCriticalIssues:
         mock_activity.return_value = {
             "last_run_time": datetime.now().isoformat(),
         }
+        mock_company_health.return_value = {
+            "total_companies": 50,
+            "at_risk_count": 2,
+            "auto_disabled_count": 0,
+            "success_rate": 90.0,
+        }
 
         checker = SystemHealthChecker(db)
         issues = checker._get_critical_issues()
 
         assert issues == []
 
+    @patch.object(SystemHealthChecker, "_get_company_scraper_health")
     @patch.object(SystemHealthChecker, "_get_llm_failure_stats")
     @patch.object(SystemHealthChecker, "_get_budget_health")
     @patch.object(SystemHealthChecker, "_get_recent_activity")
-    def test_high_llm_failures_24h(self, mock_activity, mock_budget, mock_failures):
+    def test_high_llm_failures_24h(
+        self, mock_activity, mock_budget, mock_failures, mock_company_health
+    ):
         """Should flag high LLM failures in 24h as critical"""
         db = Mock()
 
@@ -337,6 +350,12 @@ class TestCriticalIssues:
             "monthly_limit": 15.0,
         }
         mock_activity.return_value = {"last_run_time": datetime.now().isoformat()}
+        mock_company_health.return_value = {
+            "total_companies": 50,
+            "at_risk_count": 0,
+            "auto_disabled_count": 0,
+            "success_rate": 90.0,
+        }
 
         checker = SystemHealthChecker(db)
         issues = checker._get_critical_issues()
@@ -346,10 +365,13 @@ class TestCriticalIssues:
         assert issues[0]["category"] == "llm_failures"
         assert "60 LLM failures" in issues[0]["message"]
 
+    @patch.object(SystemHealthChecker, "_get_company_scraper_health")
     @patch.object(SystemHealthChecker, "_get_llm_failure_stats")
     @patch.object(SystemHealthChecker, "_get_budget_health")
     @patch.object(SystemHealthChecker, "_get_recent_activity")
-    def test_pending_failures_warning(self, mock_activity, mock_budget, mock_failures):
+    def test_pending_failures_warning(
+        self, mock_activity, mock_budget, mock_failures, mock_company_health
+    ):
         """Should flag pending failures as warning"""
         db = Mock()
 
@@ -363,6 +385,12 @@ class TestCriticalIssues:
             "monthly_limit": 15.0,
         }
         mock_activity.return_value = {"last_run_time": datetime.now().isoformat()}
+        mock_company_health.return_value = {
+            "total_companies": 50,
+            "at_risk_count": 0,
+            "auto_disabled_count": 0,
+            "success_rate": 90.0,
+        }
 
         checker = SystemHealthChecker(db)
         issues = checker._get_critical_issues()
@@ -372,10 +400,11 @@ class TestCriticalIssues:
             for issue in issues
         )
 
+    @patch.object(SystemHealthChecker, "_get_company_scraper_health")
     @patch.object(SystemHealthChecker, "_get_llm_failure_stats")
     @patch.object(SystemHealthChecker, "_get_budget_health")
     @patch.object(SystemHealthChecker, "_get_recent_activity")
-    def test_budget_exceeded(self, mock_activity, mock_budget, mock_failures):
+    def test_budget_exceeded(self, mock_activity, mock_budget, mock_failures, mock_company_health):
         """Should flag budget exceeded as critical"""
         db = Mock()
 
@@ -386,6 +415,12 @@ class TestCriticalIssues:
             "monthly_limit": 15.0,
         }
         mock_activity.return_value = {"last_run_time": datetime.now().isoformat()}
+        mock_company_health.return_value = {
+            "total_companies": 50,
+            "at_risk_count": 0,
+            "auto_disabled_count": 0,
+            "success_rate": 90.0,
+        }
 
         checker = SystemHealthChecker(db)
         issues = checker._get_critical_issues()
@@ -393,10 +428,11 @@ class TestCriticalIssues:
         assert any(issue["category"] == "budget" and issue["severity"] == "red" for issue in issues)
         assert any("exceeded" in issue["message"].lower() for issue in issues)
 
+    @patch.object(SystemHealthChecker, "_get_company_scraper_health")
     @patch.object(SystemHealthChecker, "_get_llm_failure_stats")
     @patch.object(SystemHealthChecker, "_get_budget_health")
     @patch.object(SystemHealthChecker, "_get_recent_activity")
-    def test_budget_warning(self, mock_activity, mock_budget, mock_failures):
+    def test_budget_warning(self, mock_activity, mock_budget, mock_failures, mock_company_health):
         """Should flag budget warning at 80%+"""
         db = Mock()
 
@@ -407,6 +443,12 @@ class TestCriticalIssues:
             "monthly_limit": 15.0,
         }
         mock_activity.return_value = {"last_run_time": datetime.now().isoformat()}
+        mock_company_health.return_value = {
+            "total_companies": 50,
+            "at_risk_count": 0,
+            "auto_disabled_count": 0,
+            "success_rate": 90.0,
+        }
 
         checker = SystemHealthChecker(db)
         issues = checker._get_critical_issues()
@@ -415,10 +457,11 @@ class TestCriticalIssues:
             issue["category"] == "budget" and issue["severity"] == "yellow" for issue in issues
         )
 
+    @patch.object(SystemHealthChecker, "_get_company_scraper_health")
     @patch.object(SystemHealthChecker, "_get_llm_failure_stats")
     @patch.object(SystemHealthChecker, "_get_budget_health")
     @patch.object(SystemHealthChecker, "_get_recent_activity")
-    def test_stale_scraper(self, mock_activity, mock_budget, mock_failures):
+    def test_stale_scraper(self, mock_activity, mock_budget, mock_failures, mock_company_health):
         """Should flag stale scraper (7+ days)"""
         db = Mock()
 
@@ -432,6 +475,12 @@ class TestCriticalIssues:
         # Last run 8 days ago
         old_run = (datetime.now() - timedelta(days=8)).isoformat()
         mock_activity.return_value = {"last_run_time": old_run}
+        mock_company_health.return_value = {
+            "total_companies": 50,
+            "at_risk_count": 0,
+            "auto_disabled_count": 0,
+            "success_rate": 90.0,
+        }
 
         checker = SystemHealthChecker(db)
         issues = checker._get_critical_issues()
@@ -448,9 +497,16 @@ class TestHealthSummary:
     @patch.object(SystemHealthChecker, "_get_budget_health")
     @patch.object(SystemHealthChecker, "_get_database_health")
     @patch.object(SystemHealthChecker, "_get_recent_activity")
+    @patch.object(SystemHealthChecker, "_get_company_scraper_health")
     @patch.object(SystemHealthChecker, "_get_critical_issues")
     def test_health_summary_aggregation(
-        self, mock_critical, mock_activity, mock_db, mock_budget, mock_failures
+        self,
+        mock_critical,
+        mock_company_health,
+        mock_activity,
+        mock_db,
+        mock_budget,
+        mock_failures,
     ):
         """Should aggregate all health metrics into summary"""
         db = Mock()
@@ -459,6 +515,10 @@ class TestHealthSummary:
         mock_budget.return_value = {"percentage_used": 50.0}
         mock_db.return_value = {"total_jobs": 1000}
         mock_activity.return_value = {"last_run_time": "2026-01-31T10:00:00"}
+        mock_company_health.return_value = {
+            "total_companies": 50,
+            "success_rate": 90.0,
+        }
         mock_critical.return_value = []
 
         checker = SystemHealthChecker(db)
@@ -468,6 +528,7 @@ class TestHealthSummary:
         assert "budget" in summary
         assert "database" in summary
         assert "recent_activity" in summary
+        assert "company_scraper" in summary
         assert "critical_issues" in summary
         assert summary["llm_failures"]["total_pending"] == 5
         assert summary["budget"]["percentage_used"] == 50.0
@@ -513,3 +574,328 @@ class TestAutoDisplay:
         checker.config["auto_display"]["critical_only"] = True
 
         assert checker.should_auto_display() is False
+
+
+class TestCompanyScraperHealth:
+    """Test _get_company_scraper_health method"""
+
+    def test_no_companies_configured(self):
+        """Should return zeros when no companies exist"""
+        db = Mock()
+        db.db_path = ":memory:"
+
+        with patch("src.utils.health_checker.sqlite3.connect") as mock_connect:
+            mock_conn = Mock()
+            mock_cursor = Mock()
+            mock_cursor.fetchone.side_effect = [
+                (0,),  # total_companies
+                (0,),  # active_companies
+                (0,),  # auto_disabled_count
+                (0,),  # at_risk_count
+                (0,),  # total_failures
+                None,  # last_scrape_time
+                (0,),  # recent_scrape_count
+            ]
+            mock_conn.cursor.return_value = mock_cursor
+            mock_connect.return_value = mock_conn
+
+            checker = SystemHealthChecker(db)
+            health = checker._get_company_scraper_health()
+
+        assert health["total_companies"] == 0
+        assert health["active_companies"] == 0
+        assert health["success_rate"] == 0
+        assert health["at_risk_count"] == 0
+        assert health["auto_disabled_count"] == 0
+
+    def test_all_companies_healthy(self):
+        """Should show 100% success when no failures"""
+        db = Mock()
+        db.db_path = ":memory:"
+
+        with patch("src.utils.health_checker.sqlite3.connect") as mock_connect:
+            mock_conn = Mock()
+            mock_cursor = Mock()
+            mock_cursor.fetchone.side_effect = [
+                (50,),  # total_companies
+                (50,),  # active_companies
+                (0,),  # auto_disabled_count
+                (0,),  # at_risk_count
+                (0,),  # total_failures
+                ("2026-02-13T10:00:00",),  # last_scrape_time
+                (25,),  # recent_scrape_count
+            ]
+            mock_conn.cursor.return_value = mock_cursor
+            mock_connect.return_value = mock_conn
+
+            checker = SystemHealthChecker(db)
+            health = checker._get_company_scraper_health()
+
+        assert health["total_companies"] == 50
+        assert health["active_companies"] == 50
+        assert health["total_failures"] == 0
+        assert health["success_rate"] == 100.0
+        assert health["at_risk_count"] == 0
+        assert health["auto_disabled_count"] == 0
+        assert health["recent_scrape_count"] == 25
+
+    def test_companies_with_failures(self):
+        """Should accurately report failure counts"""
+        db = Mock()
+        db.db_path = ":memory:"
+
+        with patch("src.utils.health_checker.sqlite3.connect") as mock_connect:
+            mock_conn = Mock()
+            mock_cursor = Mock()
+            mock_cursor.fetchone.side_effect = [
+                (63,),  # total_companies
+                (63,),  # active_companies
+                (0,),  # auto_disabled_count
+                (15,),  # at_risk_count (3-4 failures)
+                (19,),  # total_failures
+                ("2026-02-13T10:00:00",),  # last_scrape_time
+                (40,),  # recent_scrape_count
+            ]
+            mock_conn.cursor.return_value = mock_cursor
+            mock_connect.return_value = mock_conn
+
+            checker = SystemHealthChecker(db)
+            health = checker._get_company_scraper_health()
+
+        assert health["total_companies"] == 63
+        assert health["active_companies"] == 63
+        assert health["total_failures"] == 19
+        assert health["at_risk_count"] == 15
+        assert health["success_rate"] == ((63 - 19) / 63 * 100)  # ~69.8%
+
+    def test_auto_disabled_companies(self):
+        """Should count auto-disabled companies (5+ failures)"""
+        db = Mock()
+        db.db_path = ":memory:"
+
+        with patch("src.utils.health_checker.sqlite3.connect") as mock_connect:
+            mock_conn = Mock()
+            mock_cursor = Mock()
+            mock_cursor.fetchone.side_effect = [
+                (50,),  # total_companies
+                (45,),  # active_companies
+                (5,),  # auto_disabled_count (5+ failures)
+                (8,),  # at_risk_count
+                (10,),  # total_failures (among active)
+                ("2026-02-13T10:00:00",),  # last_scrape_time
+                (30,),  # recent_scrape_count
+            ]
+            mock_conn.cursor.return_value = mock_cursor
+            mock_connect.return_value = mock_conn
+
+            checker = SystemHealthChecker(db)
+            health = checker._get_company_scraper_health()
+
+        assert health["auto_disabled_count"] == 5
+        assert health["at_risk_count"] == 8
+        assert health["active_companies"] == 45
+
+    def test_database_error_handling(self):
+        """Should return default values on database error"""
+        db = Mock()
+        db.db_path = ":memory:"
+
+        with patch("src.utils.health_checker.sqlite3.connect") as mock_connect:
+            mock_connect.side_effect = sqlite3.Error("Database error")
+
+            checker = SystemHealthChecker(db)
+            health = checker._get_company_scraper_health()
+
+        # Should return default values
+        assert health["total_companies"] == 0
+        assert health["active_companies"] == 0
+        assert health["success_rate"] == 0
+
+
+class TestCriticalIssuesCompanyScraper:
+    """Test _get_critical_issues with company scraper checks"""
+
+    @patch.object(SystemHealthChecker, "_get_company_scraper_health")
+    @patch.object(SystemHealthChecker, "_get_llm_failure_stats")
+    @patch.object(SystemHealthChecker, "_get_budget_health")
+    @patch.object(SystemHealthChecker, "_get_recent_activity")
+    def test_at_risk_companies_warning(
+        self, mock_activity, mock_budget, mock_failures, mock_company_health
+    ):
+        """Should flag companies with 3-4 failures as warning"""
+        db = Mock()
+
+        mock_failures.return_value = {"total_pending": 0, "last_24h": 0}
+        mock_budget.return_value = {
+            "percentage_used": 50.0,
+            "total_spent": 7.5,
+            "monthly_limit": 15.0,
+        }
+        mock_activity.return_value = {"last_run_time": datetime.now().isoformat()}
+        mock_company_health.return_value = {
+            "total_companies": 63,
+            "active_companies": 63,
+            "at_risk_count": 15,  # Above threshold of 5
+            "auto_disabled_count": 0,
+            "success_rate": 70.0,
+        }
+
+        checker = SystemHealthChecker(db)
+        issues = checker._get_critical_issues()
+
+        # Should have at-risk warning
+        at_risk_issues = [
+            i for i in issues if i["category"] == "company_scraper" and "at risk" in i["message"]
+        ]
+        assert len(at_risk_issues) == 1
+        assert at_risk_issues[0]["severity"] == "yellow"
+        assert "15 companies at risk" in at_risk_issues[0]["message"]
+
+    @patch.object(SystemHealthChecker, "_get_company_scraper_health")
+    @patch.object(SystemHealthChecker, "_get_llm_failure_stats")
+    @patch.object(SystemHealthChecker, "_get_budget_health")
+    @patch.object(SystemHealthChecker, "_get_recent_activity")
+    def test_auto_disabled_companies_critical(
+        self, mock_activity, mock_budget, mock_failures, mock_company_health
+    ):
+        """Should flag auto-disabled companies as critical"""
+        db = Mock()
+
+        mock_failures.return_value = {"total_pending": 0, "last_24h": 0}
+        mock_budget.return_value = {
+            "percentage_used": 50.0,
+            "total_spent": 7.5,
+            "monthly_limit": 15.0,
+        }
+        mock_activity.return_value = {"last_run_time": datetime.now().isoformat()}
+        mock_company_health.return_value = {
+            "total_companies": 50,
+            "active_companies": 47,
+            "at_risk_count": 2,
+            "auto_disabled_count": 3,  # Above threshold of 1
+            "success_rate": 85.0,
+        }
+
+        checker = SystemHealthChecker(db)
+        issues = checker._get_critical_issues()
+
+        # Should have auto-disabled critical alert
+        disabled_issues = [
+            i
+            for i in issues
+            if i["category"] == "company_scraper" and "auto-disabled" in i["message"]
+        ]
+        assert len(disabled_issues) == 1
+        assert disabled_issues[0]["severity"] == "red"
+        assert "3 companies auto-disabled" in disabled_issues[0]["message"]
+
+    @patch.object(SystemHealthChecker, "_get_company_scraper_health")
+    @patch.object(SystemHealthChecker, "_get_llm_failure_stats")
+    @patch.object(SystemHealthChecker, "_get_budget_health")
+    @patch.object(SystemHealthChecker, "_get_recent_activity")
+    def test_low_success_rate_warning(
+        self, mock_activity, mock_budget, mock_failures, mock_company_health
+    ):
+        """Should warn when success rate < 75%"""
+        db = Mock()
+
+        mock_failures.return_value = {"total_pending": 0, "last_24h": 0}
+        mock_budget.return_value = {
+            "percentage_used": 50.0,
+            "total_spent": 7.5,
+            "monthly_limit": 15.0,
+        }
+        mock_activity.return_value = {"last_run_time": datetime.now().isoformat()}
+        mock_company_health.return_value = {
+            "total_companies": 50,
+            "active_companies": 50,
+            "at_risk_count": 3,
+            "auto_disabled_count": 0,
+            "success_rate": 60.0,  # Below 75% threshold
+        }
+
+        checker = SystemHealthChecker(db)
+        issues = checker._get_critical_issues()
+
+        # Should have success rate warning
+        rate_issues = [i for i in issues if "success rate" in i["message"].lower()]
+        assert len(rate_issues) == 1
+        assert rate_issues[0]["severity"] == "yellow"
+        assert "60.0%" in rate_issues[0]["message"]
+
+    @patch.object(SystemHealthChecker, "_get_company_scraper_health")
+    @patch.object(SystemHealthChecker, "_get_llm_failure_stats")
+    @patch.object(SystemHealthChecker, "_get_budget_health")
+    @patch.object(SystemHealthChecker, "_get_recent_activity")
+    def test_no_companies_configured_no_issues(
+        self, mock_activity, mock_budget, mock_failures, mock_company_health
+    ):
+        """Should not flag issues when no companies configured"""
+        db = Mock()
+
+        mock_failures.return_value = {"total_pending": 0, "last_24h": 0}
+        mock_budget.return_value = {
+            "percentage_used": 50.0,
+            "total_spent": 7.5,
+            "monthly_limit": 15.0,
+        }
+        mock_activity.return_value = {"last_run_time": datetime.now().isoformat()}
+        mock_company_health.return_value = {
+            "total_companies": 0,  # No companies
+            "active_companies": 0,
+            "at_risk_count": 0,
+            "auto_disabled_count": 0,
+            "success_rate": 0,
+        }
+
+        checker = SystemHealthChecker(db)
+        issues = checker._get_critical_issues()
+
+        # Should not have any company scraper issues
+        company_issues = [i for i in issues if i["category"] == "company_scraper"]
+        assert len(company_issues) == 0
+
+
+class TestHealthSummaryWithCompanyScraper:
+    """Test get_health_summary includes company scraper"""
+
+    @patch.object(SystemHealthChecker, "_get_llm_failure_stats")
+    @patch.object(SystemHealthChecker, "_get_budget_health")
+    @patch.object(SystemHealthChecker, "_get_database_health")
+    @patch.object(SystemHealthChecker, "_get_recent_activity")
+    @patch.object(SystemHealthChecker, "_get_company_scraper_health")
+    @patch.object(SystemHealthChecker, "_get_critical_issues")
+    def test_health_summary_includes_company_scraper(
+        self,
+        mock_critical,
+        mock_company_health,
+        mock_activity,
+        mock_db,
+        mock_budget,
+        mock_failures,
+    ):
+        """Should include company_scraper in health summary"""
+        db = Mock()
+
+        mock_failures.return_value = {"total_pending": 5}
+        mock_budget.return_value = {"percentage_used": 50.0}
+        mock_db.return_value = {"total_jobs": 1000}
+        mock_activity.return_value = {"last_run_time": "2026-02-13T10:00:00"}
+        mock_company_health.return_value = {
+            "total_companies": 63,
+            "active_companies": 63,
+            "success_rate": 69.8,
+        }
+        mock_critical.return_value = []
+
+        checker = SystemHealthChecker(db)
+        summary = checker.get_health_summary()
+
+        assert "llm_failures" in summary
+        assert "budget" in summary
+        assert "database" in summary
+        assert "recent_activity" in summary
+        assert "company_scraper" in summary  # NEW
+        assert "critical_issues" in summary
+        assert summary["company_scraper"]["total_companies"] == 63
+        assert summary["company_scraper"]["success_rate"] == 69.8
