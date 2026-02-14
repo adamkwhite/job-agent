@@ -61,6 +61,9 @@ class SystemHealthChecker:
                 "budget_warning_percent": 80,
                 "budget_critical_percent": 100,
                 "days_since_scrape": 7,
+                "company_at_risk_count": 5,
+                "company_success_rate_min": 75,
+                "company_auto_disabled_count": 1,
             },
             "auto_display": {
                 "enabled": True,
@@ -97,6 +100,7 @@ class SystemHealthChecker:
             - budget: Budget status
             - database: Database health metrics
             - recent_activity: Recent scraper runs
+            - company_scraper: Company scraper health metrics
             - critical_issues: List of critical issues
         """
         return {
@@ -104,6 +108,7 @@ class SystemHealthChecker:
             "budget": self._get_budget_health(),
             "database": self._get_database_health(),
             "recent_activity": self._get_recent_activity(),
+            "company_scraper": self._get_company_scraper_health(),
             "critical_issues": self._get_critical_issues(),
         }
 
@@ -258,6 +263,109 @@ class SystemHealthChecker:
             "last_run_source": last_run_source,
         }
 
+    def _get_company_scraper_health(self) -> dict[str, Any]:
+        """Get company scraper health statistics
+
+        Returns:
+            Dictionary with company scraper metrics:
+            - total_companies: Total monitored companies
+            - active_companies: Non-disabled companies
+            - auto_disabled_count: Companies auto-disabled (5+ failures)
+            - at_risk_count: Companies with 3-4 failures (warning state)
+            - total_failures: Companies with any failures (1-5)
+            - success_rate: Percentage of companies with 0 failures
+            - last_scrape_time: Most recent company scrape timestamp
+            - recent_scrape_count: Companies checked in last 24h
+        """
+        conn = self.db.db_path
+        db_conn = None
+
+        try:
+            db_conn = sqlite3.connect(conn)
+            cursor = db_conn.cursor()
+            # Total companies
+            cursor.execute("SELECT COUNT(*) FROM companies")
+            total_companies = cursor.fetchone()[0]
+
+            # Active companies (not auto-disabled)
+            cursor.execute("SELECT COUNT(*) FROM companies WHERE active = 1")
+            active_companies = cursor.fetchone()[0]
+
+            # Auto-disabled companies (5+ consecutive failures)
+            cursor.execute("""
+                SELECT COUNT(*) FROM companies
+                WHERE consecutive_failures >= 5 OR auto_disabled_at IS NOT NULL
+            """)
+            auto_disabled_count = cursor.fetchone()[0]
+
+            # At-risk companies (3-4 failures)
+            cursor.execute("""
+                SELECT COUNT(*) FROM companies
+                WHERE consecutive_failures >= 3
+                AND consecutive_failures < 5
+                AND active = 1
+            """)
+            at_risk_count = cursor.fetchone()[0]
+
+            # Total companies with failures
+            cursor.execute("""
+                SELECT COUNT(*) FROM companies
+                WHERE consecutive_failures > 0 AND active = 1
+            """)
+            total_failures = cursor.fetchone()[0]
+
+            # Calculate success rate
+            success_rate = (
+                (active_companies - total_failures) / active_companies * 100
+                if active_companies > 0
+                else 0
+            )
+
+            # Get last scrape time
+            cursor.execute("""
+                SELECT last_checked FROM companies
+                WHERE last_checked IS NOT NULL
+                ORDER BY last_checked DESC
+                LIMIT 1
+            """)
+            last_scrape_result = cursor.fetchone()
+            last_scrape_time = last_scrape_result[0] if last_scrape_result else None
+
+            # Count companies scraped in last 24h
+            cursor.execute("""
+                SELECT COUNT(*) FROM companies
+                WHERE datetime(last_checked) >= datetime('now', '-24 hours')
+            """)
+            recent_scrape_count = cursor.fetchone()[0]
+
+        except sqlite3.Error as e:
+            logger.error(f"Database error in _get_company_scraper_health: {e}")
+            # Return default values on error
+            return {
+                "total_companies": 0,
+                "active_companies": 0,
+                "auto_disabled_count": 0,
+                "at_risk_count": 0,
+                "total_failures": 0,
+                "success_rate": 0,
+                "last_scrape_time": None,
+                "recent_scrape_count": 0,
+            }
+        finally:
+            if db_conn is not None:
+                db_conn.close()
+
+        return {
+            "total_companies": total_companies,
+            "active_companies": active_companies,
+            "auto_disabled_count": auto_disabled_count,
+            "at_risk_count": at_risk_count,
+            "total_failures": total_failures,
+            "success_rate": success_rate,
+            "last_scrape_time": last_scrape_time,
+            "recent_scrape_count": recent_scrape_count,
+        }
+
     def _get_critical_issues(self) -> list[dict[str, Any]]:
         """Identify critical issues requiring attention
 
@@ -330,6 +438,44 @@ class SystemHealthChecker:
                     )
             except ValueError:
                 pass
+
+        # Check company scraper health
+        company_health = self._get_company_scraper_health()
+
+        # Only check if companies are configured
+        if company_health["total_companies"] > 0:
+            # Auto-disabled companies
+            if company_health["auto_disabled_count"] >= thresholds["company_auto_disabled_count"]:
+                issues.append(
+                    {
+                        "severity": "red",
+                        "category": "company_scraper",
+                        "message": f"{company_health['auto_disabled_count']} companies auto-disabled (5+ failures)",
+                        "action": "Review and re-enable or remove failed companies",
+                    }
+                )
+
+            # Companies at risk of auto-disable
+            if company_health["at_risk_count"] >= thresholds["company_at_risk_count"]:
+                issues.append(
+                    {
+                        "severity": "yellow",
+                        "category": "company_scraper",
+                        "message": f"{company_health['at_risk_count']} companies at risk (3-4 failures)",
+                        "action": "Check career page URLs - one more failure will auto-disable",
+                    }
+                )
+
+            # Low success rate
+            if company_health["success_rate"] < thresholds["company_success_rate_min"]:
+                issues.append(
+                    {
+                        "severity": "yellow",
+                        "category": "company_scraper",
+                        "message": f"Company scraper success rate: {company_health['success_rate']:.1f}% (target: {thresholds['company_success_rate_min']}%)",
+                        "action": "Review scraper_failures.log for common failure patterns",
+                    }
+                )
 
         return issues
 

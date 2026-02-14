@@ -414,6 +414,46 @@ def show_system_health():  # pragma: no cover
     else:
         health_table.add_row("Last Scraper Run", "[yellow]No runs found[/yellow]")
 
+    # Company Scraper Section
+    health_table.add_row("", "")  # Blank row
+    company_health = health["company_scraper"]
+
+    # Only display if companies are configured
+    if company_health["total_companies"] > 0:
+        # Success rate with color coding
+        success_rate = company_health["success_rate"]
+        if success_rate >= 90:
+            success_color = "green"
+        elif success_rate >= 75:
+            success_color = "yellow"
+        else:
+            success_color = "red"
+
+        health_table.add_row(
+            "Company Scraper Success",
+            f"[{success_color}]{success_rate:.1f}% ({company_health['active_companies'] - company_health['total_failures']}/{company_health['active_companies']})[/{success_color}]",
+        )
+
+        # At-risk companies
+        if company_health["at_risk_count"] > 0:
+            health_table.add_row(
+                "At Risk (3-4 failures)",
+                f"[yellow]{company_health['at_risk_count']} companies[/yellow]",
+            )
+
+        # Auto-disabled companies
+        if company_health["auto_disabled_count"] > 0:
+            health_table.add_row(
+                "Auto-Disabled (5 failures)",
+                f"[red]{company_health['auto_disabled_count']} companies[/red]",
+            )
+
+        # Companies checked recently
+        health_table.add_row(
+            "Scraped in Last 24h",
+            f"[dim]{company_health['recent_scrape_count']}/{company_health['total_companies']}[/dim]",
+        )
+
     console.print(health_table)
 
     # Critical Issues Section
@@ -436,11 +476,15 @@ def show_system_health():  # pragma: no cover
     console.print(SEPARATOR_FULL)
 
     # Offer options
-    console.print("[dim]Actions: \\[f]ailures detail | \\[b]ack to menu[/dim]")
-    choice = Prompt.ask("\n[bold]Action[/bold]", choices=["f", "b"], default="b")
+    console.print(
+        "[dim]Actions: \\[f] LLM failures | \\[c] Company failures | \\[b] Back to menu[/dim]"
+    )
+    choice = Prompt.ask("\n[bold]Action[/bold]", choices=["f", "c", "b"], default="b")
 
     if choice == "f":
         review_llm_failures()
+    elif choice == "c":
+        review_company_failures()
 
 
 def check_api_credits():  # pragma: no cover
@@ -781,6 +825,116 @@ def _skip_all_failures(db, failures):  # pragma: no cover
             f"\n[yellow]⏭️  Skipped {success_count}/{len(failures)} failures permanently[/yellow]"
         )
         input("\n[dim]Press Enter to continue...[/dim]")
+
+
+def review_company_failures():  # pragma: no cover
+    """Display detailed view of company scraper failures
+
+    Note: TUI functions are excluded from coverage requirements as they will be
+    replaced with Textual framework (Issue #119). Manual testing confirms functionality.
+    """
+    import sqlite3
+
+    from database import JobDatabase
+
+    db = JobDatabase()
+    conn = sqlite3.connect(db.db_path)
+    cursor = conn.cursor()
+
+    console.clear()
+    console.print("\n[bold magenta]═══════════════════════════════════════════════[/bold magenta]")
+    console.print("[bold magenta]         COMPANY SCRAPER FAILURES REVIEW         [/bold magenta]")
+    console.print("[bold magenta]═══════════════════════════════════════════════[/bold magenta]\n")
+
+    # Get companies with failures
+    cursor.execute("""
+        SELECT
+            name,
+            consecutive_failures,
+            last_error,
+            last_checked,
+            active,
+            auto_disabled_at
+        FROM companies
+        WHERE consecutive_failures > 0
+        ORDER BY consecutive_failures DESC, name ASC
+    """)
+    failures = cursor.fetchall()
+    conn.close()
+
+    if not failures:
+        console.print("[green]✅ No company scraper failures! All companies healthy.[/green]\n")
+        press_enter_to_continue()
+        return
+
+    # Summary stats
+    at_risk = sum(1 for f in failures if 3 <= f[1] < 5 and f[4] == 1)
+    auto_disabled = sum(1 for f in failures if f[1] >= 5 or f[5] is not None)
+    active_failures = sum(1 for f in failures if f[4] == 1)
+
+    console.print(
+        f"[bold yellow]📊 Summary:[/bold yellow] {len(failures)} companies with failures\n"
+    )
+    console.print(f"  • [yellow]At Risk (3-4 failures):[/yellow] {at_risk} companies")
+    console.print(f"  • [red]Auto-Disabled (5+ failures):[/red] {auto_disabled} companies")
+    console.print(f"  • [dim]Active with failures:[/dim] {active_failures} companies\n")
+
+    # Display failures table
+    table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+    table.add_column("Company", style="white", width=25)
+    table.add_column("Failures", style="yellow", width=10, justify="center")
+    table.add_column("Status", style="white", width=12)
+    table.add_column("Last Error", style="dim", width=35)
+    table.add_column("Last Checked", style="dim", width=12)
+
+    for name, failures_count, error, checked, _active, disabled_at in failures[:30]:
+        # Determine status color and text
+        if failures_count >= 5 or disabled_at:
+            status = "[red]Disabled[/red]"
+        elif failures_count >= 3:
+            status = "[yellow]At Risk[/yellow]"
+        else:
+            status = "[dim]Active[/dim]"
+
+        # Format error message
+        error_msg = error if error else "Unknown"
+        if len(error_msg) > 32:
+            error_msg = error_msg[:29] + "..."
+
+        # Format last checked
+        checked_display = checked[:10] if checked else "Never"
+
+        # Color code the failure count
+        if failures_count >= 5:
+            failure_display = f"[red]{failures_count}/5[/red]"
+        elif failures_count >= 3:
+            failure_display = f"[yellow]{failures_count}/5[/yellow]"
+        else:
+            failure_display = f"[dim]{failures_count}/5[/dim]"
+
+        table.add_row(name, failure_display, status, error_msg, checked_display)
+
+    console.print(table)
+
+    if len(failures) > 30:
+        console.print(f"\n[dim]Showing 30 of {len(failures)} companies with failures...[/dim]")
+
+    # Action suggestions
+    console.print("\n[bold yellow]💡 Recommended Actions:[/bold yellow]")
+    if auto_disabled > 0:
+        console.print(
+            "  • [red]Auto-disabled companies:[/red] Review career page URLs, re-enable with SQL, or remove from monitoring"
+        )
+    if at_risk > 0:
+        console.print(
+            "  • [yellow]At-risk companies:[/yellow] Check logs/scraper_failures.log for patterns"
+        )
+    console.print("  • [dim]View logs:[/dim] tail -50 logs/scraper_failures.log")
+    console.print(
+        "  • [dim]Re-enable company:[/dim] UPDATE companies SET active=1, consecutive_failures=0 WHERE name='CompanyName'"
+    )
+
+    press_enter_to_continue()
 
 
 def select_action() -> str | None:

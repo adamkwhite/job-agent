@@ -4,7 +4,10 @@
     "llm_failures_pending": 10,
     "budget_warning_percent": 80,
     "budget_critical_percent": 100,
-    "days_since_scrape": 7
+    "days_since_scrape": 7,
+    "company_at_risk_count": 5,
+    "company_success_rate_min": 75,
+    "company_auto_disabled_count": 1
   },
   "auto_display": {
     "enabled": true,

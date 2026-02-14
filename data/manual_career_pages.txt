@@ -168,3 +168,23 @@ Investors: Craft Ventures, Mayo Clinic Platform
 
 Guessed website: https://openevidence.com
 Career page URL (fill this in): ____________________________
+
+======================================================================
+Company: Adaption
+Location: San Francisco, US
+Funding: Seed - $50m
+Industries: AI, Intelligence
+Investors: Emergence Capital Partners, Mozilla Ventures
+
+Guessed website: https://adaption.com
+Career page URL (fill this in): ____________________________
+
+======================================================================
+Company: Angitia Biopharmaceuticals
+Location: Woodland Hills, US
+Funding: Series A - $130m
+Industries: Biotech, Health/Medical
+Investors: Frazier Life Sciences, Venrock Healthcare Capital Partners
+
+Guessed website: https://angitiabiopharmaceuticals.com
+Career page URL (fill this in): ____________________________
