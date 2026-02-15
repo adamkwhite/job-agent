@@ -879,7 +879,7 @@ class FirecrawlCareerScraper:
 
             try:
                 # Call map API with search filter for job-related pages
-                map_result = self.firecrawl.map_url(
+                map_result = self.firecrawl.map(
                     url=careers_url,
                     params={
                         "search": "job position career opening",
