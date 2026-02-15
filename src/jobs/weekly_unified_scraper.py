@@ -820,30 +820,41 @@ def main():
         run_companies = True
 
     # Route to appropriate handler
-    if args.all_inboxes:
-        # Multi-inbox mode: process ALL configured email accounts
-        stats = run_all_inboxes(
-            run_emails=run_emails,
-            run_companies=run_companies,
-            email_limit=args.email_limit,
-            companies_min_score=args.companies_min_score,
-            company_filter=args.company_filter,
-            skip_recent_hours=args.skip_recent_hours,
-        )
-    else:
-        # Single profile mode
-        scraper = WeeklyUnifiedScraper(profile=args.profile)
-        stats = scraper.run_all(
-            fetch_emails=run_emails,
-            email_limit=args.email_limit,
-            scrape_companies=run_companies,
-            companies_min_score=args.companies_min_score,
-            company_filter=args.company_filter,
-            skip_recent_hours=args.skip_recent_hours,
-        )
+    try:
+        if args.all_inboxes:
+            # Multi-inbox mode: process ALL configured email accounts
+            stats = run_all_inboxes(
+                run_emails=run_emails,
+                run_companies=run_companies,
+                email_limit=args.email_limit,
+                companies_min_score=args.companies_min_score,
+                company_filter=args.company_filter,
+                skip_recent_hours=args.skip_recent_hours,
+            )
+        else:
+            # Single profile mode
+            scraper = WeeklyUnifiedScraper(profile=args.profile)
+            stats = scraper.run_all(
+                fetch_emails=run_emails,
+                email_limit=args.email_limit,
+                scrape_companies=run_companies,
+                companies_min_score=args.companies_min_score,
+                company_filter=args.company_filter,
+                skip_recent_hours=args.skip_recent_hours,
+            )
 
-    # Output JSON for logging
-    print("\n" + json.dumps(stats, indent=2))
+        # Output JSON for logging
+        print("\n" + json.dumps(stats, indent=2))
+
+    except KeyboardInterrupt:
+        print("\n\n" + "=" * 60)
+        print("⚠️  SCRAPING INTERRUPTED")
+        print("=" * 60)
+        print("\nGracefully stopped. Partial results saved to database.")
+        print("\nℹ️  You can resume scraping by running the command again.")
+        print("   Already-scraped companies will be skipped if using --skip-recent-hours")
+        print("\n" + "=" * 60 + "\n")
+        sys.exit(0)
 
 
 if __name__ == "__main__":
