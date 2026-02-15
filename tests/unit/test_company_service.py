@@ -598,3 +598,102 @@ def test_add_discovered_company_source_in_notes(temp_db):
 
     assert "builtin_auto_discovery" in company["notes"]
     assert "manual review" in company["notes"].lower()
+
+
+# ===== Enhanced Notes Tests (Career URL Extraction) =====
+
+
+def test_add_discovered_company_notes_placeholder_url(temp_db):
+    """Test notes indicate placeholder URL needs manual review"""
+    result = temp_db.add_discovered_company(
+        name="Placeholder Co",
+        source="email_auto_discovery",
+        careers_url="https://placeholder.com/careers",
+    )
+
+    company_id = result["company"]["id"]
+    company = temp_db.get_company(company_id)
+
+    assert "Needs manual review and careers URL" in company["notes"]
+    assert "placeholder" in company["careers_url"]
+
+
+def test_add_discovered_company_notes_generic_fallback(temp_db):
+    """Test notes indicate generic fallback URL needs verification"""
+    # Generic fallback pattern: https://domain.com/jobs (3 slashes, ends with /jobs)
+    result = temp_db.add_discovered_company(
+        name="Generic Fallback Co",
+        source="email_auto_discovery",
+        careers_url="https://example-company.com/jobs",
+    )
+
+    company_id = result["company"]["id"]
+    company = temp_db.get_company(company_id)
+
+    assert "generic fallback - verify before activating" in company["notes"]
+    assert company["careers_url"] == "https://example-company.com/jobs"
+
+
+def test_add_discovered_company_notes_extracted_workday_url(temp_db):
+    """Test notes indicate auto-extracted URL from Workday"""
+    result = temp_db.add_discovered_company(
+        name="Workday Co",
+        source="email_auto_discovery",
+        careers_url="https://bostondynamics.wd1.myworkdayjobs.com/Boston_Dynamics",
+    )
+
+    company_id = result["company"]["id"]
+    company = temp_db.get_company(company_id)
+
+    assert "auto-extracted from job posting" in company["notes"]
+    assert "verify before activating" in company["notes"]
+    assert "myworkdayjobs.com" in company["careers_url"]
+
+
+def test_add_discovered_company_notes_extracted_greenhouse_url(temp_db):
+    """Test notes indicate auto-extracted URL from Greenhouse"""
+    result = temp_db.add_discovered_company(
+        name="Greenhouse Co",
+        source="email_auto_discovery",
+        careers_url="https://job-boards.greenhouse.io/figureai",
+    )
+
+    company_id = result["company"]["id"]
+    company = temp_db.get_company(company_id)
+
+    assert "auto-extracted from job posting" in company["notes"]
+    assert "verify before activating" in company["notes"]
+    assert "greenhouse.io" in company["careers_url"]
+
+
+def test_add_discovered_company_notes_extracted_lever_url(temp_db):
+    """Test notes indicate auto-extracted URL from Lever"""
+    result = temp_db.add_discovered_company(
+        name="Lever Co",
+        source="email_auto_discovery",
+        careers_url="https://jobs.lever.co/kuka",
+    )
+
+    company_id = result["company"]["id"]
+    company = temp_db.get_company(company_id)
+
+    assert "auto-extracted from job posting" in company["notes"]
+    assert "verify before activating" in company["notes"]
+    assert "lever.co" in company["careers_url"]
+
+
+def test_add_discovered_company_notes_generic_fallback_not_three_slashes(temp_db):
+    """Test that deep URL paths don't trigger generic fallback warning"""
+    # URL with more than 3 slashes should get "auto-extracted" notes, not "generic fallback"
+    result = temp_db.add_discovered_company(
+        name="Deep Path Co",
+        source="email_auto_discovery",
+        careers_url="https://example.com/company/deep/path/jobs",
+    )
+
+    company_id = result["company"]["id"]
+    company = temp_db.get_company(company_id)
+
+    # Should NOT be treated as generic fallback (too many slashes)
+    assert "auto-extracted from job posting" in company["notes"]
+    assert "generic fallback" not in company["notes"]

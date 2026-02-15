@@ -34,6 +34,7 @@ from parsers.supra_parser import SupraParser
 from parsers.welcometothejungle_parser import WelcomeToTheJungleParser
 from parsers.wellfound_parser import WellfoundParser
 from parsers.workintech_wrapper import WorkInTechParser
+from utils.career_url_parser import CareerURLParser
 from utils.job_validator import JobValidator
 from utils.multi_scorer import get_multi_scorer
 from utils.profile_manager import get_profile_manager
@@ -273,7 +274,9 @@ class JobProcessorV2:
         # Return valid + flagged jobs (exclude invalid)
         return valid_jobs + flagged_jobs
 
-    def _check_and_add_company(self, company_name: str, source: str = "email") -> None:
+    def _check_and_add_company(
+        self, company_name: str, source: str = "email", job_link: str | None = None
+    ) -> None:
         """
         Check if company exists in monitoring database, add if not.
         Auto-discovered companies are added as INACTIVE until manually reviewed.
@@ -281,6 +284,7 @@ class JobProcessorV2:
         Args:
             company_name: Name of the company
             source: Source of discovery (e.g., "email", "linkedin")
+            job_link: Optional job posting URL to extract career page URL from
         """
         if not company_name or company_name == "Unknown Company":
             return
@@ -289,19 +293,41 @@ class JobProcessorV2:
         if self.company_service.company_exists(company_name):
             return
 
+        # Extract career page URL from job link
+        careers_url = "https://placeholder.com/careers"  # Default
+        url_note = ""
+
+        if job_link and job_link.strip():
+            parser = CareerURLParser()
+            extracted_url = parser.parse(job_link)
+
+            if extracted_url:
+                careers_url = extracted_url
+                # Detect generic fallback (lower confidence)
+                if extracted_url.endswith("/jobs") and extracted_url.count("/") == 3:
+                    url_note = " (generic fallback - verify)"
+            else:
+                url_note = " (URL extraction failed)"
+                print(f"  ⚠ Could not extract careers URL from: {job_link}")
+
         # Add new company as inactive for manual review
         result = self.company_service.add_discovered_company(
-            name=company_name, source=f"{source}_auto_discovery"
+            name=company_name, source=f"{source}_auto_discovery", careers_url=careers_url
         )
 
         if result["success"]:
-            print(f"  🆕 Auto-discovered new company: {company_name} (inactive, needs review)")
+            print(f"  🆕 Auto-discovered: {company_name}{url_note}")
+            print(f"      Careers URL: {careers_url}")
         # Silently skip if duplicate (race condition between check and insert)
 
     def _store_and_process_job(self, job_dict: dict, stats: dict[str, int | list[str]]) -> None:
         """Store a job and process it (score + notify)"""
         # Auto-discover company if not in database
-        self._check_and_add_company(job_dict.get("company", ""), source="email")
+        self._check_and_add_company(
+            company_name=job_dict.get("company", ""),
+            source="email",
+            job_link=job_dict.get("link"),
+        )
 
         # Store the job (filtering now happens per-profile in multi_scorer)
         job_id = self.database.add_job(job_dict)

@@ -135,7 +135,14 @@ class CompanyService:
         cursor = conn.cursor()
 
         now = datetime.now().isoformat()
-        notes = f"Auto-discovered from {source} on {now}. Needs manual review and careers URL."
+
+        # Enhanced notes with URL quality indicators
+        if careers_url == "https://placeholder.com/careers":
+            notes = f"Auto-discovered from {source} on {now}. Needs manual review and careers URL."
+        elif careers_url.endswith("/jobs") and careers_url.count("/") == 3:
+            notes = f"Auto-discovered from {source} on {now}. Careers URL extracted (generic fallback - verify before activating)."
+        else:
+            notes = f"Auto-discovered from {source} on {now}. Careers URL auto-extracted from job posting - verify before activating."
 
         try:
             cursor.execute(
