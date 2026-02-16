@@ -27,6 +27,7 @@ from utils.score_thresholds import Grade
 SEPARATOR_TOP = "\n[bold cyan]═══════════════════════════════════════════════[/bold cyan]"
 SEPARATOR_BOTTOM = "[bold cyan]═══════════════════════════════════════════════[/bold cyan]\n"
 SEPARATOR_FULL = "\n[bold cyan]═══════════════════════════════════════════════[/bold cyan]\n"
+PYTHON_EXECUTABLE = "job-agent-venv/bin/python"
 
 console = Console()
 
@@ -1094,7 +1095,7 @@ def run_scraper(sources: list[str], inbox_profile: str | None = None) -> bool:
     console.print("\n[bold green]Running Job Scraper...[/bold green]\n")
 
     # Build command
-    cmd = ["job-agent-venv/bin/python", "src/jobs/weekly_unified_scraper.py"]
+    cmd = [PYTHON_EXECUTABLE, "src/jobs/weekly_unified_scraper.py"]
 
     # Add profile or all-inboxes flag if email processing selected
     if inbox_profile and "email" in sources:
@@ -1158,7 +1159,7 @@ def send_digest(
 
     # Handle "all" recipients
     if recipients == ["all"]:
-        cmd = ["job-agent-venv/bin/python", "src/send_profile_digest.py", "--all"]
+        cmd = [PYTHON_EXECUTABLE, "src/send_profile_digest.py", "--all"]
         if dry_run:
             cmd.append("--dry-run")
         if force_resend:
@@ -1182,7 +1183,7 @@ def send_digest(
 
         console.print(f"[cyan]→ Sending to {profile_name}...[/cyan]")
 
-        cmd = ["job-agent-venv/bin/python", "src/send_profile_digest.py", "--profile", profile_id]
+        cmd = [PYTHON_EXECUTABLE, "src/send_profile_digest.py", "--profile", profile_id]
         if dry_run:
             cmd.append("--dry-run")
         if force_resend:
