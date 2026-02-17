@@ -355,6 +355,7 @@ class TestRunAllInboxes:
         assert result["companies"] == {}
         assert result["ministry"] == {}
 
+    @patch("jobs.weekly_unified_scraper._scrape_shared_testdevjobs")
     @patch("jobs.weekly_unified_scraper._scrape_shared_ministry")
     @patch("jobs.weekly_unified_scraper._scrape_shared_companies")
     @patch("jobs.weekly_unified_scraper._process_all_inboxes")
@@ -365,6 +366,7 @@ class TestRunAllInboxes:
         mock_process_inboxes,
         mock_scrape_companies,
         mock_scrape_ministry,
+        mock_scrape_testdevjobs,
     ):
         """Should aggregate stats from multiple profiles correctly"""
         # Setup mocks
@@ -421,6 +423,11 @@ class TestRunAllInboxes:
             "jobs_stored": 4,
         }
 
+        mock_scrape_testdevjobs.return_value = {
+            "jobs_found": 6,
+            "jobs_stored": 3,
+        }
+
         # Run with both flags
         result = run_all_inboxes(run_emails=True, run_companies=True)
 
@@ -430,9 +437,9 @@ class TestRunAllInboxes:
         assert result["email_totals"]["total_jobs_stored"] == 12  # 5 + 7
         assert result["email_totals"]["total_notifications"] == 5  # 2 + 3
 
-        # Check grand totals
-        assert result["grand_totals"]["total_jobs_found"] == 58  # 20 + 30 + 8
-        assert result["grand_totals"]["total_jobs_stored"] == 26  # 12 + 10 + 4
+        # Check grand totals (email + companies + ministry + testdevjobs)
+        assert result["grand_totals"]["total_jobs_found"] == 64  # 20 + 30 + 8 + 6
+        assert result["grand_totals"]["total_jobs_stored"] == 29  # 12 + 10 + 4 + 3
         assert result["grand_totals"]["total_notifications"] == 10  # 5 + 5
 
 
