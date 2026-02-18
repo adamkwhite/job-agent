@@ -164,6 +164,10 @@ omit = [
     "src/jobs/scrape_companies_with_firecrawl.py",
     "src/jobs/weekly_unified_scraper.py",
     "src/jobs/store_company_jobs.py",
+    # Migrations (one-off SQL scripts, not unit-testable)
+    "src/migrations/*",
+    # Scrapers excluded from coverage
+    "src/scrapers/company_list_scraper.py",
 ]
 
 [tool.coverage.report]
