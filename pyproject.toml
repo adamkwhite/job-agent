@@ -141,14 +141,29 @@ omit = [
     "*/__pycache__/*",
     "*/job-agent-venv/*",
     "*/venv/*",
-    "src/view_database.py",  # Utility script
-    "src/test_*.py",  # Test files in src/ (should be moved to tests/)
-    "src/debug_*.py",  # Debug/development scripts
-    "src/generate_jobs_html.py",  # Output generation script
-    "src/send_digest_*.py",  # Email sending scripts
-    "src/processor_master.py",  # Orchestration script
-    "src/jobs/scrape_companies_with_firecrawl.py",  # Manual/semi-automated orchestration
-    "src/jobs/weekly_unified_scraper.py",  # Orchestration script
+    # Utility/debug scripts
+    "src/view_database.py",
+    "src/test_*.py",
+    "src/debug_*.py",
+    # Output generation and orchestration scripts (synced with sonar.coverage.exclusions)
+    "src/generate_jobs_html.py",
+    "src/send_digest_*.py",
+    "src/send_profile_digest.py",
+    "src/send_all_unsent_to_wes.py",
+    "src/enrich_existing_jobs.py",
+    "src/rescore_all_jobs.py",
+    "src/score_all_profiles.py",
+    "src/processor_master.py",
+    "src/tui.py",
+    # Models (simple data classes, no logic to test)
+    "src/models/__init__.py",
+    "src/models/company.py",
+    # Extractors excluded from coverage
+    "src/extractors/email_company_extractor.py",
+    # Job orchestration scripts
+    "src/jobs/scrape_companies_with_firecrawl.py",
+    "src/jobs/weekly_unified_scraper.py",
+    "src/jobs/store_company_jobs.py",
 ]
 
 [tool.coverage.report]
