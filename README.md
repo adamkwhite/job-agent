@@ -291,11 +291,11 @@ SKIP=python-safety-dependencies-check git commit -m "message"
 
 **Branch Strategy** (MANDATORY):
 1. Create feature branch: `git checkout -b feature/description`
-2. Make changes and test locally
-3. Commit with meaningful messages
-4. Push branch: `git push -u origin feature/description`
-5. Create PR: `gh pr create`
-6. Monitor PR checks: `gh pr checks`
+2. Push branch immediately: `git push -u origin feature/description`
+3. Open a **draft PR** right away: `gh pr create --draft`
+4. Make changes, commit, and push — CI runs on every push
+5. Monitor PR checks as you go: `gh pr checks`
+6. Mark ready when done: `gh pr ready`
 7. Wait for approval before merging
 
 **NEVER commit directly to main branch** - even for small fixes.
