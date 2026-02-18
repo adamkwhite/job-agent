@@ -18,6 +18,7 @@ import json
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -27,7 +28,10 @@ from database import JobDatabase
 logger = logging.getLogger(__name__)
 
 
-def load_location_settings() -> dict:
+SUPPLY_CHAIN = "supply chain"
+
+
+def load_location_settings() -> dict[str, Any]:
     """Load location restriction patterns from config file"""
     config_path = Path(__file__).parent.parent.parent / "config" / "location-settings.json"
     with open(config_path) as f:
@@ -50,7 +54,7 @@ WES_PROFILE = {
         "mechanical",
         "physical product",
         "manufacturing",
-        "supply chain",
+        SUPPLY_CHAIN,
         "dfm",
         "dfa",
         "industrial",
@@ -111,13 +115,13 @@ class JobScorer(BaseScorer):
     - Keyword bonus calculations
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize with Wesley's hardcoded profile"""
         super().__init__(WES_PROFILE)
         self.db = JobDatabase()  # Keep for backward compatibility
         self.location_settings = load_location_settings()  # For country restriction logic
 
-    def score_job(self, job: dict) -> tuple[int, str, dict, dict]:
+    def score_job(self, job: dict[str, Any]) -> tuple[int, str, dict[str, Any], dict[str, Any]]:
         """
         Score a job from 0-110 (100 base + adjustments) with grade and breakdown
 
@@ -190,33 +194,17 @@ class JobScorer(BaseScorer):
         """
         text = f"{title} {company}"
 
-        # Hardware/Robotics/Automation: 25 points
-        hardware_keywords = [
-            "robotics",
-            "automation",
-            "hardware",
-            "iot",
-            "mechatronics",
-            "embedded",
+        # Tiered keyword matching: check highest-value domains first
+        tiers = [
+            (["robotics", "automation", "hardware", "iot", "mechatronics", "embedded"], 25),
+            (["medtech", "medical device", "healthcare", "pharma"], 20),
+            (["manufacturing", SUPPLY_CHAIN, "industrial", "mechanical"], 15),
         ]
-        if any(kw in text for kw in hardware_keywords):
-            return 25
+        for keywords, score in tiers:
+            if any(kw in text for kw in keywords):
+                return score
 
-        # MedTech: 20 points
-        medtech_keywords = ["medtech", "medical device", "healthcare", "pharma"]
-        if any(kw in text for kw in medtech_keywords):
-            return 20
-
-        # Physical product: 15 points
-        physical_keywords = ["manufacturing", "supply chain", "industrial", "mechanical"]
-        if any(kw in text for kw in physical_keywords):
-            return 15
-
-        # Generic engineering: 10 points
-        if "engineering" in text:
-            return 10
-
-        return 5  # Default for product roles
+        return 10 if "engineering" in text else 5
 
     def _score_technical_keywords(self, title: str, company: str) -> int:
         """
@@ -245,7 +233,7 @@ class JobScorer(BaseScorer):
             "mechanical",
             "mechatronics",
             "manufacturing",
-            "supply chain",
+            SUPPLY_CHAIN,
             "dfm",
             "industrial",
             "ml",
@@ -289,28 +277,23 @@ class JobScorer(BaseScorer):
 
         # Check for remote (15 points - but verify no country restrictions)
         if any(kw in location_lower for kw in prefs["remote_keywords"]):
-            # Check if remote job is restricted to non-Canadian countries
-            if self._is_country_restricted(location, description):
-                return 0  # US-only or country-restricted remote job
-            return 15  # Unrestricted or Canada-friendly remote job
+            restricted = self._is_country_restricted(location, description)
+            return 0 if restricted else 15
 
-        # Check for hybrid
+        # Check for hybrid, preferred cities, and preferred regions
         is_hybrid = any(kw in location_lower for kw in prefs["hybrid_keywords"])
-
-        # Check for preferred cities
         in_preferred_city = any(city in location_lower for city in prefs["preferred_cities"])
-
-        # Check for preferred regions
         in_preferred_region = any(region in location_lower for region in prefs["preferred_regions"])
 
-        # Scoring logic
         if is_hybrid and (in_preferred_city or in_preferred_region):
-            return 15
+            score = 15
         elif in_preferred_city:
-            return 12
+            score = 12
         elif in_preferred_region:
-            return 8
-        return 0
+            score = 8
+        else:
+            score = 0
+        return score
 
     def _is_country_restricted(self, location: str, description: str = "") -> bool:
         """
@@ -330,28 +313,35 @@ class JobScorer(BaseScorer):
         description_lower = description.lower() if description else ""
         patterns = self.location_settings.get("country_restriction_patterns", {})
 
-        # Check for Canada-friendly patterns first (these override restrictions)
+        if self._is_canada_friendly(location_lower, description_lower, patterns):
+            return False
+        return self._is_us_only(
+            location_lower, description_lower, patterns
+        ) or self._has_us_state_in_remote(location_lower, patterns)
+
+    def _is_canada_friendly(
+        self, location_lower: str, description_lower: str, patterns: dict[str, Any]
+    ) -> bool:
+        """Check if job explicitly welcomes Canadian candidates."""
         canada_friendly = patterns.get("canada_friendly", [])
-        for pattern in canada_friendly:
-            if pattern in location_lower or pattern in description_lower:
-                return False  # Explicitly welcomes Canadian candidates
+        return any(p in location_lower or p in description_lower for p in canada_friendly)
 
-        # Check for US-only patterns in location
+    def _is_us_only(
+        self, location_lower: str, description_lower: str, patterns: dict[str, Any]
+    ) -> bool:
+        """Check if job is restricted to US-only."""
         us_only_patterns = patterns.get("us_only", [])
-        for pattern in us_only_patterns:
-            if pattern in location_lower or pattern in description_lower:
-                return True  # Restricted to US
+        return any(p in location_lower or p in description_lower for p in us_only_patterns)
 
-        # Check for US states/cities in location (indicates US-specific remote)
-        # Only flag if it's a remote job with a specific US location
-        if any(kw in location_lower for kw in ["remote", "work from home", "wfh"]):
-            us_states = patterns.get("us_states", [])
-            for state in us_states:
-                # Match full word boundaries to avoid false positives (e.g., "OR" in "Director")
-                if f" {state} " in f" {location_lower} " or location_lower.endswith(f" {state}"):
-                    return True  # Remote job in specific US location
-
-        return False  # No country restrictions detected
+    def _has_us_state_in_remote(self, location_lower: str, patterns: dict[str, Any]) -> bool:
+        """Check if remote job mentions a specific US state/city."""
+        if not any(kw in location_lower for kw in ["remote", "work from home", "wfh"]):
+            return False
+        us_states = patterns.get("us_states", [])
+        return any(
+            f" {state} " in f" {location_lower} " or location_lower.endswith(f" {state}")
+            for state in us_states
+        )
 
     def _score_role_type(self, title: str) -> int:
         """
@@ -374,50 +364,26 @@ class JobScorer(BaseScorer):
         if penalty < 0:
             return penalty
 
-        # Try each category matcher in priority order
-        # Product Leadership (highest priority)
-        score, category = self._match_product_leadership(title, is_leadership)
-        if score > 0:
-            bonus = self._calculate_keyword_bonus(title, category)
-            return min(score + bonus, 22)  # Cap at 22
+        # Matchers with keyword bonus eligibility flagged as True
+        matchers = [
+            (self._match_product_leadership, True),
+            (self._match_engineering_leadership, True),
+            (self._match_rd_leadership, False),
+            (self._match_technical_program_mgmt, False),
+            (self._match_manufacturing_ops, False),
+            (self._match_product_development, False),
+            (self._match_platform_integrations, False),
+            (self._match_robotics_automation, False),
+        ]
+        for matcher, has_bonus in matchers:
+            score, category = matcher(title, is_leadership)
+            if score > 0:
+                if has_bonus:
+                    bonus = self._calculate_keyword_bonus(title, category)
+                    score = min(score + bonus, 22)
+                return score
 
-        # Engineering Leadership
-        score, category = self._match_engineering_leadership(title, is_leadership)
-        if score > 0:
-            bonus = self._calculate_keyword_bonus(title, category)
-            return min(score + bonus, 22)
-
-        # R&D Leadership
-        score, category = self._match_rd_leadership(title, is_leadership)
-        if score > 0:
-            return score  # R&D doesn't get bonus
-
-        # Technical Program Management
-        score, category = self._match_technical_program_mgmt(title, is_leadership)
-        if score > 0:
-            return score
-
-        # Manufacturing/Operations
-        score, category = self._match_manufacturing_ops(title, is_leadership)
-        if score > 0:
-            return score
-
-        # Product Development
-        score, category = self._match_product_development(title, is_leadership)
-        if score > 0:
-            return score
-
-        # Platform/Integrations
-        score, category = self._match_platform_integrations(title, is_leadership)
-        if score > 0:
-            return score
-
-        # Robotics/Automation
-        score, category = self._match_robotics_automation(title, is_leadership)
-        if score > 0:
-            return score
-
-        return 0  # No match
+        return 0
 
     def _calculate_software_penalty(self, title_lower: str, is_leadership: bool) -> int:
         """
@@ -435,19 +401,15 @@ class JobScorer(BaseScorer):
         if not is_leadership:
             return 0
 
-        # Check for "software" + "development" combination first
-        # (e.g., "Director of Software Development")
-        if "software" in title_lower and "development" in title_lower:
-            return -5
+        # Check for "software" + "development" combination
+        # or software indicators in engineering roles
+        software_indicators = ["software", "backend", "frontend", "web", "mobile"]
+        is_software_dev = "software" in title_lower and "development" in title_lower
+        is_software_eng = "engineering" in title_lower and any(
+            ind in title_lower for ind in software_indicators
+        )
 
-        # Check for software engineering penalties (only for engineering roles)
-        if "engineering" in title_lower:
-            software_indicators = ["software", "backend", "frontend", "web", "mobile"]
-            for indicator in software_indicators:
-                if indicator in title_lower:
-                    return -5
-
-        return 0
+        return -5 if is_software_dev or is_software_eng else 0
 
     def _calculate_keyword_bonus(self, title: str, category: str | None) -> int:
         """
@@ -490,14 +452,13 @@ class JobScorer(BaseScorer):
         """Match Product Leadership roles (CPO, VP/Director of Product)"""
         product_keywords = ["product", "cpo", "chief product"]
 
-        if any(self._has_keyword(title_lower, kw) for kw in product_keywords):
-            if is_leadership:
-                # Exclude pure product marketing unless it's dual role
-                if "marketing" in title_lower and "engineering" not in title_lower:
-                    return 0, None
-                return 20, "product_leadership"
-            return 15, "product_leadership"
-        return 0, None
+        if not any(self._has_keyword(title_lower, kw) for kw in product_keywords):
+            return 0, None
+        # Exclude pure product marketing unless it's dual role
+        if is_leadership and "marketing" in title_lower and "engineering" not in title_lower:
+            return 0, None
+        score = 20 if is_leadership else 15
+        return score, "product_leadership"
 
     def _match_engineering_leadership(
         self, title_lower: str, is_leadership: bool
