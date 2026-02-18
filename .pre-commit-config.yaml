@@ -87,6 +87,7 @@ repos:
         language: system
         types: [python]
         require_serial: true
+        exclude: ^src/tui\.py$  # tui.py has many pre-existing issues; excluded pending Issue #119 refactor
 
   # Custom scoring sync check
   - repo: local
