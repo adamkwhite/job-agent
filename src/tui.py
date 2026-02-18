@@ -110,6 +110,49 @@ def _handle_secondary_action(action: str | None) -> bool | None:
     return None  # Main workflow action (scrape/digest/both)
 
 
+def _run_scraper_if_needed(
+    sources: list[str], inbox_profile: str | None, action: str
+) -> tuple[bool, bool]:
+    """Run the scraper step if required by action.
+
+    Returns:
+        Tuple of (scrape_success, should_continue).
+        should_continue=False means caller should return early.
+    """
+    if action not in ["scrape", "both"]:
+        return True, True
+
+    scrape_success = run_scraper(sources, inbox_profile)
+    if scrape_success:
+        console.print("\n[green]✓ Scraper completed successfully![/green]")
+        return True, True
+
+    console.print("\n[red]✗ Scraper failed![/red]")
+    if not Confirm.ask("\n[bold]Continue anyway?[/bold]", default=False):
+        console.print("\n[yellow]Returning to menu...[/yellow]\n")
+        press_enter_to_continue()
+        return False, False
+    return False, True
+
+
+def _select_digest_recipients_if_needed(action: str) -> tuple[list[str] | None, bool]:
+    """Select digest recipients if required by action.
+
+    Returns:
+        Tuple of (recipients, should_continue).
+        should_continue=False means caller should return early.
+    """
+    if action not in ["digest", "both"]:
+        return None, True
+
+    recipients = select_digest_recipients()
+    if not recipients:
+        console.print("\n[yellow]Digest skipped. Returning to menu...[/yellow]\n")
+        press_enter_to_continue()
+        return None, False
+    return recipients, True
+
+
 def _execute_workflow(sources: list[str], inbox_profile: str | None, action: str) -> None:
     """Execute the scrape/digest workflow
 
@@ -119,32 +162,17 @@ def _execute_workflow(sources: list[str], inbox_profile: str | None, action: str
         action: Action to perform ("scrape", "digest", or "both")
     """
     # Step 3: Run Scraper (if needed)
-    scrape_success = True
-    if action in ["scrape", "both"]:
-        scrape_success = run_scraper(sources, inbox_profile)
-        if not scrape_success:
-            console.print("\n[red]✗ Scraper failed![/red]")
-            if not Confirm.ask("\n[bold]Continue anyway?[/bold]", default=False):
-                console.print("\n[yellow]Returning to menu...[/yellow]\n")
-                press_enter_to_continue()
-                return
-        else:
-            console.print("\n[green]✓ Scraper completed successfully![/green]")
+    scrape_success, should_continue = _run_scraper_if_needed(sources, inbox_profile, action)
+    if not should_continue:
+        return
 
     # Step 4: Select Digest Recipients (if needed)
-    digest_recipients = None
-    if action in ["digest", "both"]:
-        digest_recipients = select_digest_recipients()
-
-        if not digest_recipients:  # User skipped
-            console.print("\n[yellow]Digest skipped. Returning to menu...[/yellow]\n")
-            press_enter_to_continue()
-            return
+    digest_recipients, should_continue = _select_digest_recipients_if_needed(action)
+    if not should_continue:
+        return
 
     # Step 5: Digest Options (if sending digest)
-    digest_options = {}
-    if digest_recipients:
-        digest_options = select_digest_options()
+    digest_options = select_digest_options() if digest_recipients else {}
 
     # Step 6: Confirm & Execute
     if not confirm_execution(sources, inbox_profile, action, digest_recipients, digest_options):
@@ -152,26 +180,39 @@ def _execute_workflow(sources: list[str], inbox_profile: str | None, action: str
         press_enter_to_continue()
         return
 
-    # Execute digest (scraping already done if needed)
-    digest_success = True
-    if digest_recipients:
-        digest_success = send_digest(
-            digest_recipients,
-            dry_run=digest_options.get("dry_run", False),
-            force_resend=digest_options.get("force_resend", False),
-        )
-        if not digest_success:
-            console.print("\n[red]✗ Digest send failed![/red]")
-        else:
-            console.print("\n[green]✓ Digest sent successfully![/green]")
+    # Execute digest (scraping already done if needed) and show results
+    digest_success = _send_digest_if_needed(digest_recipients, digest_options)
 
-    # Show results
+    # Show final results and wait
+    _show_workflow_results(scrape_success, digest_success)
+
+
+def _send_digest_if_needed(
+    digest_recipients: list[str] | None,
+    digest_options: dict,
+) -> bool:
+    """Send digest if recipients selected. Returns True if success (or no digest needed)."""
+    if not digest_recipients:
+        return True
+
+    digest_success = send_digest(
+        digest_recipients,
+        dry_run=digest_options.get("dry_run", False),
+        force_resend=digest_options.get("force_resend", False),
+    )
+    if not digest_success:
+        console.print("\n[red]✗ Digest send failed![/red]")
+    else:
+        console.print("\n[green]✓ Digest sent successfully![/green]")
+    return digest_success
+
+
+def _show_workflow_results(scrape_success: bool, digest_success: bool) -> None:
+    """Display final workflow results and wait for user."""
     if scrape_success and digest_success:
         console.print("\n[bold green]✓ All operations completed successfully![/bold green]")
     else:
         console.print("\n[bold red]✗ Some operations failed. Check logs for details.[/bold red]")
-
-    # Auto-loop back to source selection
     console.print("\n[dim]Press Enter to continue (or Ctrl+C to exit)...[/dim]")
     input()
 
