@@ -293,9 +293,9 @@ SKIP=python-safety-dependencies-check git commit -m "message"
 1. Create feature branch: `git checkout -b feature/description`
 2. Push branch immediately: `git push -u origin feature/description`
 3. Open a **draft PR** right away: `gh pr create --draft`
-4. Make changes, commit, and push — CI runs on every push
+4. Make changes, commit, and push — fast CI (lint + tests) runs on every push; SonarCloud is skipped on drafts
 5. Monitor PR checks as you go: `gh pr checks`
-6. Mark ready when done: `gh pr ready`
+6. Mark ready when done: `gh pr ready` — triggers full SonarCloud analysis
 7. Wait for approval before merging
 
 **NEVER commit directly to main branch** - even for small fixes.
