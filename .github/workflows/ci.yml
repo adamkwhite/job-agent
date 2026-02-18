@@ -35,6 +35,8 @@ jobs:
 
       - name: Run pre-commit checks
         run: pre-commit run --all-files --show-diff-on-failure
+        env:
+          SKIP: sonarlint  # Local-only tool; scan.sh not available on CI runners
 
   test:
     name: Test with pytest
