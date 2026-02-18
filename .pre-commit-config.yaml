@@ -78,6 +78,16 @@ repos:
         stages: [commit-msg]
         args: [--strict]
 
+  # SonarLint CLI analysis (local, offline)
+  - repo: local
+    hooks:
+      - id: sonarlint
+        name: SonarLint analysis
+        entry: bash -c 'bash ~/Code/tools/sonarlint-ls-cli/scan.sh analyze --files "$@"' --
+        language: system
+        types: [python]
+        require_serial: true
+
   # Custom scoring sync check
   - repo: local
     hooks:
@@ -103,5 +113,5 @@ ci:
   autoupdate_branch: ''
   autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
   autoupdate_schedule: weekly
-  skip: []
+  skip: [sonarlint]  # Local-only hook; scan.sh not available on CI runners
   submodules: false

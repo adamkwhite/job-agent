@@ -3,6 +3,9 @@ Unit tests for database module, focusing on deduplication logic
 """
 
 import importlib.util
+import os
+import sqlite3
+import tempfile
 from pathlib import Path
 
 # Import migration 003 for filter tracking tests
@@ -209,3 +212,168 @@ class TestMarkJobFiltered:
             conn.close()
 
             assert result[0] == reason
+
+
+class TestDatabaseIncrementalMigration:
+    """Test that init_database() applies ALTER TABLE guards for legacy databases.
+
+    These tests create a database with only the original schema columns,
+    then verify that calling JobDatabase() migrates all post-initial columns.
+    This exercises the ALTER TABLE branches that are never hit with a fresh DB.
+    """
+
+    # Original schema columns (present before any ALTER TABLE migrations)
+    ORIGINAL_COLUMNS = (
+        "id",
+        "source",
+        "type",
+        "company",
+        "title",
+        "location",
+        "link",
+        "salary",
+        "job_type",
+        "posted_date",
+        "source_email",
+        "received_at",
+        "keywords_matched",
+        "raw_email_content",
+        "job_hash",
+        "created_at",
+        "updated_at",
+    )
+
+    def _create_legacy_db(self, db_path: str) -> None:
+        """Create a minimal legacy schema database without post-initial columns."""
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            CREATE TABLE jobs (
+                {
+            ", ".join(
+                f"{col} TEXT" if col != "id" else "id INTEGER PRIMARY KEY AUTOINCREMENT"
+                for col in self.ORIGINAL_COLUMNS
+            )
+        }
+            )
+        """)
+        # Add unique constraint on job_hash (original schema had this)
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_job_hash ON jobs(job_hash)")
+        conn.commit()
+        conn.close()
+
+    def test_migration_adds_scoring_columns(self):
+        """Test that init_database() adds scoring columns to a legacy schema."""
+        from database import JobDatabase
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "legacy.db")
+            self._create_legacy_db(db_path)
+            old_env = os.environ.get("DATABASE_PATH")
+            os.environ["DATABASE_PATH"] = db_path
+
+            try:
+                JobDatabase(db_path)
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA table_info(jobs)")
+                columns = {col[1] for col in cursor.fetchall()}
+                conn.close()
+
+                assert "fit_score" in columns
+                assert "fit_grade" in columns
+                assert "score_breakdown" in columns
+                assert "digest_sent_at" in columns
+                assert "profile" in columns
+            finally:
+                if old_env is None:
+                    os.environ.pop("DATABASE_PATH", None)
+                else:
+                    os.environ["DATABASE_PATH"] = old_env
+
+    def test_migration_adds_llm_columns(self):
+        """Test that init_database() adds LLM extraction columns to a legacy schema."""
+        from database import JobDatabase
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "legacy.db")
+            self._create_legacy_db(db_path)
+            old_env = os.environ.get("DATABASE_PATH")
+            os.environ["DATABASE_PATH"] = db_path
+
+            try:
+                JobDatabase(db_path)
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA table_info(jobs)")
+                columns = {col[1] for col in cursor.fetchall()}
+                conn.close()
+
+                assert "extraction_method" in columns
+                assert "extraction_cost" in columns
+                assert "url_status" in columns
+                assert "url_checked_at" in columns
+            finally:
+                if old_env is None:
+                    os.environ.pop("DATABASE_PATH", None)
+                else:
+                    os.environ["DATABASE_PATH"] = old_env
+
+    def test_migration_adds_filter_and_url_columns(self):
+        """Test that init_database() adds filter/stale/URL validation columns."""
+        from database import JobDatabase
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "legacy.db")
+            self._create_legacy_db(db_path)
+            old_env = os.environ.get("DATABASE_PATH")
+            os.environ["DATABASE_PATH"] = db_path
+
+            try:
+                JobDatabase(db_path)
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA table_info(jobs)")
+                columns = {col[1] for col in cursor.fetchall()}
+                conn.close()
+
+                assert "filter_reason" in columns
+                assert "filtered_at" in columns
+                assert "manual_review_flag" in columns
+                assert "stale_check_result" in columns
+                assert "url_validated" in columns
+                assert "url_validated_at" in columns
+                assert "url_validation_reason" in columns
+            finally:
+                if old_env is None:
+                    os.environ.pop("DATABASE_PATH", None)
+                else:
+                    os.environ["DATABASE_PATH"] = old_env
+
+    def test_migration_creates_indexes_after_migration(self):
+        """Test that indexes are created after columns are migrated."""
+        from database import JobDatabase
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "legacy.db")
+            self._create_legacy_db(db_path)
+            old_env = os.environ.get("DATABASE_PATH")
+            os.environ["DATABASE_PATH"] = db_path
+
+            try:
+                JobDatabase(db_path)
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='index'")
+                indexes = {row[0] for row in cursor.fetchall()}
+                conn.close()
+
+                assert "idx_jobs_filter_reason" in indexes
+                assert "idx_jobs_stale_check_result" in indexes
+                assert "idx_jobs_url_validated" in indexes
+                assert "idx_fit_score" in indexes
+            finally:
+                if old_env is None:
+                    os.environ.pop("DATABASE_PATH", None)
+                else:
+                    os.environ["DATABASE_PATH"] = old_env
