@@ -13,7 +13,9 @@ import argparse
 import os
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any, TypeVar
 
 from dotenv import load_dotenv
 from firecrawl import FirecrawlApp
@@ -21,16 +23,18 @@ from firecrawl import FirecrawlApp
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from database import JobDatabase
-from scrapers.testdevjobs_scraper import TestDevJobsScraper
+from scrapers.testdevjobs_scraper import TestDevJob, TestDevJobsScraper
 from utils.multi_scorer import get_multi_scorer
 
 load_dotenv()
 
+_T = TypeVar("_T")
 
-class TestDevJobsWeeklyScraper:
+
+class TestDevJobsWeeklyScraper(object):  # noqa: UP004 (explicit object for SonarLint S1722 compatibility)
     """Weekly scraper for TestDevJobs remote jobs"""
 
-    def __init__(self, profile: str | None = None):
+    def __init__(self, profile: str | None = None) -> None:
         """
         Initialize scraper
 
@@ -48,7 +52,10 @@ class TestDevJobsWeeklyScraper:
             raise ValueError("FIRECRAWL_API_KEY not found in environment")
         self.firecrawl = FirecrawlApp(api_key=api_key)
 
-    def _retry_db_operation(self, operation, max_retries=3, initial_delay=0.1):
+    @staticmethod
+    def _retry_db_operation(
+        operation: Callable[[], _T], max_retries: int = 3, initial_delay: float = 0.1
+    ) -> _T:
         """
         Retry database operations with exponential backoff
         Handles 'database is locked' errors gracefully
@@ -65,13 +72,13 @@ class TestDevJobsWeeklyScraper:
             Exception if all retries fail
         """
         delay = initial_delay
-        last_exception = None
+        last_exc: Exception | None = None
 
         for attempt in range(max_retries):
             try:
                 return operation()
             except Exception as e:
-                last_exception = e
+                last_exc = e
                 error_msg = str(e).lower()
 
                 # Only retry on database lock errors
@@ -79,20 +86,22 @@ class TestDevJobsWeeklyScraper:
                     "database is locked" in error_msg or "locked" in error_msg
                 ) and attempt < max_retries - 1:
                     time.sleep(delay)
-                    delay *= 2  # Exponential backoff
+                    # Exponential backoff
+                    delay *= 2
                     continue
 
                 # For other errors, raise immediately
                 raise
 
         # All retries exhausted
-        raise last_exception
+        assert last_exc is not None
+        raise last_exc
 
     def scrape_testdevjobs(
         self,
         min_score: int = 47,
         locations: list[str] | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Scrape TestDevJobs remote jobs using Firecrawl API
 
@@ -160,12 +169,92 @@ class TestDevJobsWeeklyScraper:
 
         return stats
 
+    @staticmethod
+    def _build_job_dict(job: TestDevJob) -> dict[str, Any]:
+        """Build a job dictionary from a TestDevJob object"""
+        tech_keywords = ", ".join(job.tech_tags) if job.tech_tags else ""
+        return {
+            "title": job.title,
+            "company": job.company,
+            "location": job.location,
+            "link": job.link,
+            "source": "testdevjobs",
+            "posted_date": job.posted_date,
+            "description": f"{job.remote_status} | {tech_keywords}",
+            "salary": job.salary,
+            "job_type": job.job_type,
+        }
+
+    def _store_single_job(
+        self, job_title: str, job_dict: dict[str, Any], stats: dict[str, Any]
+    ) -> int | None:
+        """
+        Store a single job in the database.
+
+        Returns job_id if stored successfully, None if duplicate or error.
+        Updates stats["jobs_stored"] on success.
+        """
+        try:
+            job_id = self._retry_db_operation(lambda: self.database.add_job(job_dict))
+            if job_id is None:
+                print(f"   ⊙ Duplicate: {job_title} (already in database)")
+                return None
+            stats["jobs_stored"] += 1
+            return job_id
+        except Exception as e:
+            error_msg = str(e).lower()
+            if "unique" in error_msg or "duplicate" in error_msg:
+                print(f"   ⊙ Duplicate: {job_title} (already in database)")
+            else:
+                print(f"   ✗ Error storing job: {e}")
+            return None
+
+    def _score_single_job(
+        self,
+        job_title: str,
+        job_dict: dict[str, Any],
+        job_id: int,
+        stats: dict[str, Any],
+        min_score: int,
+    ) -> None:
+        """
+        Score a single job for all profiles.
+
+        Updates stats["jobs_scored"] and stats["profile_scores"] on success.
+        """
+        try:
+            profile_scores = self._retry_db_operation(
+                lambda: self.multi_scorer.score_job_for_all(job_dict, job_id)
+            )
+            stats["jobs_scored"] += 1
+
+            if not profile_scores:
+                print(f"   ⊘ {job_title[:50]}")
+                print("     All profiles filtered this job")
+                return
+
+            for profile_id, (score, grade) in profile_scores.items():
+                if profile_id not in stats["profile_scores"]:
+                    stats["profile_scores"][profile_id] = []
+                stats["profile_scores"][profile_id].append((score, grade))
+
+            scores_str = ", ".join(f"{pid}:{s}/{g}" for pid, (s, g) in profile_scores.items())
+            print(f"   ✓ {job_title[:50]}")
+            print(f"     Scores: {scores_str}")
+
+            max_score = max(score for score, _ in profile_scores.values())
+            if max_score >= min_score:
+                print(f"     🎯 QUALIFYING JOB (max score: {max_score})")
+
+        except Exception as e:
+            print(f"   ✗ Error scoring job: {e}")
+
     def parse_page_and_store(
         self,
         markdown: str,
         min_score: int = 47,
-        stats: dict | None = None,
-    ) -> dict:
+        stats: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         Parse a scraped TestDevJobs page and store qualifying jobs
 
@@ -185,85 +274,22 @@ class TestDevJobsWeeklyScraper:
                 "profile_scores": {},
             }
 
-        # Parse jobs from markdown
         jobs = self.testdev_scraper.parse_jobs_from_page(markdown)
-
         page_jobs_count = len(jobs)
         stats["jobs_found"] += page_jobs_count  # type: ignore[operator]
         print(f"   ✓ Found {page_jobs_count} jobs")
 
-        # Store and score each job
         for job in jobs:
-            # Build tech keywords string from tags
-            tech_keywords = ", ".join(job.tech_tags) if job.tech_tags else ""
-
-            job_dict = {
-                "title": job.title,
-                "company": job.company,
-                "location": job.location,
-                "link": job.link,
-                "source": "testdevjobs",
-                "posted_date": job.posted_date,
-                "description": f"{job.remote_status} | {tech_keywords}",
-                "salary": job.salary,
-                "job_type": job.job_type,
-            }
-
-            # Store job (add_job handles duplicates via UNIQUE constraint on job_hash)
-            try:
-                job_id = self._retry_db_operation(lambda j=job_dict: self.database.add_job(j))
-
-                # Check if job_id is None (duplicate job)
-                if job_id is None:
-                    print(f"   ⊙ Duplicate: {job.title} (already in database)")
-                    continue
-
-                stats["jobs_stored"] += 1
-            except Exception as e:
-                # Likely a duplicate (UNIQUE constraint on job_hash)
-                error_msg = str(e).lower()
-                if "unique" in error_msg or "duplicate" in error_msg:
-                    print(f"   ⊙ Duplicate: {job.title} (already in database)")
-                    continue
-                else:
-                    print(f"   ✗ Error storing job: {e}")
-                    continue
-
-            # Score for all profiles
-            try:
-                profile_scores = self._retry_db_operation(
-                    lambda j=job_dict, jid=job_id: self.multi_scorer.score_job_for_all(j, jid)
-                )
-                stats["jobs_scored"] += 1
-
-                # Handle empty profile_scores (all profiles filtered the job)
-                if not profile_scores:
-                    print(f"   ⊘ {job.title[:50]}")
-                    print("     All profiles filtered this job")
-                    continue
-
-                # Track scores per profile
-                for profile_id, (score, grade) in profile_scores.items():
-                    if profile_id not in stats["profile_scores"]:
-                        stats["profile_scores"][profile_id] = []
-                    stats["profile_scores"][profile_id].append((score, grade))
-
-                # Print scores
-                scores_str = ", ".join(f"{pid}:{s}/{g}" for pid, (s, g) in profile_scores.items())
-                print(f"   ✓ {job.title[:50]}")
-                print(f"     Scores: {scores_str}")
-
-                # Check if meets min score for any profile
-                max_score = max(score for score, _ in profile_scores.values())
-                if max_score >= min_score:
-                    print(f"     🎯 QUALIFYING JOB (max score: {max_score})")
-
-            except Exception as e:
-                print(f"   ✗ Error scoring job: {e}")
+            job_dict = self._build_job_dict(job)
+            job_id = self._store_single_job(job.title, job_dict, stats)
+            if job_id is None:
+                continue
+            self._score_single_job(job.title, job_dict, job_id, stats, min_score)
 
         return stats
 
-    def print_summary(self, stats: dict):
+    @staticmethod
+    def print_summary(stats: dict[str, Any]) -> None:
         """Print scraper summary"""
         print("\n" + "=" * 80)
         print("TESTDEVJOBS SCRAPER - SUMMARY")
@@ -298,7 +324,7 @@ class TestDevJobsWeeklyScraper:
         print("=" * 80 + "\n")
 
 
-def main():
+def main() -> None:
     """Run TestDevJobs scraper"""
     parser = argparse.ArgumentParser(description="Scrape TestDevJobs remote jobs")
     parser.add_argument("--profile", type=str, help="Profile to score for (optional)")
