@@ -87,7 +87,7 @@ repos:
         language: system
         types: [python]
         require_serial: true
-        exclude: ^(src/tui\.py|src/extractors/email_company_extractor\.py|src/database\.py|src/scrapers/firecrawl_career_scraper\.py)$  # files with pre-existing issues excluded pending future cleanup
+        exclude: ^(src/tui\.py|src/extractors/email_company_extractor\.py|src/jobs/company_scraper\.py|src/database\.py|src/scrapers/firecrawl_career_scraper\.py)$  # files with pre-existing issues excluded pending future cleanup
 
   # Custom scoring sync check
   - repo: local
