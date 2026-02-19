@@ -185,37 +185,16 @@ class FirecrawlCareerScraper:
             main_page_jobs = self._scrape_single_page(careers_url, company_name, is_main_page=True)
 
             # Step 3: Scrape discovered pages (if any)
-            paginated_jobs = []
-            if discovered_urls and self.enable_pagination:
-                print(f"  📄 Scraping {len(discovered_urls)} additional pages...")
-                for i, url in enumerate(
-                    discovered_urls[:10], 1
-                ):  # Limit to 10 to avoid cost explosion
-                    print(f"    [{i}/{min(len(discovered_urls), 10)}] {url}")
-                    page_jobs = self._scrape_single_page(url, company_name, is_main_page=False)
-                    paginated_jobs.extend(page_jobs)
+            paginated_jobs = self._scrape_paginated_jobs(discovered_urls, company_name)
 
             # Step 4: Deduplicate and merge results
             all_jobs = main_page_jobs + paginated_jobs
             deduplicated_jobs = self._deduplicate_jobs(all_jobs)
 
             # Show summary
-            if discovered_urls:
-                print(
-                    f"  ✓ Total: {len(deduplicated_jobs)} unique jobs "
-                    f"({len(main_page_jobs)} from main + {len(paginated_jobs)} from pages, "
-                    f"{len(all_jobs) - len(deduplicated_jobs)} duplicates removed)"
-                )
-            else:
-                print(f"  ✓ Total: {len(deduplicated_jobs)} job listings")
-
-            # Show job titles and links for user visibility
-            if deduplicated_jobs:
-                for i, (job, method) in enumerate(deduplicated_jobs, 1):
-                    method_label = "🤖 LLM" if method == "llm" else "📝 Regex"
-                    print(f"    {i}. [{method_label}] {job.title}")
-                    if job.link:
-                        print(f"       Link: {job.link}")
+            self._print_scraping_summary(
+                deduplicated_jobs, discovered_urls, main_page_jobs, paginated_jobs, all_jobs
+            )
 
             return deduplicated_jobs
 
@@ -223,6 +202,47 @@ class FirecrawlCareerScraper:
             logger.error(f"Error scraping {careers_url}: {e}", exc_info=True)
             print(f"  ✗ Error scraping page: {e}")
             return []
+
+    def _scrape_paginated_jobs(
+        self, discovered_urls: list[str], company_name: str
+    ) -> list[tuple[OpportunityData, str]]:
+        """Scrape jobs from discovered paginated URLs"""
+        if not discovered_urls or not self.enable_pagination:
+            return []
+
+        print(f"  📄 Scraping {len(discovered_urls)} additional pages...")
+        paginated_jobs = []
+        for i, url in enumerate(discovered_urls[:10], 1):  # Limit to 10 to avoid cost explosion
+            print(f"    [{i}/{min(len(discovered_urls), 10)}] {url}")
+            page_jobs = self._scrape_single_page(url, company_name, is_main_page=False)
+            paginated_jobs.extend(page_jobs)
+        return paginated_jobs
+
+    def _print_scraping_summary(
+        self,
+        deduplicated_jobs: list[tuple[OpportunityData, str]],
+        discovered_urls: list[str],
+        main_page_jobs: list[tuple[OpportunityData, str]],
+        paginated_jobs: list[tuple[OpportunityData, str]],
+        all_jobs: list[tuple[OpportunityData, str]],
+    ) -> None:
+        """Print summary of scraping results"""
+        if discovered_urls:
+            print(
+                f"  ✓ Total: {len(deduplicated_jobs)} unique jobs "
+                f"({len(main_page_jobs)} from main + {len(paginated_jobs)} from pages, "
+                f"{len(all_jobs) - len(deduplicated_jobs)} duplicates removed)"
+            )
+        else:
+            print(f"  ✓ Total: {len(deduplicated_jobs)} job listings")
+
+        # Show job titles and links for user visibility
+        if deduplicated_jobs:
+            for i, (job, method) in enumerate(deduplicated_jobs, 1):
+                method_label = "🤖 LLM" if method == "llm" else "📝 Regex"
+                print(f"    {i}. [{method_label}] {job.title}")
+                if job.link:
+                    print(f"       Link: {job.link}")
 
     def _scrape_single_page(
         self, url: str, company_name: str, is_main_page: bool = False
