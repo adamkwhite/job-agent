@@ -96,62 +96,11 @@ class JobDatabase:
         cursor.execute("PRAGMA table_info(jobs)")
         columns = [col[1] for col in cursor.fetchall()]
 
-        # Scoring columns
-        if "fit_score" not in columns:
-            cursor.execute("ALTER TABLE jobs ADD COLUMN fit_score INTEGER")
-
-        if "fit_grade" not in columns:
-            cursor.execute("ALTER TABLE jobs ADD COLUMN fit_grade TEXT")
-
-        if "score_breakdown" not in columns:
-            cursor.execute("ALTER TABLE jobs ADD COLUMN score_breakdown TEXT")
-
-        if "digest_sent_at" not in columns:
-            cursor.execute("ALTER TABLE jobs ADD COLUMN digest_sent_at TEXT")
-
-        if "profile" not in columns:
-            cursor.execute("ALTER TABLE jobs ADD COLUMN profile TEXT")
-            # Set default profile for existing jobs (assume they're for Wes)
-            cursor.execute("UPDATE jobs SET profile = 'wes' WHERE profile IS NULL")
-
-        # LLM extraction tracking columns
-        if "extraction_method" not in columns:
-            cursor.execute("ALTER TABLE jobs ADD COLUMN extraction_method TEXT")
-
-        if "extraction_cost" not in columns:
-            cursor.execute("ALTER TABLE jobs ADD COLUMN extraction_cost REAL")
-
-        # URL validation tracking columns
-        if "url_status" not in columns:
-            cursor.execute("ALTER TABLE jobs ADD COLUMN url_status TEXT")
-
-        if "url_checked_at" not in columns:
-            cursor.execute("ALTER TABLE jobs ADD COLUMN url_checked_at TEXT")
-
-        # Filtering columns
-        if "filter_reason" not in columns:
-            cursor.execute("ALTER TABLE jobs ADD COLUMN filter_reason TEXT")
-
-        if "filtered_at" not in columns:
-            cursor.execute("ALTER TABLE jobs ADD COLUMN filtered_at TEXT")
-
-        # Stale check and URL validation columns
-        if "manual_review_flag" not in columns:
-            cursor.execute("ALTER TABLE jobs ADD COLUMN manual_review_flag INTEGER DEFAULT 0")
-
-        if "stale_check_result" not in columns:
-            cursor.execute(
-                "ALTER TABLE jobs ADD COLUMN stale_check_result TEXT DEFAULT 'not_checked'"
-            )
-
-        if "url_validated" not in columns:
-            cursor.execute("ALTER TABLE jobs ADD COLUMN url_validated BOOLEAN")
-
-        if "url_validated_at" not in columns:
-            cursor.execute("ALTER TABLE jobs ADD COLUMN url_validated_at TEXT")
-
-        if "url_validation_reason" not in columns:
-            cursor.execute("ALTER TABLE jobs ADD COLUMN url_validation_reason TEXT")
+        # Apply column migrations
+        self._migrate_scoring_columns(cursor, columns)
+        self._migrate_tracking_columns(cursor, columns)
+        self._migrate_filtering_columns(cursor, columns)
+        self._migrate_validation_columns(cursor, columns)
 
         # Create indexes after all migrations (columns guaranteed to exist)
         cursor.execute("""
@@ -274,6 +223,66 @@ class JobDatabase:
 
         conn.commit()
         conn.close()
+
+    def _migrate_scoring_columns(self, cursor, columns: list[str]) -> None:
+        """Add scoring-related columns to jobs table"""
+        if "fit_score" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN fit_score INTEGER")
+
+        if "fit_grade" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN fit_grade TEXT")
+
+        if "score_breakdown" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN score_breakdown TEXT")
+
+        if "digest_sent_at" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN digest_sent_at TEXT")
+
+        if "profile" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN profile TEXT")
+            # Set default profile for existing jobs (assume they're for Wes)
+            cursor.execute("UPDATE jobs SET profile = 'wes' WHERE profile IS NULL")
+
+    def _migrate_tracking_columns(self, cursor, columns: list[str]) -> None:
+        """Add LLM extraction and URL tracking columns to jobs table"""
+        if "extraction_method" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN extraction_method TEXT")
+
+        if "extraction_cost" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN extraction_cost REAL")
+
+        if "url_status" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN url_status TEXT")
+
+        if "url_checked_at" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN url_checked_at TEXT")
+
+    def _migrate_filtering_columns(self, cursor, columns: list[str]) -> None:
+        """Add filtering-related columns to jobs table"""
+        if "filter_reason" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN filter_reason TEXT")
+
+        if "filtered_at" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN filtered_at TEXT")
+
+    def _migrate_validation_columns(self, cursor, columns: list[str]) -> None:
+        """Add validation and review columns to jobs table"""
+        if "manual_review_flag" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN manual_review_flag INTEGER DEFAULT 0")
+
+        if "stale_check_result" not in columns:
+            cursor.execute(
+                "ALTER TABLE jobs ADD COLUMN stale_check_result TEXT DEFAULT 'not_checked'"
+            )
+
+        if "url_validated" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN url_validated BOOLEAN")
+
+        if "url_validated_at" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN url_validated_at TEXT")
+
+        if "url_validation_reason" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN url_validation_reason TEXT")
 
     def generate_job_hash(self, title: str, company: str, link: str) -> str:
         """Generate unique hash for job deduplication"""
