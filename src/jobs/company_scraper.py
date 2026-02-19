@@ -326,7 +326,7 @@ class CompanyScraper:
             job_dict = self._prepare_job_dict(job)
 
             # Scoring (filtering now happens per-profile in multi_scorer)
-            score, grade, breakdown, classification_metadata = self.scorer.score_job(job_dict)
+            score, grade, breakdown, _ = self.scorer.score_job(job_dict)
 
             # Context filters (after scoring, uses current profile's context)
             if self.filter_pipeline:
@@ -340,7 +340,6 @@ class CompanyScraper:
                         score,
                         grade,
                         breakdown,
-                        classification_metadata,
                         filter_reason,
                         stats,
                     )
@@ -387,9 +386,7 @@ class CompanyScraper:
                 )
             else:
                 # Duplicate job
-                self._handle_duplicate_job(
-                    job, job_dict, score, grade, breakdown, classification_metadata, stats
-                )
+                self._handle_duplicate_job(job, job_dict, stats)
 
         return stats
 
@@ -446,7 +443,6 @@ class CompanyScraper:
         score: int,
         grade: str,
         breakdown: dict,
-        classification_metadata: dict,  # noqa: ARG002 - passed for API compatibility
         filter_reason: str,
         stats: dict,
     ) -> None:
@@ -570,10 +566,6 @@ class CompanyScraper:
         self,
         job: OpportunityData,
         job_dict: dict,
-        score: int,  # noqa: ARG002 - passed for API compatibility
-        grade: str,  # noqa: ARG002 - passed for API compatibility
-        breakdown: dict,  # noqa: ARG002 - passed for API compatibility
-        classification_metadata: dict,  # noqa: ARG002 - passed for API compatibility
         stats: dict,
     ) -> None:
         """Handle processing of a duplicate job"""
