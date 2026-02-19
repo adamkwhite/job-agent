@@ -8,15 +8,9 @@ Job discovery automation for multiple user profiles (Wes, Adam, Eli). Features i
 
 ## Development Guidelines
 
-⚠️ **When modifying function signatures (adding/removing/changing parameters), follow the guide:** `docs/development/AGENT_BEST_PRACTICES.md`
+⚠️ **For AI agent best practices (function signatures, refactoring, testing), see:** `agents.md` (root)
 
-**Critical steps:**
-1. Use Grep to find ALL callers (src/ + tests/)
-2. Update every caller found, including test mocks
-3. Run affected tests before committing
-4. Only commit if all tests pass
-
-This prevents issues like PR #297 where test mocks weren't updated after parameter removal.
+This includes mandatory workflows for safe refactoring and prevents common issues like missing caller updates.
 
 ## Architecture
 
