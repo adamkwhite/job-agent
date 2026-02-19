@@ -6,6 +6,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Job discovery automation for multiple user profiles (Wes, Adam, Eli). Features intelligent scoring, automated scraping, and personalized email digests.
 
+## Development Guidelines
+
+⚠️ **When modifying function signatures (adding/removing/changing parameters), follow the guide:** `docs/development/AGENT_BEST_PRACTICES.md`
+
+**Critical steps:**
+1. Use Grep to find ALL callers (src/ + tests/)
+2. Update every caller found, including test mocks
+3. Run affected tests before committing
+4. Only commit if all tests pass
+
+This prevents issues like PR #297 where test mocks weren't updated after parameter removal.
+
 ## Architecture
 
 - **Email processors**: LinkedIn, Supra, F6S, Artemis, Built In, Ministry of Testing
