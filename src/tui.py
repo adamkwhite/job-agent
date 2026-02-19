@@ -23,11 +23,21 @@ from utils.health_checker import SystemHealthChecker
 from utils.profile_manager import get_profile_manager
 from utils.score_thresholds import Grade
 
-# Constants for duplicated string literals (SonarCloud fix)
+# Constants for duplicated string literals (SonarCloud S1192 fix)
 SEPARATOR_TOP = "\n[bold cyan]═══════════════════════════════════════════════[/bold cyan]"
 SEPARATOR_BOTTOM = "[bold cyan]═══════════════════════════════════════════════[/bold cyan]\n"
 SEPARATOR_FULL = "\n[bold cyan]═══════════════════════════════════════════════[/bold cyan]\n"
+SEPARATOR_MAGENTA_TOP = (
+    "\n[bold magenta]═══════════════════════════════════════════════[/bold magenta]"
+)
+SEPARATOR_MAGENTA_BOTTOM = (
+    "[bold magenta]═══════════════════════════════════════════════[/bold magenta]\n"
+)
 PYTHON_EXECUTABLE = "job-agent-venv/bin/python"
+STYLE_BOLD_MAGENTA = "bold magenta"
+LABEL_LAST_RUN = "Last Run"
+PROMPT_SELECT_ACTION = "\n[bold]Select action[/bold]"
+PROMPT_PRESS_ENTER = "\n[dim]Press Enter to continue...[/dim]"
 
 console = Console()
 
@@ -228,7 +238,7 @@ def select_sources() -> tuple[list[str], str | None]:
     """
     console.print("\n[bold yellow]Step 1:[/bold yellow] Select Job Sources\n")
 
-    table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+    table = Table(box=box.ROUNDED, show_header=True, header_style=STYLE_BOLD_MAGENTA)
     table.add_column("Source", style="cyan", width=8)
     table.add_column("Description", style="white", width=40)
 
@@ -318,7 +328,7 @@ def _select_inbox() -> str | None:
         console.print("[dim]Check profiles/*/email_username in profile JSON files.[/dim]")
         return None
 
-    table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+    table = Table(box=box.ROUNDED, show_header=True, header_style=STYLE_BOLD_MAGENTA)
     table.add_column("Option", style="cyan", width=8)
     table.add_column("Profile", style="green", width=20)
     table.add_column("Email Inbox", style="blue", width=35)
@@ -361,7 +371,7 @@ def select_digest_recipients() -> list[str] | None:
         console.print("[red]No enabled profiles found![/red]")
         return None
 
-    table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+    table = Table(box=box.ROUNDED, show_header=True, header_style=STYLE_BOLD_MAGENTA)
     table.add_column("Option", style="cyan", width=8)
     table.add_column("Recipient", style="green", width=25)
     table.add_column("Email", style="blue", width=30)
@@ -414,7 +424,7 @@ def show_criteria():
     # Scoring breakdown
     console.print("[bold yellow]📊 Scoring System (0-115 points)[/bold yellow]\n")
 
-    scoring_table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+    scoring_table = Table(box=box.ROUNDED, show_header=True, header_style=STYLE_BOLD_MAGENTA)
     scoring_table.add_column("Category", style="cyan", width=20)
     scoring_table.add_column("Max Points", style="green", width=12)
     scoring_table.add_column("Criteria", style="white")
@@ -431,7 +441,7 @@ def show_criteria():
     # Grading scale
     console.print("\n[bold yellow]🎓 Grading Scale[/bold yellow]\n")
 
-    grade_table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+    grade_table = Table(box=box.ROUNDED, show_header=True, header_style=STYLE_BOLD_MAGENTA)
     grade_table.add_column("Grade", style="cyan", width=8)
     grade_table.add_column("Score", style="green", width=10)
     grade_table.add_column("Action", style="white")
@@ -447,7 +457,7 @@ def show_criteria():
     # Source thresholds
     console.print("\n[bold yellow]📈 Source-Specific Thresholds[/bold yellow]\n")
 
-    source_table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+    source_table = Table(box=box.ROUNDED, show_header=True, header_style=STYLE_BOLD_MAGENTA)
     source_table.add_column("Source", style="cyan", width=20)
     source_table.add_column("Min Score", style="green", width=12)
     source_table.add_column("Reasoning", style="white")
@@ -661,9 +671,9 @@ def check_api_credits():  # pragma: no cover
     from pathlib import Path
 
     console.clear()
-    console.print("\n[bold magenta]═══════════════════════════════════════════════[/bold magenta]")
+    console.print(SEPARATOR_MAGENTA_TOP)
     console.print("[bold magenta]              API CREDIT STATUS                  [/bold magenta]")
-    console.print("[bold magenta]═══════════════════════════════════════════════[/bold magenta]\n")
+    console.print(SEPARATOR_MAGENTA_BOTTOM)
 
     # Check LLM Budget (OpenRouter/Claude API)
     console.print("[bold yellow]🤖 LLM Extraction (Claude 3.5 Sonnet)[/bold yellow]\n")
@@ -684,7 +694,7 @@ def check_api_credits():  # pragma: no cover
             usage_pct = (total_cost / budget * 100) if budget > 0 else 0
 
             # Create status table
-            llm_table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+            llm_table = Table(box=box.ROUNDED, show_header=True, header_style=STYLE_BOLD_MAGENTA)
             llm_table.add_column("Metric", style="cyan", width=20)
             llm_table.add_column("Value", style="white", width=25)
 
@@ -721,7 +731,7 @@ def check_api_credits():  # pragma: no cover
     # Check Firecrawl API status
     console.print("\n\n[bold yellow]🔥 Firecrawl API[/bold yellow]\n")
 
-    firecrawl_table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+    firecrawl_table = Table(box=box.ROUNDED, show_header=True, header_style=STYLE_BOLD_MAGENTA)
     firecrawl_table.add_column("Metric", style="cyan", width=20)
     firecrawl_table.add_column("Status", style="white", width=25)
 
@@ -742,12 +752,12 @@ def check_api_credits():  # pragma: no cover
             lines = result.stdout.split("\n")
             for line in reversed(lines):
                 if "companies checked:" in line.lower():
-                    firecrawl_table.add_row("Last Run", "[green]✓ Successful[/green]")
+                    firecrawl_table.add_row("LABEL_LAST_RUN", "[green]✓ Successful[/green]")
                     break
             else:
-                firecrawl_table.add_row("Last Run", "[dim]No recent runs[/dim]")
+                firecrawl_table.add_row("LABEL_LAST_RUN", "[dim]No recent runs[/dim]")
         else:
-            firecrawl_table.add_row("Last Run", "[dim]No logs found[/dim]")
+            firecrawl_table.add_row("LABEL_LAST_RUN", "[dim]No logs found[/dim]")
 
         firecrawl_table.add_row(
             "API Key",
@@ -781,15 +791,11 @@ def review_llm_failures():  # pragma: no cover
 
     while True:
         console.clear()
-        console.print(
-            "\n[bold magenta]═══════════════════════════════════════════════[/bold magenta]"
-        )
+        console.print(SEPARATOR_MAGENTA_TOP)
         console.print(
             "[bold magenta]           LLM EXTRACTION FAILURES REVIEW           [/bold magenta]"
         )
-        console.print(
-            "[bold magenta]═══════════════════════════════════════════════[/bold magenta]\n"
-        )
+        console.print(SEPARATOR_MAGENTA_BOTTOM)
 
         # Get pending failures
         failures = db.get_llm_failures(review_action="pending", limit=50)
@@ -803,7 +809,7 @@ def review_llm_failures():  # pragma: no cover
         console.print(f"[bold yellow]📊 Summary:[/bold yellow] {len(failures)} pending failures\n")
 
         # Display failures table
-        table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+        table = Table(box=box.ROUNDED, show_header=True, header_style=STYLE_BOLD_MAGENTA)
         table.add_column("#", style="cyan", width=4)
         table.add_column("Company", style="white", width=25)
         table.add_column("Failure Reason", style="yellow", width=30)
@@ -835,9 +841,7 @@ def review_llm_failures():  # pragma: no cover
         console.print("  \\[s] Skip all pending failures")
         console.print("  \\[b] Back to main menu")
 
-        choice = Prompt.ask(
-            "\n[bold]Select action[/bold]", choices=["r", "a", "s", "b"], default="b"
-        )
+        choice = Prompt.ask(PROMPT_SELECT_ACTION, choices=["r", "a", "s", "b"], default="b")
 
         if choice == "b":
             return
@@ -862,13 +866,13 @@ def _review_single_failure(db, failures):  # pragma: no cover
         failure_idx = int(failure_num) - 1
         if failure_idx < 0 or failure_idx >= len(failures):
             console.print(f"[red]❌ Invalid failure number. Must be 1-{len(failures)}[/red]")
-            input("\n[dim]Press Enter to continue...[/dim]")
+            input(PROMPT_PRESS_ENTER)
             return
 
         failure = failures[failure_idx]
     except ValueError:
         console.print("[red]❌ Invalid input. Enter a number.[/red]")
-        input("\n[dim]Press Enter to continue...[/dim]")
+        input(PROMPT_PRESS_ENTER)
         return
 
     # Show failure details
@@ -903,25 +907,25 @@ def _review_single_failure(db, failures):  # pragma: no cover
     if has_markdown:
         choices.insert(0, "v")
 
-    action = Prompt.ask("\n[bold]Select action[/bold]", choices=choices, default="b")
+    action = Prompt.ask(PROMPT_SELECT_ACTION, choices=choices, default="b")
 
     if action == "b":
         return
     elif action == "v":
         _view_markdown(failure)
-        input("\n[dim]Press Enter to continue...[/dim]")
+        input(PROMPT_PRESS_ENTER)
     elif action == "r":
         if db.update_llm_failure(failure["id"], "retry"):
             console.print(f"\n[green]✅ Marked {failure['company_name']} for retry[/green]")
         else:
             console.print("\n[red]❌ Failed to update failure record[/red]")
-        input("\n[dim]Press Enter to continue...[/dim]")
+        input(PROMPT_PRESS_ENTER)
     elif action == "s":
         if db.update_llm_failure(failure["id"], "skip"):
             console.print(f"\n[yellow]⏭️  Skipped {failure['company_name']} permanently[/yellow]")
         else:
             console.print("\n[red]❌ Failed to update failure record[/red]")
-        input("\n[dim]Press Enter to continue...[/dim]")
+        input(PROMPT_PRESS_ENTER)
 
 
 def _view_markdown(failure):
@@ -968,7 +972,7 @@ def _retry_all_failures(db, failures):  # pragma: no cover
         console.print(
             f"\n[green]✅ Marked {success_count}/{len(failures)} failures for retry[/green]"
         )
-        input("\n[dim]Press Enter to continue...[/dim]")
+        input(PROMPT_PRESS_ENTER)
 
 
 def _skip_all_failures(db, failures):  # pragma: no cover
@@ -988,7 +992,7 @@ def _skip_all_failures(db, failures):  # pragma: no cover
         console.print(
             f"\n[yellow]⏭️  Skipped {success_count}/{len(failures)} failures permanently[/yellow]"
         )
-        input("\n[dim]Press Enter to continue...[/dim]")
+        input(PROMPT_PRESS_ENTER)
 
 
 def review_company_failures():  # pragma: no cover
@@ -1006,9 +1010,9 @@ def review_company_failures():  # pragma: no cover
     cursor = conn.cursor()
 
     console.clear()
-    console.print("\n[bold magenta]═══════════════════════════════════════════════[/bold magenta]")
+    console.print(SEPARATOR_MAGENTA_TOP)
     console.print("[bold magenta]         COMPANY SCRAPER FAILURES REVIEW         [/bold magenta]")
-    console.print("[bold magenta]═══════════════════════════════════════════════[/bold magenta]\n")
+    console.print(SEPARATOR_MAGENTA_BOTTOM)
 
     # Get companies with failures
     cursor.execute("""
@@ -1044,7 +1048,7 @@ def review_company_failures():  # pragma: no cover
     console.print(f"  • [dim]Active with failures:[/dim] {active_failures} companies\n")
 
     # Display failures table
-    table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+    table = Table(box=box.ROUNDED, show_header=True, header_style=STYLE_BOLD_MAGENTA)
     table.add_column("Company", style="white", width=25)
     table.add_column("Failures", style="yellow", width=10, justify="center")
     table.add_column("Status", style="white", width=12)
@@ -1105,7 +1109,7 @@ def select_action() -> str | None:
     """Select what action to perform"""
     console.print("\n[bold yellow]Step 2:[/bold yellow] Select Action\n")
 
-    table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+    table = Table(box=box.ROUNDED, show_header=True, header_style=STYLE_BOLD_MAGENTA)
     table.add_column("Option", style="cyan", width=8)
     table.add_column("Action", style="green", width=20)
     table.add_column("Description", style="white")
@@ -1122,7 +1126,7 @@ def select_action() -> str | None:
     console.print(table)
 
     choice = Prompt.ask(
-        "\n[bold]Select action[/bold]",
+        PROMPT_SELECT_ACTION,
         choices=["1", "2", "3", "c", "f", "h", "b", "q"],
         default="3",
     )
@@ -1146,7 +1150,7 @@ def select_digest_options() -> dict:
     """Select digest options (dry-run, force-resend)"""
     console.print("\n[bold yellow]Step 5:[/bold yellow] Digest Options\n")
 
-    table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+    table = Table(box=box.ROUNDED, show_header=True, header_style=STYLE_BOLD_MAGENTA)
     table.add_column("Option", style="cyan", width=8)
     table.add_column("Mode", style="green", width=20)
     table.add_column("Sends Email?", style="white", width=14)
@@ -1404,7 +1408,7 @@ def manage_companies():
     )
 
     # Display summary table
-    table = Table(box=box.ROUNDED, show_header=True, header_style="bold magenta")
+    table = Table(box=box.ROUNDED, show_header=True, header_style=STYLE_BOLD_MAGENTA)
     table.add_column("#", style="cyan", width=5)
     table.add_column("Company Name", style="green", width=30)
     table.add_column("Discovered", style="blue", width=20)
@@ -1426,7 +1430,7 @@ def manage_companies():
     console.print("  [cyan]l[/cyan] - List all with details")
     console.print("  [cyan]b[/cyan] - Back to main menu")
 
-    choice = Prompt.ask("\n[bold]Select action[/bold]", choices=["r", "l", "b"], default="r")
+    choice = Prompt.ask(PROMPT_SELECT_ACTION, choices=["r", "l", "b"], default="r")
 
     if choice == "b":
         return
