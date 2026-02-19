@@ -152,7 +152,7 @@ class CompanyService:
                     created_at, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-                (name, careers_url, "generic", 0, notes, now, now),  # active=0
+                (name, careers_url, "generic", 0, notes, now, now),
             )
 
             company_id = cursor.lastrowid
