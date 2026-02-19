@@ -248,7 +248,7 @@ def main():
     args = parser.parse_args()
 
     scraper = BuiltInScraper(city=args.city)
-    included, excluded = scraper.scrape_and_filter(max_pages=args.pages)
+    included, _ = scraper.scrape_and_filter(max_pages=args.pages)
 
     if included:
         print(f"\n{'=' * 70}")

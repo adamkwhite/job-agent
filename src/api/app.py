@@ -25,7 +25,7 @@ CORS(app, resources={r"/*": {"origins": cors_origins_list}})
 company_service = CompanyService()
 
 
-@app.route("/")
+@app.route("/", methods=["GET"])
 def home():
     """API health check"""
     return jsonify(
