@@ -64,6 +64,169 @@ def show_header():
     console.print(header)
 
 
+def _handle_utility_action(sources: list[str]) -> bool | None:
+    """Handle utility actions from source selection menu
+
+    Args:
+        sources: Selected sources from select_sources()
+
+    Returns:
+        True: Utility action handled, continue to next iteration
+        False: User quit application
+        None: Not a utility action, proceed to main workflow
+    """
+    if not sources:  # User quit
+        console.print("\n[yellow]Goodbye![/yellow]\n")
+        return False
+    elif sources == ["utility:credits"]:
+        check_api_credits()
+        return True
+    elif sources == ["utility:companies"]:
+        manage_companies()
+        return True
+    elif sources == ["utility:health"]:
+        show_system_health()
+        return True
+
+    return None  # Not a utility action
+
+
+def _handle_secondary_action(action: str | None) -> bool | None:
+    """Handle secondary actions from action selection menu
+
+    Args:
+        action: Selected action from select_action()
+
+    Returns:
+        True: Secondary action handled, continue to next iteration
+        False: User quit application
+        None: Not a secondary action, proceed to main workflow
+    """
+    if action is None:  # User quit
+        console.print("\n[yellow]Goodbye![/yellow]\n")
+        return False
+    elif action == "back":
+        return True
+    elif action == "criteria":
+        show_criteria()
+        return True
+    elif action == "failures":
+        review_llm_failures()
+        return True
+    elif action == "health":
+        show_system_health()
+        return True
+
+    return None  # Main workflow action (scrape/digest/both)
+
+
+def _run_scraper_if_needed(
+    sources: list[str], inbox_profile: str | None, action: str
+) -> tuple[bool, bool]:
+    """Run the scraper step if required by action.
+
+    Returns:
+        Tuple of (scrape_success, should_continue).
+        should_continue=False means caller should return early.
+    """
+    if action not in ["scrape", "both"]:
+        return True, True
+
+    scrape_success = run_scraper(sources, inbox_profile)
+    if scrape_success:
+        console.print("\n[green]✓ Scraper completed successfully![/green]")
+        return True, True
+
+    console.print("\n[red]✗ Scraper failed![/red]")
+    if not Confirm.ask("\n[bold]Continue anyway?[/bold]", default=False):
+        console.print("\n[yellow]Returning to menu...[/yellow]\n")
+        press_enter_to_continue()
+        return False, False
+    return False, True
+
+
+def _select_digest_recipients_if_needed(action: str) -> tuple[list[str] | None, bool]:
+    """Select digest recipients if required by action.
+
+    Returns:
+        Tuple of (recipients, should_continue).
+        should_continue=False means caller should return early.
+    """
+    if action not in ["digest", "both"]:
+        return None, True
+
+    recipients = select_digest_recipients()
+    if not recipients:
+        console.print("\n[yellow]Digest skipped. Returning to menu...[/yellow]\n")
+        press_enter_to_continue()
+        return None, False
+    return recipients, True
+
+
+def _execute_workflow(sources: list[str], inbox_profile: str | None, action: str) -> None:
+    """Execute the scrape/digest workflow
+
+    Args:
+        sources: Selected job sources (companies, email)
+        inbox_profile: Email inbox profile (None if email not selected)
+        action: Action to perform ("scrape", "digest", or "both")
+    """
+    # Step 3: Run Scraper (if needed)
+    scrape_success, should_continue = _run_scraper_if_needed(sources, inbox_profile, action)
+    if not should_continue:
+        return
+
+    # Step 4: Select Digest Recipients (if needed)
+    digest_recipients, should_continue = _select_digest_recipients_if_needed(action)
+    if not should_continue:
+        return
+
+    # Step 5: Digest Options (if sending digest)
+    digest_options = select_digest_options() if digest_recipients else {}
+
+    # Step 6: Confirm & Execute
+    if not confirm_execution(sources, inbox_profile, action, digest_recipients, digest_options):
+        console.print("\n[yellow]Cancelled. Returning to menu...[/yellow]\n")
+        press_enter_to_continue()
+        return
+
+    # Execute digest (scraping already done if needed) and show results
+    digest_success = _send_digest_if_needed(digest_recipients, digest_options)
+
+    # Show final results and wait
+    _show_workflow_results(scrape_success, digest_success)
+
+
+def _send_digest_if_needed(
+    digest_recipients: list[str] | None,
+    digest_options: dict,
+) -> bool:
+    """Send digest if recipients selected. Returns True if success (or no digest needed)."""
+    if not digest_recipients:
+        return True
+
+    digest_success = send_digest(
+        digest_recipients,
+        dry_run=digest_options.get("dry_run", False),
+        force_resend=digest_options.get("force_resend", False),
+    )
+    if not digest_success:
+        console.print("\n[red]✗ Digest send failed![/red]")
+    else:
+        console.print("\n[green]✓ Digest sent successfully![/green]")
+    return digest_success
+
+
+def _show_workflow_results(scrape_success: bool, digest_success: bool) -> None:
+    """Display final workflow results and wait for user."""
+    if scrape_success and digest_success:
+        console.print("\n[bold green]✓ All operations completed successfully![/bold green]")
+    else:
+        console.print("\n[bold red]✗ Some operations failed. Check logs for details.[/bold red]")
+    console.print("\n[dim]Press Enter to continue (or Ctrl+C to exit)...[/dim]")
+    input()
+
+
 def select_sources() -> tuple[list[str], str | None]:
     """Select job sources to scrape (no profile needed upfront)
 
@@ -1399,104 +1562,36 @@ def _review_companies_interactive(companies: list[dict], company_service: Compan
     press_enter_to_continue()
 
 
-def main():
+def main():  # pragma: no cover
     """Main TUI loop"""
     try:
         while True:
             show_header()
 
-            # Step 1: Select Sources (no profile needed)
+            # Step 1: Select Sources
             sources, inbox_profile = select_sources()
 
             # Handle utility actions
-            if not sources:  # User quit
-                console.print("\n[yellow]Goodbye![/yellow]\n")
+            utility_result = _handle_utility_action(sources)
+            if utility_result is False:  # Quit
                 sys.exit(0)
-            elif sources == ["utility:credits"]:
-                check_api_credits()
+            elif utility_result is True:  # Continue loop
                 continue
-            elif sources == ["utility:companies"]:
-                manage_companies()
-                continue
-            elif sources == ["utility:health"]:
-                show_system_health()
-                continue
+            # else: utility_result is None, proceed to workflow
 
             # Step 2: Select Action
             action = select_action()
-            if action is None:
-                console.print("\n[yellow]Goodbye![/yellow]\n")
+
+            # Handle secondary actions
+            secondary_result = _handle_secondary_action(action)
+            if secondary_result is False:  # Quit
                 sys.exit(0)
-            elif action == "back":
+            elif secondary_result is True:  # Continue loop
                 continue
-            elif action == "criteria":
-                show_criteria()
-                continue
-            elif action == "failures":
-                review_llm_failures()
-                continue
-            elif action == "health":
-                show_system_health()
-                continue
+            # else: secondary_result is None, proceed to workflow
 
-            # Step 3: Run Scraper (if needed)
-            scrape_success = True
-            if action in ["scrape", "both"]:
-                scrape_success = run_scraper(sources, inbox_profile)
-                if not scrape_success:
-                    console.print("\n[red]✗ Scraper failed![/red]")
-                    if not Confirm.ask("\n[bold]Continue anyway?[/bold]", default=False):
-                        continue
-                else:
-                    console.print("\n[green]✓ Scraper completed successfully![/green]")
-
-            # Step 4: Select Digest Recipients (if needed)
-            digest_recipients = None
-            if action in ["digest", "both"]:
-                digest_recipients = select_digest_recipients()
-
-                if not digest_recipients:  # User skipped
-                    console.print("\n[yellow]Digest skipped. Returning to menu...[/yellow]\n")
-                    press_enter_to_continue()
-                    continue
-
-            # Step 5: Digest Options (if sending digest)
-            digest_options = {}
-            if digest_recipients:
-                digest_options = select_digest_options()
-
-            # Step 6: Confirm & Execute
-            if not confirm_execution(
-                sources, inbox_profile, action, digest_recipients, digest_options
-            ):
-                console.print("\n[yellow]Cancelled. Returning to menu...[/yellow]\n")
-                press_enter_to_continue()
-                continue
-
-            # Execute digest (scraping already done if needed)
-            digest_success = True
-            if digest_recipients:
-                digest_success = send_digest(
-                    digest_recipients,
-                    dry_run=digest_options.get("dry_run", False),
-                    force_resend=digest_options.get("force_resend", False),
-                )
-                if not digest_success:
-                    console.print("\n[red]✗ Digest send failed![/red]")
-                else:
-                    console.print("\n[green]✓ Digest sent successfully![/green]")
-
-            # Show results
-            if scrape_success and digest_success:
-                console.print("\n[bold green]✓ All operations completed successfully![/bold green]")
-            else:
-                console.print(
-                    "\n[bold red]✗ Some operations failed. Check logs for details.[/bold red]"
-                )
-
-            # Auto-loop back to source selection
-            console.print("\n[dim]Press Enter to continue (or Ctrl+C to exit)...[/dim]")
-            input()
+            # Execute workflow
+            _execute_workflow(sources, inbox_profile, action)
 
     except KeyboardInterrupt:
         console.print("\n\n[yellow]Interrupted by user. Goodbye![/yellow]\n")

@@ -6,6 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Job discovery automation for multiple user profiles (Wes, Adam, Eli). Features intelligent scoring, automated scraping, and personalized email digests.
 
+## Development Guidelines
+
+⚠️ **For AI agent best practices (function signatures, refactoring, testing), see:** `agents.md` (root)
+
+This includes mandatory workflows for safe refactoring and prevents common issues like missing caller updates.
+
 ## Architecture
 
 - **Email processors**: LinkedIn, Supra, F6S, Artemis, Built In, Ministry of Testing

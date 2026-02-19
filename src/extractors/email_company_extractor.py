@@ -191,9 +191,7 @@ class EmailCompanyExtractor:
 
         # Pattern: *Company Name* is hiring
         # Character class: letters, digits, &.,', whitespace, hyphen
-        pattern = re.compile(
-            r"\*([A-Za-z0-9&.,'\s\-]+)\*\s+is hiring", re.MULTILINE | re.IGNORECASE
-        )
+        pattern = re.compile(r"\*([-a-z0-9&.,'\s]+)\*\s+is hiring", re.MULTILINE | re.IGNORECASE)
 
         matches = pattern.findall(body)
 
@@ -264,7 +262,7 @@ class EmailCompanyExtractor:
         # Matches both direct links and AWS tracking links containing builtin.com URLs
         # Character class: URL-safe chars (letters, digits, :/.%?=&_-)
         url_pattern = re.compile(
-            r'href="([a-zA-Z0-9:/.%?=&_\-]*builtin\.com[a-zA-Z0-9:/.%?=&_\-]*)"', re.IGNORECASE
+            r'href="([-a-z0-9:/.%?=&_]*builtin\.com[-a-z0-9:/.%?=&_]*)"', re.IGNORECASE
         )
 
         matches = url_pattern.findall(body)

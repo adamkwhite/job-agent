@@ -372,10 +372,6 @@ class TestMultiProfileDuplicateScoring:
         mario_scraper._handle_duplicate_job(
             job=job,
             job_dict=job_dict,
-            score=75,
-            grade="C+",
-            breakdown={"seniority": 20, "domain": 15},
-            classification_metadata={"filtered": False},
             stats=stats,
         )
 
@@ -603,7 +599,6 @@ class TestMultiProfileDuplicateScoring:
             score=45,
             grade="D",
             breakdown={"seniority": 20, "domain": 10, "location": 0},
-            classification_metadata={"filtered": True, "reason": "low_score"},
             filter_reason="Score too low",
             stats=stats,
         )

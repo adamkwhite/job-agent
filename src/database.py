@@ -92,22 +92,11 @@ class JobDatabase:
             CREATE INDEX IF NOT EXISTS idx_company ON jobs(company)
         """)
 
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_jobs_filter_reason ON jobs(filter_reason)
-        """)
-
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_jobs_stale_check_result ON jobs(stale_check_result)
-        """)
-
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_jobs_url_validated ON jobs(url_validated)
-        """)
-
-        # Migration: Add scoring columns if they don't exist
+        # Migration: Add all columns introduced after initial schema
         cursor.execute("PRAGMA table_info(jobs)")
         columns = [col[1] for col in cursor.fetchall()]
 
+        # Scoring columns
         if "fit_score" not in columns:
             cursor.execute("ALTER TABLE jobs ADD COLUMN fit_score INTEGER")
 
@@ -125,21 +114,59 @@ class JobDatabase:
             # Set default profile for existing jobs (assume they're for Wes)
             cursor.execute("UPDATE jobs SET profile = 'wes' WHERE profile IS NULL")
 
-        # Migration: Add LLM extraction tracking columns
+        # LLM extraction tracking columns
         if "extraction_method" not in columns:
             cursor.execute("ALTER TABLE jobs ADD COLUMN extraction_method TEXT")
 
         if "extraction_cost" not in columns:
             cursor.execute("ALTER TABLE jobs ADD COLUMN extraction_cost REAL")
 
-        # Migration: Add URL validation tracking columns
+        # URL validation tracking columns
         if "url_status" not in columns:
             cursor.execute("ALTER TABLE jobs ADD COLUMN url_status TEXT")
 
         if "url_checked_at" not in columns:
             cursor.execute("ALTER TABLE jobs ADD COLUMN url_checked_at TEXT")
 
-        # Create index after column exists
+        # Filtering columns
+        if "filter_reason" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN filter_reason TEXT")
+
+        if "filtered_at" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN filtered_at TEXT")
+
+        # Stale check and URL validation columns
+        if "manual_review_flag" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN manual_review_flag INTEGER DEFAULT 0")
+
+        if "stale_check_result" not in columns:
+            cursor.execute(
+                "ALTER TABLE jobs ADD COLUMN stale_check_result TEXT DEFAULT 'not_checked'"
+            )
+
+        if "url_validated" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN url_validated BOOLEAN")
+
+        if "url_validated_at" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN url_validated_at TEXT")
+
+        if "url_validation_reason" not in columns:
+            cursor.execute("ALTER TABLE jobs ADD COLUMN url_validation_reason TEXT")
+
+        # Create indexes after all migrations (columns guaranteed to exist)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_jobs_filter_reason ON jobs(filter_reason)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_jobs_stale_check_result ON jobs(stale_check_result)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_jobs_url_validated ON jobs(url_validated)
+        """)
+
+        # Create remaining indexes after column exists
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_fit_score ON jobs(fit_score)
         """)

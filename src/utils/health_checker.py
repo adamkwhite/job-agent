@@ -21,14 +21,14 @@ from database import JobDatabase
 logger = logging.getLogger(__name__)
 
 
-class SystemHealthChecker:
+class SystemHealthChecker(object):  # noqa: UP004 (explicit object for SonarLint S1722 compatibility)
     """Aggregates system health metrics for display in TUI"""
 
     def __init__(
         self,
         db: JobDatabase,
         config_path: str = "config/health-check-settings.json",
-    ):
+    ) -> None:
         """Initialize health checker
 
         Args:
@@ -37,12 +37,14 @@ class SystemHealthChecker:
         """
         self.db = db
         self.budget_service = LLMBudgetService(
-            monthly_limit=15.0,  # From config/llm-extraction-settings.json
+            # From config/llm-extraction-settings.json
+            monthly_limit=15.0,
             alert_threshold=0.8,
         )
         self.config = self._load_config(config_path)
 
-    def _load_config(self, config_path: str) -> dict[str, Any]:
+    @staticmethod
+    def _load_config(config_path: str) -> dict[str, Any]:
         """Load health check configuration
 
         Args:
@@ -415,7 +417,10 @@ class SystemHealthChecker:
                 {
                     "severity": "yellow",
                     "category": "budget",
-                    "message": f"Budget at {budget['percentage_used']:.0f}% (${budget['total_spent']:.2f} / ${budget['monthly_limit']:.2f})",
+                    "message": (
+                        f"Budget at {budget['percentage_used']:.0f}%"
+                        f" (${budget['total_spent']:.2f} / ${budget['monthly_limit']:.2f})"
+                    ),
                     "action": "Monitor usage closely to avoid exceeding budget",
                 }
             )
@@ -441,41 +446,55 @@ class SystemHealthChecker:
 
         # Check company scraper health
         company_health = self._get_company_scraper_health()
+        issues.extend(self._check_company_scraper_issues(company_health, thresholds))
 
-        # Only check if companies are configured
-        if company_health["total_companies"] > 0:
-            # Auto-disabled companies
-            if company_health["auto_disabled_count"] >= thresholds["company_auto_disabled_count"]:
-                issues.append(
-                    {
-                        "severity": "red",
-                        "category": "company_scraper",
-                        "message": f"{company_health['auto_disabled_count']} companies auto-disabled (5+ failures)",
-                        "action": "Review and re-enable or remove failed companies",
-                    }
-                )
+        return issues
 
-            # Companies at risk of auto-disable
-            if company_health["at_risk_count"] >= thresholds["company_at_risk_count"]:
-                issues.append(
-                    {
-                        "severity": "yellow",
-                        "category": "company_scraper",
-                        "message": f"{company_health['at_risk_count']} companies at risk (3-4 failures)",
-                        "action": "Check career page URLs - one more failure will auto-disable",
-                    }
-                )
+    @staticmethod
+    def _check_company_scraper_issues(
+        company_health: dict[str, Any], thresholds: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Check company scraper health and return list of issues.
 
-            # Low success rate
-            if company_health["success_rate"] < thresholds["company_success_rate_min"]:
-                issues.append(
-                    {
-                        "severity": "yellow",
-                        "category": "company_scraper",
-                        "message": f"Company scraper success rate: {company_health['success_rate']:.1f}% (target: {thresholds['company_success_rate_min']}%)",
-                        "action": "Review scraper_failures.log for common failure patterns",
-                    }
-                )
+        Only returns issues if companies are configured.
+        """
+        issues: list[dict[str, Any]] = []
+
+        if company_health["total_companies"] == 0:
+            return issues
+
+        if company_health["auto_disabled_count"] >= thresholds["company_auto_disabled_count"]:
+            issues.append(
+                {
+                    "severity": "red",
+                    "category": "company_scraper",
+                    "message": f"{company_health['auto_disabled_count']} companies auto-disabled (5+ failures)",
+                    "action": "Review and re-enable or remove failed companies",
+                }
+            )
+
+        if company_health["at_risk_count"] >= thresholds["company_at_risk_count"]:
+            issues.append(
+                {
+                    "severity": "yellow",
+                    "category": "company_scraper",
+                    "message": f"{company_health['at_risk_count']} companies at risk (3-4 failures)",
+                    "action": "Check career page URLs - one more failure will auto-disable",
+                }
+            )
+
+        if company_health["success_rate"] < thresholds["company_success_rate_min"]:
+            issues.append(
+                {
+                    "severity": "yellow",
+                    "category": "company_scraper",
+                    "message": (
+                        f"Company scraper success rate: {company_health['success_rate']:.1f}%"
+                        f" (target: {thresholds['company_success_rate_min']}%)"
+                    ),
+                    "action": "Review scraper_failures.log for common failure patterns",
+                }
+            )
 
         return issues
 
