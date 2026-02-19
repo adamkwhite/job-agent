@@ -5,29 +5,50 @@
 ### Monitoring & Observability
 - [ ] Set up monitoring for cron job failures
 - [ ] Add email alerts if weekly scraper fails
-- [ ] Create dashboard for job scraping metrics (jobs found, scored, sent)
 
-### Code Quality
+### Code Quality (SonarCloud)
+- [ ] Overnight batch A: trivial fixes (S3626, S125, S1481, S6965) — tui.py, company_service.py, app.py, 4 scrapers/parsers
+- [ ] Overnight batch B: company_scraper.py unused params (S1172) — 5 parameters
+- [ ] Overnight batch C: TUI string constants (S1192) — 7 repeated literals
+- [ ] Overnight batch D: moderate complexity reductions (16–19) — database.py, testdevjobs scraper, wellfound, linkedin, firecrawl scraper
+- [ ] Overnight batch E: feedback_parser.py regex — S5869 x3 (duplicate chars) + S6019 (logic bug)
+
+### Code Quality (Tests)
 - [ ] Add tests for company scraping modules
   - `src/scrapers/firecrawl_career_scraper.py`
   - `src/jobs/company_scraper.py`
-  - `src/jobs/scrape_companies_with_firecrawl.py`
-- [ ] Add type hints to scraping modules
 
 ## Medium Priority
 
 ### Features
-- [ ] Configurable scoring weights (Issue #4)
 - [ ] Daily digest option (Issue #3)
-- [ ] Resume customization automation
-- [ ] Interview preparation automation
+- [ ] Two-tier scoring: skip low-hit-rate companies to save Firecrawl credits (Issue #78)
+- [ ] Add 'Clear Digest Tracking' to TUI for easy job resending (Issue #137)
 
-### Documentation
-- [ ] Add examples of successful company scraping runs
-- [ ] Document Firecrawl MCP tool usage patterns
-- [ ] Create troubleshooting guide for common scraping issues
+### Backlog (tracked in GitHub Issues)
+- Issue #9: Generic company list scraper enhancements
+- Issue #29: End-to-end testing with multiple profiles
+- Issue #79: Enhanced statistics tracking for scraper observability
+- Issue #168: Skip known-stale jobs during scraping
+- Issue #180: Performance monitoring dashboard for company scraping costs
+- Issue #185: Document multi-profile scoring optimization strategy
+- Issue #193: Company Location Management in TUI
 
 ## Completed This Session (Feb 2026)
+
+### Issue Triage
+- [x] Closed #4 (configurable weights — superseded by profiles/*.json)
+- [x] Closed #28 (cron update — superseded by --all-inboxes architecture)
+- [x] Closed #50 (recruiter attribution — won't fix; disabled 4 zero-value companies)
+- [x] Closed #83 (Firecrawl automation — fully implemented)
+- [x] Closed #93, #94 (LLM validation/deployment — superseded, in production)
+- [x] Updated #78: re-scoped to company-level credit optimization
+
+### Overnight Agent (PRs #286–289)
+- [x] Reduce testdevjobs scraper complexity 24→5 (PR #286)
+- [x] Reduce health checker complexity 16→14 (PR #287)
+- [x] Reduce TUI digest selection complexity 22→13 (PR #288)
+- [x] Fix regex S5869 in email_company_extractor.py (PR #289)
 
 ### CI / Dev Workflow
 - [x] Draft PR workflow: push branch + open draft PR immediately, mark ready when done (PR #284)
@@ -37,15 +58,12 @@
 
 ### Code Quality & Coverage
 - [x] Fix database schema migration order — 3 indexes moved after ALTER TABLE guards (PR #282)
-- [x] Add ALTER TABLE guards for 7 post-initial columns (filter_reason, stale_check, url_validated, etc.)
-- [x] Fix `test_weekly_unified_scraper_all_inboxes` mock for `_scrape_shared_testdevjobs` (PR #282)
-- [x] Sync `pyproject.toml` coverage omit list with `sonar.coverage.exclusions` (PR #282)
+- [x] Add ALTER TABLE guards for 7 post-initial columns (PR #282)
 - [x] Add `TestDatabaseIncrementalMigration` tests to cover ALTER TABLE branches (PR #282)
 - [x] **Result**: 263 test failures → 0, coverage 67% → 80% ✅
 
 ### TUI Refactoring
-- [x] Reduce `main()` cognitive complexity 30 → 8 via three helper functions (PR #281)
-  - `_handle_utility_action()`, `_handle_secondary_action()`, `_execute_workflow()`
+- [x] Reduce `main()` cognitive complexity 30→8 via three helper functions (PR #281)
 - [x] Extract `PYTHON_EXECUTABLE` constant (PR #280, fixes #277)
 
 ## Completed (Jan 2026)
