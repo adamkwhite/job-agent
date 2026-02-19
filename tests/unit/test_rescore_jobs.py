@@ -183,6 +183,31 @@ class TestJobRescorer:
         assert stats["profiles_scored"] == 2
         assert stats["errors"] == 0
 
+    def test_rescore_by_company_dry_run(self, test_db_path, sample_jobs, mocker):
+        """Test re-scoring by company in dry run mode"""
+        db = JobDatabase(db_path=test_db_path)
+
+        # Add sample jobs
+        for job_data in sample_jobs:
+            db.add_job(job_data)
+
+        # Mock scorer
+        rescorer = JobRescorer(db_path=test_db_path)
+        mock_scorer = mocker.MagicMock()
+        mock_scorer.score_job_for_all.return_value = {"wes": (90, "A-")}
+        rescorer.multi_scorer = mock_scorer
+
+        # Dry run shouldn't call scorer
+        stats = rescorer.rescore_by_company(
+            company_name="Tesla",
+            dry_run=True,
+        )
+
+        assert stats["jobs_processed"] == 2
+        assert stats["errors"] == 0
+        # In dry run, we don't actually score
+        assert mock_scorer.score_job_for_all.call_count == 0
+
     def test_backfill_profile(self, test_db_path, sample_jobs, mocker):
         """Test backfilling scores for new profile"""
         db = JobDatabase(db_path=test_db_path)
@@ -237,6 +262,39 @@ class TestJobRescorer:
             mario_score = db.get_job_score(job_id, "mario")
             assert mario_score is not None
             assert mario_score["fit_score"] == 80
+
+    def test_backfill_profile_dry_run(self, test_db_path, sample_jobs, mocker):
+        """Test backfilling in dry run mode"""
+        db = JobDatabase(db_path=test_db_path)
+
+        # Add jobs with scores for wes only
+        for job_data in sample_jobs:
+            job_id = db.add_job(job_data)
+            # Add score for wes
+            db.upsert_job_score(
+                job_id=job_id,
+                profile_id="wes",
+                score=75,
+                grade="C+",
+                breakdown=json.dumps({"seniority": 25}),
+            )
+
+        # Mock scorer
+        rescorer = JobRescorer(db_path=test_db_path)
+        mock_scorer = mocker.MagicMock()
+        mock_scorer.score_job_for_all.return_value = {"mario": (80, "B")}
+        rescorer.multi_scorer = mock_scorer
+
+        # Dry run shouldn't call scorer
+        stats = rescorer.backfill_profile(
+            profile_id="mario",
+            dry_run=True,
+        )
+
+        assert stats["jobs_processed"] == 3
+        assert stats["errors"] == 0
+        # In dry run, we don't actually score
+        assert mock_scorer.score_job_for_all.call_count == 0
 
     def test_backfill_profile_max_jobs(self, test_db_path, sample_jobs, mocker):
         """Test backfill with max_jobs limit"""
