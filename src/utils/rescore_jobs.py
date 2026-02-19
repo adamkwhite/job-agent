@@ -26,9 +26,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from database import JobDatabase
 from utils.multi_scorer import get_multi_scorer
 
-# Constants for duplicated string literals (SonarCloud S1192 fix)
-DRY_RUN_MESSAGE = "⚠️  DRY RUN MODE - No database changes will be made\n"
-
 
 class JobRescorer:
     """Re-score existing jobs without re-scraping"""
@@ -91,7 +88,7 @@ class JobRescorer:
         print(f"{'=' * 70}\n")
 
         if dry_run:
-            print(DRY_RUN_MESSAGE)
+            print("⚠️  DRY RUN MODE - No database changes will be made\n")
 
         # Get jobs in date range
         jobs = self._get_jobs_by_date_range(start_date, end_date)
@@ -125,7 +122,7 @@ class JobRescorer:
         print(f"{'=' * 70}\n")
 
         if dry_run:
-            print(DRY_RUN_MESSAGE)
+            print("⚠️  DRY RUN MODE - No database changes will be made\n")
 
         # Get jobs for company
         jobs = self._get_jobs_by_company(company_name)
@@ -159,7 +156,7 @@ class JobRescorer:
         print(f"{'=' * 70}\n")
 
         if dry_run:
-            print(DRY_RUN_MESSAGE)
+            print("⚠️  DRY RUN MODE - No database changes will be made\n")
 
         # Get jobs missing scores for this profile
         jobs = self._get_jobs_missing_profile_scores(profile_id, max_jobs)
