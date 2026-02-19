@@ -50,7 +50,7 @@ class SupraParser(BaseEmailParser):
         - Company names from link context
         - Job titles from link text
         """
-        html_body, text_body = self.extract_email_body(email_message)
+        html_body, _ = self.extract_email_body(email_message)
 
         if not html_body:
             return ParserResult(

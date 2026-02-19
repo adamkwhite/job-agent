@@ -1433,7 +1433,6 @@ def manage_companies():
     elif choice == "l":
         _list_companies_detailed(auto_discovered)
         press_enter_to_continue()
-        return
     elif choice == "r":
         _review_companies_interactive(auto_discovered, company_service)
 
@@ -1491,7 +1490,6 @@ def _review_companies_interactive(companies: list[dict], company_service: Compan
         elif action == "s":
             skipped += 1
             console.print("[yellow]⊘ Skipped[/yellow]")
-            continue
         elif action == "d":
             if Confirm.ask(f"\n[red]Delete '{company.get('name')}'?[/red]", default=False):
                 # Delete company from database

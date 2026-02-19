@@ -95,7 +95,7 @@ class EnrichmentPipeline:
         print(f"\nFiltering {len(jobs)} jobs for Product Manager roles...")
         # Convert OpportunityData to dicts for existing filter
         jobs_as_dicts = [self._opportunity_to_dict(job) for job in jobs]
-        pm_jobs_dicts, non_pm_jobs_dicts = self.job_filter.filter_jobs(jobs_as_dicts)
+        pm_jobs_dicts, _ = self.job_filter.filter_jobs(jobs_as_dicts)
 
         # Convert back to OpportunityData with filter results
         pm_jobs = []
