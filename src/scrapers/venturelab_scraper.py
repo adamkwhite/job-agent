@@ -234,7 +234,7 @@ class VentureLabScraper:
 def main():
     """CLI entry point"""
     scraper = VentureLabScraper()
-    included, excluded = scraper.scrape_and_filter()
+    included, _ = scraper.scrape_and_filter()
 
     if included:
         print(f"\n{'=' * 70}")
