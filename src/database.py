@@ -46,6 +46,28 @@ class JobDatabase:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
+        # Create tables with basic indexes
+        self._create_jobs_table(cursor)
+        self._create_llm_failures_table(cursor)
+        self._create_extraction_metrics_table(cursor)
+        self._create_job_scores_table(cursor)
+
+        # Apply column migrations for backward compatibility
+        cursor.execute("PRAGMA table_info(jobs)")
+        columns = [col[1] for col in cursor.fetchall()]
+        self._migrate_scoring_columns(cursor, columns)
+        self._migrate_tracking_columns(cursor, columns)
+        self._migrate_filtering_columns(cursor, columns)
+        self._migrate_validation_columns(cursor, columns)
+
+        # Create additional indexes after migrations
+        self._create_jobs_indexes(cursor)
+
+        conn.commit()
+        conn.close()
+
+    def _create_jobs_table(self, cursor) -> None:
+        """Create jobs table with all columns and basic indexes"""
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS jobs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,55 +102,24 @@ class JobDatabase:
             )
         """)
 
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_job_hash ON jobs(job_hash)
-        """)
+        # Create basic indexes
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_job_hash ON jobs(job_hash)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_received_at ON jobs(received_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_company ON jobs(company)")
 
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_received_at ON jobs(received_at)
-        """)
+    def _create_jobs_indexes(self, cursor) -> None:
+        """Create additional indexes after migrations"""
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobs_filter_reason ON jobs(filter_reason)")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_jobs_stale_check_result ON jobs(stale_check_result)"
+        )
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobs_url_validated ON jobs(url_validated)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_fit_score ON jobs(fit_score)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_digest_sent_at ON jobs(digest_sent_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_profile ON jobs(profile)")
 
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_company ON jobs(company)
-        """)
-
-        # Migration: Add all columns introduced after initial schema
-        cursor.execute("PRAGMA table_info(jobs)")
-        columns = [col[1] for col in cursor.fetchall()]
-
-        # Apply column migrations
-        self._migrate_scoring_columns(cursor, columns)
-        self._migrate_tracking_columns(cursor, columns)
-        self._migrate_filtering_columns(cursor, columns)
-        self._migrate_validation_columns(cursor, columns)
-
-        # Create indexes after all migrations (columns guaranteed to exist)
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_jobs_filter_reason ON jobs(filter_reason)
-        """)
-
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_jobs_stale_check_result ON jobs(stale_check_result)
-        """)
-
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_jobs_url_validated ON jobs(url_validated)
-        """)
-
-        # Create remaining indexes after column exists
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_fit_score ON jobs(fit_score)
-        """)
-
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_digest_sent_at ON jobs(digest_sent_at)
-        """)
-
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_profile ON jobs(profile)
-        """)
-
-        # Create LLM extraction failures table
+    def _create_llm_failures_table(self, cursor) -> None:
+        """Create LLM extraction failures tracking table"""
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS llm_extraction_failures (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -144,15 +135,15 @@ class JobDatabase:
             )
         """)
 
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_llm_failures_company ON llm_extraction_failures(company_name)
-        """)
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_llm_failures_company ON llm_extraction_failures(company_name)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_llm_failures_reviewed ON llm_extraction_failures(review_action)"
+        )
 
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_llm_failures_reviewed ON llm_extraction_failures(review_action)
-        """)
-
-        # Create extraction metrics comparison table
+    def _create_extraction_metrics_table(self, cursor) -> None:
+        """Create extraction metrics comparison table"""
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS extraction_metrics (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -172,15 +163,15 @@ class JobDatabase:
             )
         """)
 
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_extraction_metrics_company ON extraction_metrics(company_name)
-        """)
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_extraction_metrics_company ON extraction_metrics(company_name)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_extraction_metrics_date ON extraction_metrics(scrape_date)"
+        )
 
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_extraction_metrics_date ON extraction_metrics(scrape_date)
-        """)
-
-        # Create job_scores table for multi-profile scoring
+    def _create_job_scores_table(self, cursor) -> None:
+        """Create job_scores table for multi-profile scoring"""
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS job_scores (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -199,30 +190,22 @@ class JobDatabase:
             )
         """)
 
-        # Migration: Add classification_metadata column if missing (for existing databases)
+        # Migration: Add classification_metadata column if missing
         cursor.execute("PRAGMA table_info(job_scores)")
         job_scores_columns = [col[1] for col in cursor.fetchall()]
         if "classification_metadata" not in job_scores_columns:
             cursor.execute("ALTER TABLE job_scores ADD COLUMN classification_metadata TEXT")
 
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_job_scores_job_id ON job_scores(job_id)
-        """)
-
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_job_scores_profile_id ON job_scores(profile_id)
-        """)
-
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_job_scores_fit_score ON job_scores(fit_score)
-        """)
-
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_job_scores_digest_sent ON job_scores(digest_sent_at)
-        """)
-
-        conn.commit()
-        conn.close()
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_job_scores_job_id ON job_scores(job_id)")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_job_scores_profile_id ON job_scores(profile_id)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_job_scores_fit_score ON job_scores(fit_score)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_job_scores_digest_sent ON job_scores(digest_sent_at)"
+        )
 
     def _migrate_scoring_columns(self, cursor, columns: list[str]) -> None:
         """Add scoring-related columns to jobs table"""
