@@ -401,37 +401,37 @@ class FirecrawlCareerScraper:
         Returns:
             List of OpportunityData objects
         """
+        # Try pattern 1 (linked jobs with locations)
+        jobs = self._extract_jobs_from_pattern1(markdown, company_name)
+
+        # If no jobs found with pattern 1, try pattern 2 (headers)
+        if not jobs:
+            jobs = self._extract_jobs_from_pattern2(markdown, careers_url, company_name)
+
+        return jobs
+
+    def _extract_jobs_from_pattern1(
+        self, markdown: str, company_name: str
+    ) -> list[OpportunityData]:
+        """Extract jobs using pattern 1: linked jobs with locations"""
         jobs = []
 
-        # Common patterns for job listings
         # Pattern 1: Job title followed by location (Greenhouse, Lever style)
-        # Example: "[Senior Engineer\n\nToronto, Canada](https://url)"
-        # ReDoS-safe: Negated character classes prevent backtracking
         pattern1 = re.compile(
             r"\["  # Opening bracket
-            r"([^\[\]]+?)"  # Title - non-greedy, stops at newlines or ]
-            r"(?:\n\n|\\n\\n|\\<br>\\<br>)"  # Separator between title and location
-            r"([^\[\]]+?)"  # Location - non-greedy, stops at ]
+            r"([^\[\]]+?)"  # Title - non-greedy
+            r"(?:\n\n|\\n\\n|\\<br>\\<br>)"  # Separator
+            r"([^\[\]]+?)"  # Location - non-greedy
             r"\]"  # Closing bracket
-            r"\(([^\)]+)\)",  # Link in parentheses - cannot backtrack past )
+            r"\(([^\)]+)\)",  # Link in parentheses
             re.MULTILINE,
         )
 
-        # Pattern 2: Job title in headers
-        # Example: "## Senior Software Engineer"
-        # ReDoS-safe: Use space instead of \s+ to prevent backtracking with [^\n]+
-        pattern2 = re.compile(
-            r"^(?:##|###|####) ([^\n]+)$",  # Single space, then capture to end of line
-            re.MULTILINE,
-        )
-
-        # Try pattern 1 (linked jobs with locations)
         matches = pattern1.findall(markdown)
         for title, location, link in matches:
             title = title.strip()
             location = location.strip()
 
-            # Filter out common non-job links
             if self._is_likely_job_title(title):
                 jobs.append(
                     OpportunityData(
@@ -444,56 +444,63 @@ class FirecrawlCareerScraper:
                     )
                 )
 
-        # If no jobs found with pattern 1, try pattern 2 (headers)
-        if not jobs:
-            # Look for job indicators like "7 jobs" or "Current Job Openings" or "Open Positions"
-            # Use case-insensitive string search to avoid regex complexity
-            markdown_lower = markdown.lower()
-            has_jobs = (
-                " jobs" in markdown_lower
-                or " job" in markdown_lower
-                or "current" in markdown_lower
-                and "job" in markdown_lower
-                or "open" in markdown_lower
-                and "position" in markdown_lower
-                or "hiring" in markdown_lower
-                or "recruiting" in markdown_lower
-            )
+        return jobs
 
-            if has_jobs:
-                # Find all headers that might be job titles
-                headers = pattern2.findall(markdown)
+    def _extract_jobs_from_pattern2(
+        self, markdown: str, careers_url: str, company_name: str
+    ) -> list[OpportunityData]:
+        """Extract jobs using pattern 2: headers without explicit links"""
+        jobs: list[OpportunityData] = []
 
-                for header in headers:
-                    header = header.strip()
+        # Pattern 2: Job title in headers
+        pattern2 = re.compile(
+            r"^(?:##|###|####) ([^\n]+)$",
+            re.MULTILINE,
+        )
 
-                    if self._is_likely_job_title(header) and len(header) > 10:
-                        # Try to find location near this header
-                        # Look for text after the header (skip the header line itself)
-                        header_idx = markdown.find(header)
-                        # Skip past the header and any immediate newlines
-                        start_search = header_idx + len(header)
-                        context = markdown[start_search : start_search + 100]
+        # Check if page has job indicators
+        markdown_lower = markdown.lower()
+        has_jobs = (
+            " jobs" in markdown_lower
+            or " job" in markdown_lower
+            or "current" in markdown_lower
+            and "job" in markdown_lower
+            or "open" in markdown_lower
+            and "position" in markdown_lower
+            or "hiring" in markdown_lower
+            or "recruiting" in markdown_lower
+        )
 
-                        # Look for city, province/state pattern on its own line
-                        # Pattern: newlines, optional "Location: " prefix, then "City Name, XX"
-                        # ReDoS-safe: Use {1,5} limits instead of + to prevent backtracking
-                        location_match = re.search(
-                            r"\n{1,5}(?:Location:\s{0,5})?([A-Z][a-z]+(?:\s[A-Z][a-z]+)?,\s{0,2}[A-Z]{2})",
-                            context,
-                        )
-                        location = location_match.group(1).strip() if location_match else ""
+        if not has_jobs:
+            return jobs
 
-                        jobs.append(
-                            OpportunityData(
-                                type="direct_job",
-                                title=header,
-                                company=company_name,
-                                location=location,
-                                link=careers_url,  # Use main careers page as link
-                                source="company_monitoring",
-                            )
-                        )
+        headers = pattern2.findall(markdown)
+        for header in headers:
+            header = header.strip()
+
+            if self._is_likely_job_title(header) and len(header) > 10:
+                # Try to find location near this header
+                header_idx = markdown.find(header)
+                start_search = header_idx + len(header)
+                context = markdown[start_search : start_search + 100]
+
+                # Look for city, province/state pattern
+                location_match = re.search(
+                    r"\n{1,5}(?:Location:\s{0,5})?([A-Z][a-z]+(?:\s[A-Z][a-z]+)?,\s{0,2}[A-Z]{2})",
+                    context,
+                )
+                location = location_match.group(1).strip() if location_match else ""
+
+                jobs.append(
+                    OpportunityData(
+                        type="direct_job",
+                        title=header,
+                        company=company_name,
+                        location=location,
+                        link=careers_url,
+                        source="company_monitoring",
+                    )
+                )
 
         return jobs
 
