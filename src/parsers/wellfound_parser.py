@@ -97,63 +97,101 @@ class WellfoundParser(BaseEmailParser):
         Attempts to find multiple job links in the email.
         Falls back to subject line job if no links found.
         """
-        opportunities = []
-        seen_urls = set()
+        seen_urls: set[str] = set()
 
         # Try HTML first
-        if html_body:
-            soup = BeautifulSoup(html_body, "lxml")
+        opportunities = self._extract_html_opportunities(
+            html_body, from_email, primary_title, primary_company, seen_urls
+        )
 
-            # Find all links that look like job postings
-            links = soup.find_all("a", href=True)
+        # Fallback to text body URLs
+        if not opportunities:
+            opportunities = self._extract_text_opportunities(
+                text_body, from_email, primary_title, primary_company, seen_urls
+            )
 
-            for link in links:
-                href = link.get("href", "")
+        return opportunities
 
-                if not self.is_job_link(href) or href in seen_urls:
-                    continue
+    def _extract_html_opportunities(
+        self,
+        html_body: str,
+        from_email: str,
+        primary_title: str,
+        primary_company: str,
+        seen_urls: set[str],
+    ) -> list[OpportunityData]:
+        """Extract job opportunities from HTML body by parsing links"""
+        opportunities: list[OpportunityData] = []
 
-                seen_urls.add(href)
+        if not html_body:
+            return opportunities
 
-                # Try to extract job details from link context
-                link_text = self.clean_text(link.get_text())
+        soup = BeautifulSoup(html_body, "lxml")
 
-                # Use link text as title if available, otherwise use subject title
-                title = link_text if link_text and len(link_text) > 5 else primary_title
+        # Find all links that look like job postings
+        links = soup.find_all("a", href=True)
+
+        for link in links:
+            href = link.get("href", "")
+
+            if not self.is_job_link(href) or href in seen_urls:
+                continue
+
+            seen_urls.add(href)
+
+            # Try to extract job details from link context
+            link_text = self.clean_text(link.get_text())
+
+            # Use link text as title if available, otherwise use subject title
+            title = link_text if link_text and len(link_text) > 5 else primary_title
+
+            opportunities.append(
+                OpportunityData(
+                    source="wellfound",
+                    source_email=from_email,
+                    type="direct_job",
+                    company=primary_company,  # Use company from subject
+                    title=title,
+                    location="",
+                    link=href,
+                    needs_research=False,
+                )
+            )
+
+        return opportunities
+
+    def _extract_text_opportunities(
+        self,
+        text_body: str,
+        from_email: str,
+        primary_title: str,
+        primary_company: str,
+        seen_urls: set[str],
+    ) -> list[OpportunityData]:
+        """Extract job opportunities from text body by finding URLs"""
+        opportunities: list[OpportunityData] = []
+
+        if not text_body:
+            return opportunities
+
+        urls = re.findall(r"https?://[^\s]+", text_body)
+
+        for url in urls:
+            if self.is_job_link(url) and url not in seen_urls:
+                seen_urls.add(url)
 
                 opportunities.append(
                     OpportunityData(
                         source="wellfound",
                         source_email=from_email,
                         type="direct_job",
-                        company=primary_company,  # Use company from subject
-                        title=title,
+                        company=primary_company,
+                        title=primary_title,
                         location="",
-                        link=href,
+                        link=url,
                         needs_research=False,
                     )
                 )
-
-        # Fallback to text body URLs
-        if not opportunities and text_body:
-            urls = re.findall(r"https?://[^\s]+", text_body)
-
-            for url in urls:
-                if self.is_job_link(url) and url not in seen_urls:
-                    seen_urls.add(url)
-
-                    opportunities.append(
-                        OpportunityData(
-                            source="wellfound",
-                            source_email=from_email,
-                            type="direct_job",
-                            company=primary_company,
-                            title=primary_title,
-                            location="",
-                            link=url,
-                            needs_research=False,
-                        )
-                    )
 
         return opportunities
 
