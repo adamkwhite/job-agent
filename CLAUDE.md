@@ -275,6 +275,14 @@ To skip hooks temporarily (use sparingly):
 SKIP=python-safety-dependencies-check git commit -m "message"
 ```
 
+**Cognitive Complexity:**
+SonarCloud enforces a cognitive complexity limit of **≤15 for all functions**. When writing or refactoring code:
+- Keep functions under 50 lines as a rule of thumb
+- Extract helper methods when complexity builds (nested loops, conditionals)
+- Use the extract-method pattern: identify logical chunks → name concerns → extract to helpers
+
+**📖 For detailed complexity guidelines and refactoring patterns, see:** [`docs/development/COMPLEXITY_GUIDELINES.md`](docs/development/COMPLEXITY_GUIDELINES.md)
+
 ## Development Commands
 
 **Recommended:** Use TUI for interactive workflow
