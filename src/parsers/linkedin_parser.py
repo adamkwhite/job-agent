@@ -232,6 +232,62 @@ class LinkedInParser(BaseEmailParser):
 
         return ""
 
+    def _is_title_word(self, word: str) -> bool:
+        """Check if a word is likely part of a job title rather than company name"""
+        word_clean = re.sub(r"[^\w\s]", "", word)
+        if not word_clean:
+            return True
+
+        common_title_words = {
+            "senior",
+            "junior",
+            "lead",
+            "principal",
+            "staff",
+            "manager",
+            "director",
+            "engineer",
+            "product",
+            "software",
+            "engineering",
+            "and",
+            "of",
+            "the",
+            "at",
+            "in",
+            "care",
+            "ai",
+            "ml",
+            "remote",
+            "hybrid",
+            "device",
+            "media",
+            "solutions",
+        }
+
+        return word_clean.lower() in common_title_words
+
+    def _find_company_start_index(self, words: list[str]) -> int:
+        """Find the index where company name likely starts in a word list"""
+        company_start_idx = -1
+
+        # Iterate backwards to find last capitalized word sequence
+        for i in range(len(words) - 1, -1, -1):
+            word = words[i]
+            word_clean = re.sub(r"[^\w\s]", "", word)
+
+            # Check if word looks like a company name
+            if word_clean and word_clean[0].isupper() and not self._is_title_word(word):
+                # Exclude words with slashes (likely title parts like "AI/ML")
+                if "/" not in word and (i == len(words) - 1 or company_start_idx == -1):
+                    company_start_idx = i
+            else:
+                # Stop when we hit lowercase or title words
+                if company_start_idx != -1:
+                    break
+
+        return company_start_idx
+
     def _parse_job_info(self, job_info: str) -> tuple:
         """
         Parse LinkedIn job info text to extract title, company, location
@@ -254,68 +310,12 @@ class LinkedInParser(BaseEmailParser):
             title_company_part = parts[0].strip()
             location = parts[1].strip()
 
-        # Now parse title and company from the first part
-        # Strategy: Find where the company name starts
-        # Company names are typically capitalized words that come after the job title
-        # Common pattern: "{Title with hyphens/commas} {CompanyName}"
+        # Parse title and company from the first part
+        words = title_company_part.split()
+        company_start_idx = self._find_company_start_index(words)
 
         title = ""
         company = ""
-
-        # Look for common title endings followed by company name
-        # Examples: "Manager, Device Software" "Engineer -" "Director of Product -"
-
-        # Try pattern: everything before last sequence of capitalized words
-        words = title_company_part.split()
-
-        # Find the last capitalized word sequence (likely the company)
-        # Company names are typically the LAST capitalized word(s) with only alphanumeric chars
-        company_start_idx = -1
-        for i in range(len(words) - 1, -1, -1):
-            word = words[i]
-            # Remove punctuation for checking
-            word_clean = re.sub(r"[^\w\s]", "", word)
-
-            # Check if word looks like a company name (capitalized, alphanumeric only, not a common title word)
-            if (
-                word_clean
-                and word_clean[0].isupper()
-                and word_clean.lower()
-                not in [
-                    "senior",
-                    "junior",
-                    "lead",
-                    "principal",
-                    "staff",
-                    "manager",
-                    "director",
-                    "engineer",
-                    "product",
-                    "software",
-                    "engineering",
-                    "and",
-                    "of",
-                    "the",
-                    "at",
-                    "in",
-                    "care",
-                    "ai",
-                    "ml",
-                    "remote",
-                    "hybrid",
-                    "device",
-                    "media",
-                    "solutions",
-                ]
-            ):
-                # Only consider it company name if it's alphanumeric (no slashes, dashes in middle)
-                # Words like "AI/ML" or "E-Learning" are likely title parts, not company
-                if "/" not in word and (i == len(words) - 1 or company_start_idx == -1):
-                    company_start_idx = i
-            else:
-                # Stop when we hit lowercase or title words
-                if company_start_idx != -1:
-                    break
 
         if company_start_idx != -1 and company_start_idx < len(words):
             company = " ".join(words[company_start_idx:])
