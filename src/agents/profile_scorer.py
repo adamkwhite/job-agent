@@ -32,51 +32,6 @@ class ProfileScorer(BaseScorer):
         super().__init__(profile)
         self.profile = profile  # Keep Profile object for convenience
 
-    def _score_seniority(self, title: str) -> int:
-        """
-        Score based on seniority level (0-30 points)
-
-        ProfileScorer-specific override that respects target_seniority.
-        Only awards points if the title's seniority level is in target_seniority.
-
-        Args:
-            title: Job title (lowercase)
-
-        Returns:
-            Score 0-30 based on seniority level and target_seniority match
-        """
-        target_seniority = self.profile.get_target_seniority()
-
-        # VP/C-level keywords
-        vp_keywords = ["vp", "vice president", "chief", "cto", "cpo", "head of"]
-        director_keywords = ["director", "executive director"]
-        senior_keywords = ["senior manager", "principal", "staff", "senior"]
-        mid_keywords = ["manager", "lead", "leadership"]
-
-        # Check for VP/C-level matches (30 points)
-        if any(kw in title for kw in vp_keywords) and any(
-            kw in target_seniority for kw in ["vp", "chief", "head of", "executive"]
-        ):
-            return 30
-
-        # Director (25 points)
-        if any(kw in title for kw in director_keywords) and "director" in target_seniority:
-            return 25
-
-        # Senior Manager/Principal (15 points)
-        if any(kw in title for kw in senior_keywords) and any(
-            kw in target_seniority for kw in ["senior", "principal", "staff"]
-        ):
-            return 15
-
-        # Manager/Lead (10 points)
-        if any(kw in title for kw in mid_keywords) and any(
-            kw in target_seniority for kw in ["manager", "lead", "senior"]
-        ):
-            return 10
-
-        return 0
-
     def _score_role_type(self, title: str) -> int:
         """
         Score based on role type (0-20 points)
