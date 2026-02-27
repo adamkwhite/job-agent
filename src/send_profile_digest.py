@@ -38,6 +38,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from dotenv import load_dotenv
 
+from agents.job_filter_pipeline import JobFilterPipeline
 from database import JobDatabase
 from utils.connections_manager import ConnectionsManager
 from utils.job_validator import JobValidator
@@ -550,8 +551,212 @@ def generate_email_html(
     return html
 
 
+def _simplify_invalid_status(reason: str) -> str:
+    """Map validation reason to simplified DB status for invalid jobs."""
+    if reason.startswith("stale_"):
+        return "stale"
+    if reason == "404_not_found":
+        return "404"
+    if reason in ("connection_error", "invalid_response"):
+        return reason
+    return reason
+
+
+def _simplify_flagged_status(reason: str) -> str:
+    """Map validation reason to simplified DB status for flagged jobs."""
+    if reason == "rate_limited_assumed_valid":
+        return "rate_limited"
+    if reason.startswith("linkedin_"):
+        return "linkedin"
+    if reason.startswith("generic_"):
+        return "generic_page"
+    return reason
+
+
+def _update_db_validation_statuses(
+    db: JobDatabase,
+    valid_jobs: list[dict],
+    flagged_jobs: list[dict],
+    invalid_jobs: list[dict],
+) -> None:
+    """Persist URL validation results to the database."""
+    for job in invalid_jobs:
+        job_hash = job.get("job_hash")
+        if job_hash:
+            db.update_url_validation(
+                job_hash, _simplify_invalid_status(job.get("validation_reason", "invalid"))
+            )
+    for job in valid_jobs:
+        job_hash = job.get("job_hash")
+        if job_hash:
+            db.update_url_validation(job_hash, "valid")
+    for job in flagged_jobs:
+        job_hash = job.get("job_hash")
+        if job_hash:
+            db.update_url_validation(
+                job_hash, _simplify_flagged_status(job.get("validation_reason", "needs_review"))
+            )
+
+
+def _validate_and_filter_jobs(
+    jobs: list[dict],
+    db: JobDatabase,
+    validator: JobValidator | None = None,
+) -> list[dict]:
+    """
+    Validate job URLs, filter stale/invalid, and update DB statuses.
+
+    This is the shared validation pipeline used by both single-profile and
+    multi-profile digest flows. When called from send_all_digests(), a single
+    JobValidator instance is reused across profiles so HTTP requests are cached.
+
+    Args:
+        jobs: Raw job dicts from get_jobs_for_profile_digest()
+        db: Database handle for persisting validation statuses
+        validator: Optional pre-existing JobValidator (shares cache across calls)
+
+    Returns:
+        Validated, fresh job list (valid + flagged, stale/invalid removed)
+    """
+    if not jobs:
+        return []
+
+    if validator is None:
+        validator = JobValidator(timeout=5)
+
+    # URL validation
+    print("\n🔍 Validating job URLs...")
+    valid_jobs, flagged_jobs, invalid_jobs = validator.filter_valid_jobs(jobs)
+
+    if flagged_jobs:
+        print(f"  📋 {len(flagged_jobs)} jobs flagged for review (included in digest):")
+        for job in flagged_jobs:
+            reason = job.get("validation_reason", "unknown")
+            print(f"    - {job['company']} - {job['title'][:50]}... ({reason})")
+            print(f"      URL: {job.get('link', 'N/A')}")
+
+    if invalid_jobs:
+        print(f"  ⛔ Filtered out {len(invalid_jobs)} invalid jobs:")
+        for job in invalid_jobs:
+            reason = job.get("validation_reason", "unknown")
+            print(f"    - {job['company']} - {job['title'][:50]}... ({reason})")
+            print(f"      URL: {job.get('link', 'N/A')}")
+
+    # Persist all validation statuses
+    _update_db_validation_statuses(db, valid_jobs, flagged_jobs, invalid_jobs)
+
+    # Include both valid and flagged jobs in digest
+    result = valid_jobs + flagged_jobs
+    print(
+        f"  ✓ {len(valid_jobs)} verified jobs + {len(flagged_jobs)} flagged for review = {len(result)} total"
+    )
+
+    # Filter for staleness (age + content check)
+    print("\n🗓️  Filtering stale jobs...")
+    fresh_jobs = []
+    stale_jobs = []
+    total = len(result)
+
+    for idx, job in enumerate(result, 1):
+        company = job.get("company", "Unknown")[:20]
+        title = job.get("title", "Unknown")[:30]
+        print(f"  [{idx}/{total}] {company} - {title}...", end="", flush=True)
+
+        is_valid, stale_reason = validator.validate_for_digest(job, use_cache=True)
+        if is_valid:
+            fresh_jobs.append(job)
+            print(" ✓")
+        else:
+            stale_jobs.append((job, stale_reason))
+            print(f" ⛔ {stale_reason}")
+            job_hash = job.get("job_hash")
+            if job_hash:
+                db.update_url_validation(job_hash, stale_reason or "stale")
+
+    if stale_jobs:
+        print(f"\n  ⛔ Filtered {len(stale_jobs)} stale jobs")
+    print(f"  ✓ {len(fresh_jobs)} fresh jobs remaining")
+
+    return fresh_jobs
+
+
+def _prevalidate_jobs_for_all_profiles(
+    profiles: list,
+    db: JobDatabase,
+    force_resend: bool = False,
+    max_age_days: int = 7,
+) -> dict[str, list[dict]]:
+    """
+    Validate all unique job URLs once, then return per-profile validated lists.
+
+    Creates a single JobValidator so HTTP requests are cached and each URL is
+    validated at most once regardless of how many profiles share it.
+
+    Args:
+        profiles: Enabled Profile objects
+        db: Database handle
+        force_resend: Include previously sent jobs
+        max_age_days: Include jobs from last N days
+
+    Returns:
+        Dict mapping profile_id -> validated job list (shallow copies)
+    """
+    validator = JobValidator(timeout=5)
+    per_profile_raw: dict[str, list[dict]] = {}
+
+    # Fetch jobs for each profile
+    for profile in profiles:
+        if force_resend:
+            jobs = db.get_jobs_for_profile_digest(
+                profile_id=profile.id,
+                min_grade="F",
+                min_location_score=0,
+                limit=100,
+                max_age_days=max_age_days,
+            )
+        else:
+            jobs = db.get_jobs_for_profile_digest(
+                profile_id=profile.id,
+                min_grade=profile.digest_min_grade,
+                min_location_score=profile.digest_min_location_score,
+                limit=100,
+                max_age_days=max_age_days,
+            )
+        per_profile_raw[profile.id] = jobs
+
+    # Collect all unique jobs by link across profiles
+    all_jobs_by_link: dict[str, dict] = {}
+    for jobs in per_profile_raw.values():
+        for job in jobs:
+            link = job.get("link", "")
+            if link and link not in all_jobs_by_link:
+                all_jobs_by_link[link] = job
+
+    all_unique_jobs = list(all_jobs_by_link.values())
+    print(f"\n📊 Pre-validating {len(all_unique_jobs)} unique URLs across {len(profiles)} profiles")
+
+    # Validate all unique jobs once
+    validated = _validate_and_filter_jobs(all_unique_jobs, db, validator)
+    valid_links = {job.get("link") for job in validated}
+
+    # Build per-profile validated lists using shallow copies
+    result: dict[str, list[dict]] = {}
+    for profile_id, raw_jobs in per_profile_raw.items():
+        result[profile_id] = [dict(j) for j in raw_jobs if j.get("link") in valid_links]
+
+    cache_stats = validator.get_cache_stats()
+    print(f"  ✓ Validation cache: {cache_stats['total_cached']} URLs cached")
+
+    return result
+
+
 def send_digest_to_profile(
-    profile_id: str, force_resend: bool = False, dry_run: bool = False, max_age_days: int = 7
+    profile_id: str,
+    force_resend: bool = False,
+    dry_run: bool = False,
+    max_age_days: int = 7,
+    *,
+    pre_validated_jobs: list[dict] | None = None,
 ) -> bool:
     """
     Send digest email to a specific profile
@@ -561,6 +766,8 @@ def send_digest_to_profile(
         force_resend: Include previously sent jobs
         dry_run: Don't actually send, just show what would be sent
         max_age_days: Include jobs from last N days (default: 7)
+        pre_validated_jobs: When provided, skip URL validation (already done by
+            _prevalidate_jobs_for_all_profiles). When None, run full validation.
 
     Returns:
         True if sent successfully
@@ -582,104 +789,44 @@ def send_digest_to_profile(
 
     db = JobDatabase()
 
-    # Get jobs for this profile's digest
-    if force_resend:
-        print("⚠️  Force resend mode - including previously sent jobs")
-        # Get all jobs with scores for this profile
-        jobs = db.get_jobs_for_profile_digest(
-            profile_id=profile_id,
-            min_grade="F",
-            min_location_score=0,  # No location filtering in force-resend
-            limit=100,
-            max_age_days=max_age_days,
-        )
+    if pre_validated_jobs is not None:
+        # Skip fetching and validation — already done
+        jobs = pre_validated_jobs
+        print(f"✓ Using {len(jobs)} pre-validated jobs for {profile.name}")
     else:
-        jobs = db.get_jobs_for_profile_digest(
-            profile_id=profile_id,
-            min_grade=profile.digest_min_grade,
-            min_location_score=profile.digest_min_location_score,
-            limit=100,
-            max_age_days=max_age_days,
-        )
+        # Full pipeline: fetch + validate
+        if force_resend:
+            print("⚠️  Force resend mode - including previously sent jobs")
+            jobs = db.get_jobs_for_profile_digest(
+                profile_id=profile_id,
+                min_grade="F",
+                min_location_score=0,
+                limit=100,
+                max_age_days=max_age_days,
+            )
+        else:
+            jobs = db.get_jobs_for_profile_digest(
+                profile_id=profile_id,
+                min_grade=profile.digest_min_grade,
+                min_location_score=profile.digest_min_location_score,
+                limit=100,
+                max_age_days=max_age_days,
+            )
 
-    print(f"✓ Found {len(jobs)} unsent jobs for {profile.name}")
+        print(f"✓ Found {len(jobs)} unsent jobs for {profile.name}")
+
+        if len(jobs) == 0:
+            print(f"\n⏸  No new jobs to send to {profile.name}")
+            return False
+
+        jobs = _validate_and_filter_jobs(jobs, db)
 
     if len(jobs) == 0:
-        print(f"\n⏸  No new jobs to send to {profile.name}")
+        print("\n⏸  No valid jobs to send after filtering")
         return False
-
-    # Validate job URLs before sending
-    print("\n🔍 Validating job URLs...")
-    validator = JobValidator(timeout=5)
-    valid_jobs, flagged_jobs, invalid_jobs = validator.filter_valid_jobs(jobs)
-
-    if flagged_jobs:
-        print(f"  📋 {len(flagged_jobs)} jobs flagged for review (included in digest):")
-        for job in flagged_jobs:
-            reason = job.get("validation_reason", "unknown")
-            print(f"    - {job['company']} - {job['title'][:50]}... ({reason})")
-            print(f"      URL: {job.get('link', 'N/A')}")
-
-    if invalid_jobs:
-        print(f"  ⛔ Filtered out {len(invalid_jobs)} invalid jobs:")
-        for job in invalid_jobs:
-            reason = job.get("validation_reason", "unknown")
-            print(f"    - {job['company']} - {job['title'][:50]}... ({reason})")
-            print(f"      URL: {job.get('link', 'N/A')}")
-
-        # Mark invalid jobs in database to skip future validation
-        for job in invalid_jobs:
-            job_hash = job.get("job_hash")
-            reason = job.get("validation_reason", "invalid")
-
-            # Simplify status values
-            if reason.startswith("stale_"):
-                url_status = "stale"
-            elif reason == "404_not_found":
-                url_status = "404"
-            elif reason == "connection_error":
-                url_status = "connection_error"
-            elif reason == "invalid_response":
-                url_status = "invalid_response"
-            else:
-                url_status = reason
-
-            if job_hash:
-                db.update_url_validation(job_hash, url_status)
-
-    # Also mark valid jobs as validated
-    if valid_jobs or flagged_jobs:
-        for job in valid_jobs:
-            job_hash = job.get("job_hash")
-            if job_hash:
-                db.update_url_validation(job_hash, "valid")
-        for job in flagged_jobs:
-            job_hash = job.get("job_hash")
-            reason = job.get("validation_reason", "needs_review")
-
-            # Simplify status values for flagged jobs
-            if reason == "rate_limited_assumed_valid":
-                url_status = "rate_limited"
-            elif reason.startswith("linkedin_"):
-                url_status = "linkedin"
-            elif reason.startswith("generic_"):
-                url_status = "generic_page"
-            else:
-                url_status = reason
-
-            if job_hash:
-                db.update_url_validation(job_hash, url_status)
-
-    # Include both valid and flagged jobs in digest
-    jobs = valid_jobs + flagged_jobs
-    print(
-        f"  ✓ {len(valid_jobs)} verified jobs + {len(flagged_jobs)} flagged for review = {len(jobs)} total"
-    )
 
     # Apply hard filters to catch any jobs that shouldn't have made it to database
     print("\n🚫 Applying hard filters...")
-    from agents.job_filter_pipeline import JobFilterPipeline
-
     filter_pipeline = JobFilterPipeline(profile.scoring)
     filtered_out = []
 
@@ -696,42 +843,11 @@ def send_digest_to_profile(
     if filtered_out:
         print(f"  ✓ Removed {len(filtered_out)} jobs by hard filter:")
         for job, reason in filtered_out[:5]:  # Show first 5
-            print(f"    - {job.get('company')} - {job.get('title')[:50]}... ({reason})")
+            print(f"    - {job.get('company')} - {job.get('title', '')[:50]}... ({reason})")
         if len(filtered_out) > 5:
             print(f"    ... and {len(filtered_out) - 5} more")
     else:
         print("  ✓ All jobs passed hard filters")
-
-    # Filter for staleness (age + content check)
-    print("\n🗓️  Filtering stale jobs...")
-    fresh_jobs = []
-    stale_jobs = []
-    total = len(jobs)
-
-    for idx, job in enumerate(jobs, 1):
-        # Show progress
-        company = job.get("company", "Unknown")[:20]
-        title = job.get("title", "Unknown")[:30]
-        print(f"  [{idx}/{total}] {company} - {title}...", end="", flush=True)
-
-        is_valid, stale_reason = validator.validate_for_digest(job, use_cache=True)
-        if is_valid:
-            fresh_jobs.append(job)
-            print(" ✓")
-        else:
-            stale_jobs.append((job, stale_reason))
-            print(f" ⛔ {stale_reason}")
-            # Update database with staleness reason
-            job_hash = job.get("job_hash")
-            if job_hash:
-                db.update_url_validation(job_hash, stale_reason or "stale")
-
-    jobs = fresh_jobs
-
-    # Summary
-    if stale_jobs:
-        print(f"\n  ⛔ Filtered {len(stale_jobs)} stale jobs")
-    print(f"  ✓ {len(jobs)} fresh jobs remaining")
 
     if len(jobs) == 0:
         print("\n⏸  No valid jobs to send after filtering")
@@ -871,13 +987,28 @@ Generated on {datetime.now().strftime("%Y-%m-%d at %H:%M")}
 
 
 def send_all_digests(force_resend: bool = False, dry_run: bool = False, max_age_days: int = 7):
-    """Send digests to all enabled profiles"""
+    """Send digests to all enabled profiles
+
+    Pre-validates all unique URLs once, then passes cached results to each
+    per-profile call so HTTP requests are never duplicated.
+    """
     manager = get_profile_manager()
+    profiles = manager.get_enabled_profiles()
     results = {}
 
-    for profile in manager.get_enabled_profiles():
+    # Pre-validate all URLs once across all profiles
+    db = JobDatabase()
+    pre_validated = _prevalidate_jobs_for_all_profiles(
+        profiles, db, force_resend=force_resend, max_age_days=max_age_days
+    )
+
+    for profile in profiles:
         success = send_digest_to_profile(
-            profile.id, force_resend=force_resend, dry_run=dry_run, max_age_days=max_age_days
+            profile.id,
+            force_resend=force_resend,
+            dry_run=dry_run,
+            max_age_days=max_age_days,
+            pre_validated_jobs=pre_validated.get(profile.id),
         )
         results[profile.id] = success
 
