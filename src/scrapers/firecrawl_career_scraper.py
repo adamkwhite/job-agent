@@ -373,7 +373,7 @@ class FirecrawlCareerScraper:
 
             try:
                 # Make the API request
-                document = self.firecrawl.scrape(url, formats=["markdown"])
+                document = self.firecrawl.scrape(url, formats=["markdown"], wait_for=5000)
                 # Convert Document object to dict for compatibility
                 return {"markdown": document.markdown if document.markdown else ""}
             finally:
@@ -908,10 +908,8 @@ class FirecrawlCareerScraper:
                 # Call map API with search filter for job-related pages
                 map_result = self.firecrawl.map(
                     url=careers_url,
-                    params={
-                        "search": "job position career opening",
-                        "limit": 100,  # Limit to avoid overwhelming
-                    },
+                    search="job position career opening",
+                    limit=100,
                 )
             finally:
                 signal.alarm(0)
