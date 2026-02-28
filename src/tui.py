@@ -479,6 +479,63 @@ def show_criteria():
     press_enter_to_continue()
 
 
+def _threshold_color(
+    value: float, green_above: float, yellow_above: float
+) -> str:  # pragma: no cover
+    """Return a Rich color name based on threshold ranges."""
+    if value >= green_above:
+        return "green"
+    return "yellow" if value >= yellow_above else "red"
+
+
+def _format_time_ago(iso_time: str) -> str:  # pragma: no cover
+    """Format an ISO timestamp as a human-readable 'X ago' string."""
+    from datetime import datetime
+
+    try:
+        last_run = datetime.fromisoformat(iso_time)
+        time_ago = datetime.now() - last_run
+        if time_ago.days > 0:
+            return f"{time_ago.days} days ago"
+        if time_ago.seconds > 3600:
+            return f"{time_ago.seconds // 3600} hours ago"
+        return f"{time_ago.seconds // 60} minutes ago"
+    except ValueError:
+        return iso_time
+
+
+def _add_company_health_rows(health_table: Table, company_health: dict) -> None:  # pragma: no cover
+    """Add company scraper health rows to the health table."""
+    if company_health["total_companies"] == 0:
+        return
+
+    success_rate = company_health["success_rate"]
+    success_color = _threshold_color(success_rate, green_above=90, yellow_above=75)
+    active = company_health["active_companies"]
+
+    health_table.add_row(
+        "Company Scraper Success",
+        f"[{success_color}]{success_rate:.1f}% ({active - company_health['total_failures']}/{active})[/{success_color}]",
+    )
+
+    if company_health["at_risk_count"] > 0:
+        health_table.add_row(
+            "At Risk (3-4 failures)",
+            f"[yellow]{company_health['at_risk_count']} companies[/yellow]",
+        )
+
+    if company_health["auto_disabled_count"] > 0:
+        health_table.add_row(
+            "Auto-Disabled (5 failures)",
+            f"[red]{company_health['auto_disabled_count']} companies[/red]",
+        )
+
+    health_table.add_row(
+        "Scraped in Last 24h",
+        f"[dim]{company_health['recent_scrape_count']}/{company_health['total_companies']}[/dim]",
+    )
+
+
 def show_system_health():  # pragma: no cover
     """Display system health dashboard with errors, budget, and activity
 
@@ -488,7 +545,6 @@ def show_system_health():  # pragma: no cover
     clear_screen()
     show_header()
 
-    # Import database locally
     from database import JobDatabase
 
     db = JobDatabase()
@@ -499,88 +555,50 @@ def show_system_health():  # pragma: no cover
     console.print("[bold cyan]            🔍 SYSTEM HEALTH CHECK              [/bold cyan]")
     console.print(SEPARATOR_BOTTOM)
 
-    # Create main health table
     health_table = Table(box=box.ROUNDED, show_header=False)
     health_table.add_column("Metric", style="bold cyan", width=30)
     health_table.add_column("Status", width=50)
 
-    # LLM Failures Section
+    # LLM Failures
     failures = health["llm_failures"]
-    if failures["total_pending"] > 0:
-        failure_color = "red" if failures["total_pending"] >= 10 else "yellow"
-    else:
-        failure_color = "green"
-
+    failure_color = _threshold_color(-failures["total_pending"], green_above=0, yellow_above=-10)
     health_table.add_row(
         "LLM Failures (Pending)",
         f"[{failure_color}]{failures['total_pending']}[/{failure_color}]",
     )
-    health_table.add_row(
-        "LLM Failures (Last 24h)",
-        f"[dim]{failures['last_24h']}[/dim]",
-    )
-
+    health_table.add_row("LLM Failures (Last 24h)", f"[dim]{failures['last_24h']}[/dim]")
     if failures["most_common_error"]:
         health_table.add_row(
             "Most Common Error",
             f"[dim]{failures['most_common_error']} ({failures['most_common_count']} times)[/dim]",
         )
 
-    # Budget Section
-    health_table.add_row("", "")  # Blank row
+    # Budget
+    health_table.add_row("", "")
     budget = health["budget"]
-    budget_pct = budget["percentage_used"]
-
-    if budget_pct >= 100:
-        budget_color = "red"
-    elif budget_pct >= 80:
-        budget_color = "yellow"
-    else:
-        budget_color = "green"
-
+    budget_color = _threshold_color(100 - budget["percentage_used"], green_above=20, yellow_above=0)
     health_table.add_row(
         "Budget Usage",
-        f"[{budget_color}]${budget['total_spent']:.2f} / ${budget['monthly_limit']:.2f} ({budget_pct:.1f}%)[/{budget_color}]",
+        f"[{budget_color}]${budget['total_spent']:.2f} / ${budget['monthly_limit']:.2f} ({budget['percentage_used']:.1f}%)[/{budget_color}]",
     )
-    health_table.add_row(
-        "API Calls This Month",
-        f"[dim]{budget['api_calls']}[/dim]",
-    )
-    health_table.add_row(
-        "Remaining Budget",
-        f"[dim]${budget['remaining']:.2f}[/dim]",
-    )
+    health_table.add_row("API Calls This Month", f"[dim]{budget['api_calls']}[/dim]")
+    health_table.add_row("Remaining Budget", f"[dim]${budget['remaining']:.2f}[/dim]")
 
-    # Database Stats Section
-    health_table.add_row("", "")  # Blank row
+    # Database Stats
+    health_table.add_row("", "")
     db_stats = health["database"]
     health_table.add_row("Total Jobs in DB", f"[green]{db_stats['total_jobs']:,}[/green]")
     health_table.add_row("A/B Grade Jobs", f"[green]{db_stats['high_quality_jobs']:,}[/green]")
-
-    # Grade breakdown
     by_grade = db_stats.get("by_grade", {})
     if by_grade:
         grade_str = ", ".join([f"{grade}: {count}" for grade, count in sorted(by_grade.items())])
         health_table.add_row("By Grade", f"[dim]{grade_str}[/dim]")
 
-    # Recent Activity Section
-    health_table.add_row("", "")  # Blank row
+    # Recent Activity
+    health_table.add_row("", "")
     activity = health["recent_activity"]
     if activity["last_run_time"]:
-        from datetime import datetime
-
-        try:
-            last_run = datetime.fromisoformat(activity["last_run_time"])
-            time_ago = datetime.now() - last_run
-            if time_ago.days > 0:
-                time_str = f"{time_ago.days} days ago"
-            elif time_ago.seconds > 3600:
-                time_str = f"{time_ago.seconds // 3600} hours ago"
-            else:
-                time_str = f"{time_ago.seconds // 60} minutes ago"
-        except ValueError:
-            time_str = activity["last_run_time"]
-
+        time_str = _format_time_ago(activity["last_run_time"])
         health_table.add_row("Last Scraper Run", f"[green]{time_str}[/green]")
         health_table.add_row("Jobs Found", f"[dim]{activity['jobs_found_last_run']}[/dim]")
         if activity["last_run_source"]:
@@ -588,68 +606,28 @@ def show_system_health():  # pragma: no cover
     else:
         health_table.add_row("Last Scraper Run", "[yellow]No runs found[/yellow]")
 
-    # Company Scraper Section
-    health_table.add_row("", "")  # Blank row
-    company_health = health["company_scraper"]
-
-    # Only display if companies are configured
-    if company_health["total_companies"] > 0:
-        # Success rate with color coding
-        success_rate = company_health["success_rate"]
-        if success_rate >= 90:
-            success_color = "green"
-        elif success_rate >= 75:
-            success_color = "yellow"
-        else:
-            success_color = "red"
-
-        health_table.add_row(
-            "Company Scraper Success",
-            f"[{success_color}]{success_rate:.1f}% ({company_health['active_companies'] - company_health['total_failures']}/{company_health['active_companies']})[/{success_color}]",
-        )
-
-        # At-risk companies
-        if company_health["at_risk_count"] > 0:
-            health_table.add_row(
-                "At Risk (3-4 failures)",
-                f"[yellow]{company_health['at_risk_count']} companies[/yellow]",
-            )
-
-        # Auto-disabled companies
-        if company_health["auto_disabled_count"] > 0:
-            health_table.add_row(
-                "Auto-Disabled (5 failures)",
-                f"[red]{company_health['auto_disabled_count']} companies[/red]",
-            )
-
-        # Companies checked recently
-        health_table.add_row(
-            "Scraped in Last 24h",
-            f"[dim]{company_health['recent_scrape_count']}/{company_health['total_companies']}[/dim]",
-        )
+    # Company Scraper
+    health_table.add_row("", "")
+    _add_company_health_rows(health_table, health["company_scraper"])
 
     console.print(health_table)
 
-    # Critical Issues Section
+    # Critical Issues
     critical = health["critical_issues"]
     if critical:
         console.print("\n[bold red]⚠️  CRITICAL ISSUES:[/bold red]\n")
-
         issues_table = Table(box=box.ROUNDED, show_header=False)
         issues_table.add_column("Issue", style="white")
-
         for issue in critical:
             color = issue["severity"]
             issues_table.add_row(f"[{color}]• {issue['message']}[/{color}]")
             issues_table.add_row(f"[dim]  → {issue['action']}[/dim]")
-
         console.print(issues_table)
     else:
         console.print("\n[bold green]✅ No critical issues detected[/bold green]")
 
     console.print(SEPARATOR_FULL)
 
-    # Offer options
     console.print(
         "[dim]Actions: \\[f] LLM failures | \\[c] Company failures | \\[b] Back to menu[/dim]"
     )
@@ -661,85 +639,61 @@ def show_system_health():  # pragma: no cover
         review_company_failures()
 
 
-def check_api_credits():  # pragma: no cover
-    """Display API credit status for LLM and Firecrawl
-
-    Note: TUI functions are excluded from coverage requirements as they will be
-    replaced with Textual framework (Issue #119). Manual testing confirms functionality.
-    """
+def _display_llm_budget() -> None:  # pragma: no cover
+    """Display LLM budget status section."""
     import json
+    from datetime import datetime
     from pathlib import Path
 
-    console.clear()
-    console.print(MAGENTA_SEPARATOR_TOP)
-    console.print("[bold magenta]              API CREDIT STATUS                  [/bold magenta]")
-    console.print(MAGENTA_SEPARATOR_BOTTOM)
-
-    # Check LLM Budget (OpenRouter/Claude API)
     console.print("[bold yellow]🤖 LLM Extraction (Claude 3.5 Sonnet)[/bold yellow]\n")
-
-    from datetime import datetime
 
     current_month = datetime.now().strftime("%Y-%m")
     llm_budget_file = Path(f"logs/llm-budget-{current_month}.json")
-    if llm_budget_file.exists():
-        try:
-            with open(llm_budget_file) as f:
-                data = json.load(f)
-
-            total_cost = data.get("total_cost", 0)
-            budget = 5.00  # From config
-
-            remaining = budget - total_cost
-            usage_pct = (total_cost / budget * 100) if budget > 0 else 0
-
-            # Create status table
-            llm_table = Table(box=box.ROUNDED, show_header=True, header_style=TABLE_HEADER_STYLE)
-            llm_table.add_column("Metric", style="cyan", width=20)
-            llm_table.add_column("Value", style="white", width=25)
-
-            llm_table.add_row("Total Spent", f"${total_cost:.2f}")
-            llm_table.add_row("Monthly Budget", f"${budget:.2f}")
-            llm_table.add_row("Remaining", f"${remaining:.2f}")
-
-            # Color code usage percentage
-            if usage_pct < 50:
-                usage_color = "green"
-            elif usage_pct < 80:
-                usage_color = "yellow"
-            else:
-                usage_color = "red"
-
-            llm_table.add_row("Usage", f"[{usage_color}]{usage_pct:.1f}%[/{usage_color}]")
-            llm_table.add_row("API Calls", str(len(data.get("requests", []))))
-
-            console.print(llm_table)
-
-            # Status indicator
-            if remaining > 0:
-                console.print(
-                    f"\n[green]✓ {remaining / 0.01:.0f} more company scans available[/green]"
-                )
-            else:
-                console.print("\n[red]⚠ Budget exceeded![/red]")
-
-        except Exception as e:
-            console.print(f"[red]Error reading LLM budget: {e}[/red]")
-    else:
+    if not llm_budget_file.exists():
         console.print("[dim]No LLM budget data found (not used this month)[/dim]")
+        return
 
-    # Check Firecrawl API status
+    try:
+        with open(llm_budget_file) as f:
+            data = json.load(f)
+
+        total_cost = data.get("total_cost", 0)
+        budget = 5.00
+        remaining = budget - total_cost
+        usage_pct = (total_cost / budget * 100) if budget > 0 else 0
+        usage_color = _threshold_color(100 - usage_pct, green_above=50, yellow_above=20)
+
+        llm_table = Table(box=box.ROUNDED, show_header=True, header_style=TABLE_HEADER_STYLE)
+        llm_table.add_column("Metric", style="cyan", width=20)
+        llm_table.add_column("Value", style="white", width=25)
+        llm_table.add_row("Total Spent", f"${total_cost:.2f}")
+        llm_table.add_row("Monthly Budget", f"${budget:.2f}")
+        llm_table.add_row("Remaining", f"${remaining:.2f}")
+        llm_table.add_row("Usage", f"[{usage_color}]{usage_pct:.1f}%[/{usage_color}]")
+        llm_table.add_row("API Calls", str(len(data.get("requests", []))))
+        console.print(llm_table)
+
+        if remaining > 0:
+            console.print(f"\n[green]✓ {remaining / 0.01:.0f} more company scans available[/green]")
+        else:
+            console.print("\n[red]⚠ Budget exceeded![/red]")
+
+    except Exception as e:
+        console.print(f"[red]Error reading LLM budget: {e}[/red]")
+
+
+def _display_firecrawl_status() -> None:  # pragma: no cover
+    """Display Firecrawl API status section."""
+    import subprocess
+    from pathlib import Path
+
     console.print("\n\n[bold yellow]🔥 Firecrawl API[/bold yellow]\n")
 
     firecrawl_table = Table(box=box.ROUNDED, show_header=True, header_style=TABLE_HEADER_STYLE)
     firecrawl_table.add_column("Metric", style="cyan", width=20)
     firecrawl_table.add_column("Status", style="white", width=25)
 
-    # Check for recent successful runs
-    import subprocess
-
     try:
-        # Check most recent company scraper run
         result = subprocess.run(
             ["tail", "-100", "logs/unified_weekly_scraper.log"],
             capture_output=True,
@@ -748,7 +702,6 @@ def check_api_credits():  # pragma: no cover
         )
 
         if result.returncode == 0 and "companies checked:" in result.stdout.lower():
-            # Extract last run stats
             lines = result.stdout.split("\n")
             for line in reversed(lines):
                 if "companies checked:" in line.lower():
@@ -769,6 +722,21 @@ def check_api_credits():  # pragma: no cover
         firecrawl_table.add_row("Status", f"[red]Error: {e}[/red]")
 
     console.print(firecrawl_table)
+
+
+def check_api_credits():  # pragma: no cover
+    """Display API credit status for LLM and Firecrawl
+
+    Note: TUI functions are excluded from coverage requirements as they will be
+    replaced with Textual framework (Issue #119). Manual testing confirms functionality.
+    """
+    console.clear()
+    console.print(MAGENTA_SEPARATOR_TOP)
+    console.print("[bold magenta]              API CREDIT STATUS                  [/bold magenta]")
+    console.print(MAGENTA_SEPARATOR_BOTTOM)
+
+    _display_llm_budget()
+    _display_firecrawl_status()
 
     console.print(SEPARATOR_FULL)
     console.print(
@@ -1177,6 +1145,50 @@ def select_digest_options() -> dict:
     }
 
 
+def _build_inbox_summary(inbox_profile: str) -> str:  # pragma: no cover
+    """Build the inbox description line for the execution summary."""
+    if inbox_profile == "all":
+        return "\n[bold]Email Inbox:[/bold] All Configured Inboxes"
+    pm = get_profile_manager()
+    profile_obj = pm.get_profile(inbox_profile)
+    inbox_name = profile_obj.name if profile_obj else inbox_profile
+    inbox_email = (
+        profile_obj.email_username
+        if (profile_obj and hasattr(profile_obj, "email_username"))
+        else "unknown"
+    )
+    return f"\n[bold]Email Inbox:[/bold] {inbox_name} ({inbox_email})"
+
+
+def _build_digest_summary(
+    digest_recipients: list[str],
+    digest_options: dict | None,
+) -> str:  # pragma: no cover
+    """Build digest recipients and mode lines for the execution summary."""
+    pm = get_profile_manager()
+    if digest_recipients == ["all"]:
+        recipient_text = "All Enabled Profiles"
+    else:
+        names = []
+        for pid in digest_recipients:
+            profile_obj = pm.get_profile(pid)
+            names.append(profile_obj.name if profile_obj else pid)
+        recipient_text = ", ".join(names)
+
+    result = f"\n[bold]Digest Recipients:[/bold] {recipient_text}"
+
+    if digest_options:
+        if digest_options.get("dry_run"):
+            digest_mode = "Dry Run (testing)"
+        elif digest_options.get("force_resend"):
+            digest_mode = "Force Resend (re-send previous jobs)"
+        else:
+            digest_mode = "Production (real digest)"
+        result += f"\n[bold]Digest Mode:[/bold] {digest_mode}"
+
+    return result
+
+
 def confirm_execution(
     sources: list[str],
     inbox_profile: str | None,
@@ -1187,7 +1199,6 @@ def confirm_execution(
     """Show summary and confirm execution"""
     console.print("\n[bold yellow]Step 6: Confirm Execution[/bold yellow]\n")
 
-    # Map action codes to display names
     action_display = {
         "scrape": "Scrape Only",
         "digest": "Send Digest",
@@ -1195,48 +1206,15 @@ def confirm_execution(
     }
     action_text = action_display.get(action, action.title())
 
-    # Build summary text
     summary_text = f"[bold]Sources:[/bold] {', '.join(sources).title()}"
 
-    # Show inbox if email processing
     if inbox_profile:
-        if inbox_profile == "all":
-            summary_text += "\n[bold]Email Inbox:[/bold] All Configured Inboxes"
-        else:
-            pm = get_profile_manager()
-            profile_obj = pm.get_profile(inbox_profile)
-            inbox_name = profile_obj.name if profile_obj else inbox_profile
-            inbox_email = (
-                profile_obj.email_username
-                if (profile_obj and hasattr(profile_obj, "email_username"))
-                else "unknown"
-            )
-            summary_text += f"\n[bold]Email Inbox:[/bold] {inbox_name} ({inbox_email})"
+        summary_text += _build_inbox_summary(inbox_profile)
 
     summary_text += f"\n[bold]Action:[/bold] {action_text}"
 
-    # Show digest recipients if applicable
     if digest_recipients and action in ["digest", "both"]:
-        pm = get_profile_manager()
-        if digest_recipients == ["all"]:
-            recipient_text = "All Enabled Profiles"
-        else:
-            names = []
-            for pid in digest_recipients:
-                profile_obj = pm.get_profile(pid)
-                names.append(profile_obj.name if profile_obj else pid)
-            recipient_text = ", ".join(names)
-        summary_text += f"\n[bold]Digest Recipients:[/bold] {recipient_text}"
-
-        # Add digest mode
-        if digest_options:
-            if digest_options.get("dry_run"):
-                digest_mode = "Dry Run (testing)"
-            elif digest_options.get("force_resend"):
-                digest_mode = "Force Resend (re-send previous jobs)"
-            else:
-                digest_mode = "Production (real digest)"
-            summary_text += f"\n[bold]Digest Mode:[/bold] {digest_mode}"
+        summary_text += _build_digest_summary(digest_recipients, digest_options)
 
     summary = Panel(
         summary_text,
