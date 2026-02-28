@@ -15,18 +15,11 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from agents.profile_scorer import ProfileScorer
-from utils.profile_manager import get_profile_manager
-
-
-@pytest.fixture
-def wes_profile():
-    """Load Wes profile with country_restriction_enabled=true"""
-    return get_profile_manager().get_profile("wes")
 
 
 @pytest.fixture
 def scorer(wes_profile):
-    """Create ProfileScorer with Wes's profile"""
+    """Create ProfileScorer with Wes's profile (wes_profile from conftest)"""
     return ProfileScorer(wes_profile)
 
 

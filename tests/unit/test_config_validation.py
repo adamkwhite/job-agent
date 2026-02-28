@@ -11,7 +11,6 @@ from pathlib import Path
 import pytest
 
 from src.agents.profile_scorer import ProfileScorer
-from src.utils.profile_manager import get_profile_manager
 
 
 @pytest.fixture
@@ -29,14 +28,8 @@ def role_categories_in_config(config_path):
 
 
 @pytest.fixture
-def wes_profile():
-    """Load Wes profile"""
-    return get_profile_manager().get_profile("wes")
-
-
-@pytest.fixture
 def scorer(wes_profile):
-    """Create ProfileScorer with Wes's profile"""
+    """Create ProfileScorer with Wes's profile (wes_profile from conftest)"""
     return ProfileScorer(wes_profile)
 
 

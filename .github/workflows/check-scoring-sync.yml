@@ -3,7 +3,8 @@ name: Check Scoring Documentation Sync
 on:
   pull_request:
     paths:
-      - 'src/agents/job_scorer.py'
+      - 'src/agents/base_scorer.py'
+      - 'src/agents/profile_scorer.py'
       - 'config/filter-keywords.json'
 
 jobs:
@@ -22,7 +23,7 @@ jobs:
           git diff --name-only origin/${{ github.base_ref }}...HEAD
 
           # Check if scoring files changed
-          SCORING_CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E '(src/agents/job_scorer.py|config/filter-keywords.json)' || true)
+          SCORING_CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E '(src/agents/base_scorer.py|src/agents/profile_scorer.py|config/filter-keywords.json)' || true)
           EMAIL_CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep 'src/send_profile_digest.py' || true)
           CLAUDE_CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep 'CLAUDE.md' || true)
 

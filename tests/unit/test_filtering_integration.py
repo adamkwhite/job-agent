@@ -11,26 +11,12 @@ import pytest
 
 from agents.profile_scorer import ProfileScorer
 from utils.company_classifier import CompanyClassifier
-from utils.profile_manager import get_profile_manager
-
-
-@pytest.fixture
-def wes_profile():
-    """Load Wes profile"""
-    return get_profile_manager().get_profile("wes")
 
 
 @pytest.fixture
 def scorer(wes_profile):
-    """Create ProfileScorer with Wes's profile
-
-    Note: ProfileScorer.__init__ overwrites BaseScorer's deep copy with the
-    original profile reference. We deep copy here to prevent test mutations
-    from leaking across tests via the cached profile manager singleton.
-    """
-    import copy
-
-    return ProfileScorer(copy.deepcopy(wes_profile))
+    """Create ProfileScorer with Wes's profile (wes_profile from conftest, already deep copied)"""
+    return ProfileScorer(wes_profile)
 
 
 class TestRealWorldExamples:

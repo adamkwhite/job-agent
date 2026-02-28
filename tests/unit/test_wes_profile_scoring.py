@@ -9,20 +9,12 @@ behavior using ProfileScorer with Wes's profile configuration.
 import pytest
 
 from src.agents.profile_scorer import ProfileScorer
-from src.utils.profile_manager import get_profile_manager
 from src.utils.scoring_utils import calculate_grade
 
 
 @pytest.fixture
-def wes_profile():
-    """Load Wes's profile"""
-    pm = get_profile_manager()
-    return pm.get_profile("wes")
-
-
-@pytest.fixture
 def scorer(wes_profile):
-    """Create ProfileScorer with Wes's profile"""
+    """Create ProfileScorer with Wes's profile (wes_profile from conftest)"""
     return ProfileScorer(wes_profile)
 
 
