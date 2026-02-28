@@ -74,36 +74,90 @@ class CareerPageFinder:
 
     def _guess_company_website(self, company_name: str) -> str | None:
         """
-        Guess company website from name
+        Guess company website from name using 4 strategies in priority order.
 
         Examples:
+        - "Clio (clio.com)" -> "https://clio.com"
+        - "World Labs (worldlabs.ai)" -> "https://worldlabs.ai"
         - "Provision.com" -> "https://provision.com"
         - "Adaptyx Biosciences" -> "https://adaptyx.com"
+        - "Anterior (formerly Co:Helm)" -> "https://anterior.com"
+        - "Taalas Inc" -> "https://taalas.com"
         """
-        # If company name contains .com, .io, etc., use it directly
-        if "." in company_name and any(
-            tld in company_name.lower() for tld in [".com", ".io", ".ai", ".co", ".net"]
-        ):
-            # Extract domain
-            domain = company_name.split()[0].lower()
-            return f"https://{domain}"
+        name = company_name.strip()
 
-        # Otherwise, try to construct from company name
+        return (
+            self._extract_parenthetical_domain(name)
+            or self._extract_direct_domain(name)
+            or self._build_from_clean_name(name)
+        )
+
+    @staticmethod
+    def _extract_parenthetical_domain(name: str) -> str | None:
+        """Strategy 1: Extract domain from parenthetical, e.g. 'Clio (clio.com)'."""
+        paren_match = re.search(r"\(([a-z0-9][\w.-]*\.[a-z]{2,})\)", name, re.IGNORECASE)
+        if paren_match:
+            return f"https://{paren_match.group(1).lower()}"
+        return None
+
+    @staticmethod
+    def _extract_direct_domain(name: str) -> str | None:
+        """Strategy 2: Name IS a domain, e.g. 'Provision.com'."""
+        if re.match(r"^[\w.-]+\.(com|io|ai|co|net|org|dev)$", name, re.IGNORECASE):
+            return f"https://{name.lower()}"
+        return None
+
+    def _build_from_clean_name(self, name: str) -> str | None:
+        """Strategy 3+4: Clean name + .com, with TLD probing fallback."""
+        clean_name = self._clean_company_name(name)
+        if not clean_name:
+            return None
+
+        url = f"https://{clean_name}.com"
+        if self._validate_url(url):
+            return url
+
+        # Strategy 4: TLD probing if .com didn't validate
+        return self._guess_with_tld_probing(clean_name) or url
+
+    @staticmethod
+    def _clean_company_name(name: str) -> str:
+        """Clean company name for domain construction."""
+        clean = name.lower()
+
+        # Strip parenthetical content, e.g. "(formerly Co:Helm)"
+        clean = re.sub(r"\s*\([^)]*\)", "", clean)
+
+        # Strip "formerly ..." without parens
+        clean = re.sub(r"\s+formerly\s+.*$", "", clean, flags=re.IGNORECASE)
+
         # Remove common suffixes
-        clean_name = company_name.lower()
-        clean_name = re.sub(
-            r"\s+(inc|llc|ltd|limited|corp|corporation|gmbh)\.?$",
+        clean = re.sub(
+            r"\s+(inc|llc|ltd|limited|corp|corporation|gmbh|labs?)\.?$",
             "",
-            clean_name,
+            clean,
             flags=re.IGNORECASE,
         )
 
         # Remove spaces and special characters
-        clean_name = re.sub(r"[^a-z0-9]", "", clean_name)
+        clean = re.sub(r"[^a-z0-9]", "", clean)
 
-        if clean_name:
-            return f"https://{clean_name}.com"
+        return clean
 
+    def _validate_url(self, url: str) -> bool:
+        """HEAD request with 5s timeout. Returns True if status < 400."""
+        try:
+            response = self.session.head(url, timeout=5, allow_redirects=True)
+            return response.status_code < 400
+        except Exception:
+            return False
+
+    def _guess_with_tld_probing(self, clean_name: str) -> str | None:
+        """Try alternative TLDs (.io, .ai, .co) via HEAD validation."""
+        for tld in (".io", ".ai", ".co"):
+            url = f"https://{clean_name}{tld}"
+            if self._validate_url(url):
+                return url
         return None
 
     def _try_patterns(self, base_url: str) -> str | None:
