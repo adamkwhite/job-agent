@@ -10,8 +10,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from agents.job_scorer import JobScorer
+from agents.profile_scorer import ProfileScorer
 from database import JobDatabase
+from utils.profile_manager import get_profile_manager
 from utils.score_thresholds import Grade
 
 # Constants for repeated location strings
@@ -124,7 +125,8 @@ def main():
     print(f"\nProcessing {len(company_jobs)} company jobs...")
 
     db = JobDatabase()
-    scorer = JobScorer()
+    wes_profile = get_profile_manager().get_profile("wes")
+    scorer = ProfileScorer(wes_profile)
 
     stats = {
         "total": len(company_jobs),

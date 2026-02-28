@@ -13,7 +13,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from agents.job_filter_pipeline import JobFilterPipeline
-from agents.job_scorer import JobScorer
+from agents.profile_scorer import ProfileScorer
 from api.company_service import CompanyService
 from database import JobDatabase
 from job_filter import JobFilter
@@ -54,7 +54,9 @@ class CompanyScraper:
         )
         self.job_filter = JobFilter()
         self.filter_pipeline = JobFilterPipeline(profile_config) if profile_config else None
-        self.scorer = JobScorer()
+        self.scorer = (
+            ProfileScorer(profile_obj) if profile_obj else ProfileScorer(pm.get_profile("wes"))
+        )
         self.database = JobDatabase(profile=profile)
         self.notifier = JobNotifier()
 

@@ -17,8 +17,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from agents.job_scorer import JobScorer
+from agents.profile_scorer import ProfileScorer
 from database import JobDatabase
+from utils.profile_manager import get_profile_manager
 
 
 def rescore_all_jobs(
@@ -35,7 +36,8 @@ def rescore_all_jobs(
         Tuple of (stats dict, newly_qualifying_jobs list)
     """
     db = JobDatabase()
-    scorer = JobScorer()
+    wes_profile = get_profile_manager().get_profile("wes")
+    scorer = ProfileScorer(wes_profile)
 
     print("=" * 80)
     print("RE-SCORING ALL JOBS WITH UPDATED CRITERIA")
