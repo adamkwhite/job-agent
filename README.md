@@ -1,5 +1,12 @@
 # Job Discovery & Application Automation
 
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=adamkwhite_job-agent&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=adamkwhite_job-agent)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=adamkwhite_job-agent&metric=bugs)](https://sonarcloud.io/summary/new_code?id=adamkwhite_job-agent)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=adamkwhite_job-agent&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=adamkwhite_job-agent)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=adamkwhite_job-agent&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=adamkwhite_job-agent)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=adamkwhite_job-agent&metric=coverage)](https://sonarcloud.io/summary/new_code?id=adamkwhite_job-agent)
+[![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=adamkwhite_job-agent&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=adamkwhite_job-agent)
+
 An intelligent job discovery and scoring system for multiple user profiles with automated email processing, web scraping, and personalized job matching.
 
 ## Project Overview
