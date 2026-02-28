@@ -169,7 +169,7 @@ class TestStoreDb:
             description="A robotics company doing cool things",
         )
 
-        with patch("scrapers.company_list_scraper.CompanyService") as mock_service_cls:
+        with patch("api.company_service.CompanyService") as mock_service_cls:
             mock_service = MagicMock()
             mock_service.add_companies_batch.return_value = {
                 "added": 1,
@@ -194,7 +194,7 @@ class TestStoreDb:
             _make_opportunity("BetaCo", company_website="https://beta.com"),
         ]
 
-        with patch("scrapers.company_list_scraper.CompanyService") as mock_service_cls:
+        with patch("api.company_service.CompanyService") as mock_service_cls:
             mock_service = MagicMock()
             mock_service.add_companies_batch.return_value = {
                 "added": 2,
@@ -214,10 +214,14 @@ class TestStoreDb:
             assert stats["added"] == 2
 
     def test_store_db_empty_list_returns_empty_stats(self):
-        """Verify empty opportunity list doesn't call CompanyService."""
-        with patch("scrapers.company_list_scraper.CompanyService") as mock_service_cls:
+        """Verify empty opportunity list doesn't call add_companies_batch."""
+        with patch("api.company_service.CompanyService") as mock_service_cls:
+            mock_service = MagicMock()
+            mock_service_cls.return_value = mock_service
+
             stats = _store_to_db([])
-            mock_service_cls.assert_not_called()
+
+            mock_service.add_companies_batch.assert_not_called()
             assert stats["added"] == 0
 
     def test_store_db_falls_back_to_link_when_no_website(self):
@@ -228,7 +232,7 @@ class TestStoreDb:
             link="https://jobboard.com/company/nowebsite",
         )
 
-        with patch("scrapers.company_list_scraper.CompanyService") as mock_service_cls:
+        with patch("api.company_service.CompanyService") as mock_service_cls:
             mock_service = MagicMock()
             mock_service.add_companies_batch.return_value = {
                 "added": 1,
