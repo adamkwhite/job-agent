@@ -963,6 +963,54 @@ def _skip_all_failures(db, failures):  # pragma: no cover
         input(PRESS_ENTER_PROMPT)
 
 
+def _format_failure_row(  # pragma: no cover
+    name: str,
+    failures_count: int,
+    error: str | None,
+    checked: str | None,
+    disabled_at: str | None,
+) -> tuple[str, str, str, str, str]:
+    """Format a single company failure row for the table."""
+    if failures_count >= 5 or disabled_at:
+        status = "[red]Disabled[/red]"
+    elif failures_count >= 3:
+        status = "[yellow]At Risk[/yellow]"
+    else:
+        status = "[dim]Active[/dim]"
+
+    error_msg = error if error else "Unknown"
+    if len(error_msg) > 32:
+        error_msg = error_msg[:29] + "..."
+
+    checked_display = checked[:10] if checked else "Never"
+
+    if failures_count >= 5:
+        failure_display = f"[red]{failures_count}/5[/red]"
+    elif failures_count >= 3:
+        failure_display = f"[yellow]{failures_count}/5[/yellow]"
+    else:
+        failure_display = f"[dim]{failures_count}/5[/dim]"
+
+    return (name, failure_display, status, error_msg, checked_display)
+
+
+def _print_failure_action_suggestions(auto_disabled: int, at_risk: int) -> None:  # pragma: no cover
+    """Print recommended actions for company failures."""
+    console.print("\n[bold yellow]💡 Recommended Actions:[/bold yellow]")
+    if auto_disabled > 0:
+        console.print(
+            "  • [red]Auto-disabled companies:[/red] Review career page URLs, re-enable with SQL, or remove from monitoring"
+        )
+    if at_risk > 0:
+        console.print(
+            "  • [yellow]At-risk companies:[/yellow] Check logs/scraper_failures.log for patterns"
+        )
+    console.print("  • [dim]View logs:[/dim] tail -50 logs/scraper_failures.log")
+    console.print(
+        "  • [dim]Re-enable company:[/dim] UPDATE companies SET active=1, consecutive_failures=0 WHERE name='CompanyName'"
+    )
+
+
 def review_company_failures():  # pragma: no cover
     """Display detailed view of company scraper failures
 
@@ -1024,51 +1072,15 @@ def review_company_failures():  # pragma: no cover
     table.add_column("Last Checked", style="dim", width=12)
 
     for name, failures_count, error, checked, _active, disabled_at in failures[:30]:
-        # Determine status color and text
-        if failures_count >= 5 or disabled_at:
-            status = "[red]Disabled[/red]"
-        elif failures_count >= 3:
-            status = "[yellow]At Risk[/yellow]"
-        else:
-            status = "[dim]Active[/dim]"
-
-        # Format error message
-        error_msg = error if error else "Unknown"
-        if len(error_msg) > 32:
-            error_msg = error_msg[:29] + "..."
-
-        # Format last checked
-        checked_display = checked[:10] if checked else "Never"
-
-        # Color code the failure count
-        if failures_count >= 5:
-            failure_display = f"[red]{failures_count}/5[/red]"
-        elif failures_count >= 3:
-            failure_display = f"[yellow]{failures_count}/5[/yellow]"
-        else:
-            failure_display = f"[dim]{failures_count}/5[/dim]"
-
-        table.add_row(name, failure_display, status, error_msg, checked_display)
+        row = _format_failure_row(name, failures_count, error, checked, disabled_at)
+        table.add_row(*row)
 
     console.print(table)
 
     if len(failures) > 30:
         console.print(f"\n[dim]Showing 30 of {len(failures)} companies with failures...[/dim]")
 
-    # Action suggestions
-    console.print("\n[bold yellow]💡 Recommended Actions:[/bold yellow]")
-    if auto_disabled > 0:
-        console.print(
-            "  • [red]Auto-disabled companies:[/red] Review career page URLs, re-enable with SQL, or remove from monitoring"
-        )
-    if at_risk > 0:
-        console.print(
-            "  • [yellow]At-risk companies:[/yellow] Check logs/scraper_failures.log for patterns"
-        )
-    console.print("  • [dim]View logs:[/dim] tail -50 logs/scraper_failures.log")
-    console.print(
-        "  • [dim]Re-enable company:[/dim] UPDATE companies SET active=1, consecutive_failures=0 WHERE name='CompanyName'"
-    )
+    _print_failure_action_suggestions(auto_disabled, at_risk)
 
     press_enter_to_continue()
 
