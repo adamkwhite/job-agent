@@ -144,10 +144,61 @@ def _deduplicate_jobs(jobs: list[dict]) -> list[dict]:
     return deduplicated
 
 
+def _build_connections_cell(company: str, connections_manager: ConnectionsManager | None) -> str:
+    """Build HTML for the connections column cell."""
+    if not connections_manager or not connections_manager.connections_exist:
+        return "—"
+
+    try:
+        summary = connections_manager.get_connection_summary(company)
+    except Exception:
+        return "—"
+
+    if summary["count"] == 0:
+        return "—"
+
+    max_display = 4
+    name_links = []
+    for conn in summary["connections"][:max_display]:
+        if conn.url:
+            name_links.append(
+                f"<a href='{conn.url}' target='_blank' style='color: #0077b5; text-decoration: none;'>{conn.full_name}</a>"
+            )
+        else:
+            name_links.append(conn.full_name)
+
+    if summary["count"] > max_display:
+        remaining = summary["count"] - max_display
+        return f"👥 {summary['count']}: {', '.join(name_links)}, <span style='color: #7f8c8d;'>and {remaining} more</span>"
+    return f"👥 {summary['count']}: {', '.join(name_links)}"
+
+
+def _build_validation_warning(job: dict) -> str:
+    """Build HTML validation warning badge for a job row."""
+    if not job.get("needs_review"):
+        return ""
+
+    reason = job.get("validation_reason", "unverified")
+
+    if reason in ["linkedin_unverifiable", "linkedin"]:
+        return (
+            f' <span style="color: #3498db; font-size: 11px; background: #ebf5fb; '
+            f'padding: 2px 6px; border-radius: 3px;" title="{reason}">'
+            f"🔒 Requires login to verify</span>"
+        )
+    return (
+        f' <span style="color: #e67e22; font-size: 11px; background: #fef5e7; '
+        f'padding: 2px 6px; border-radius: 3px;" title="{reason}">'
+        f"⚠️ Couldn't verify freshness</span>"
+    )
+
+
 def _generate_job_table_rows(
     jobs: list[dict], connections_manager: ConnectionsManager | None = None
 ) -> str:
     """Generate HTML table rows for job listings"""
+    import urllib.parse
+
     rows = ""
     for job in jobs:
         score = job.get("fit_score", 0)
@@ -155,51 +206,9 @@ def _generate_job_table_rows(
         breakdown = json.loads(job.get("score_breakdown", "{}"))
         location = job.get("location") or ""
 
-        # Get connections for this company
-        connections_cell = ""
-        if connections_manager and connections_manager.connections_exist:
-            try:
-                summary = connections_manager.get_connection_summary(job["company"])
-                if summary["count"] > 0:
-                    # Build compact list of clickable names (max 4, no titles)
-                    name_links = []
-                    max_display = 4
-                    for conn in summary["connections"][:max_display]:
-                        if conn.url:
-                            name_links.append(
-                                f"<a href='{conn.url}' target='_blank' style='color: #0077b5; text-decoration: none;'>{conn.full_name}</a>"
-                            )
-                        else:
-                            name_links.append(conn.full_name)
-
-                    # Add "and X more" if there are additional connections
-                    if summary["count"] > max_display:
-                        remaining = summary["count"] - max_display
-                        connections_cell = f"👥 {summary['count']}: {', '.join(name_links)}, <span style='color: #7f8c8d;'>and {remaining} more</span>"
-                    else:
-                        connections_cell = f"👥 {summary['count']}: {', '.join(name_links)}"
-                else:
-                    connections_cell = "—"
-            except Exception:
-                connections_cell = "—"
-        else:
-            connections_cell = "—"
-
-        # Create LinkedIn search URL for 1st degree connections at this company
-        import urllib.parse
-
+        connections_cell = _build_connections_cell(job["company"], connections_manager)
         linkedin_search_url = f"https://www.linkedin.com/search/results/people/?keywords={urllib.parse.quote(job['company'])}&network=%5B%22F%22%5D"
-
-        # Check if job needs review (validation warning)
-        validation_warning = ""
-        if job.get("needs_review"):
-            reason = job.get("validation_reason", "unverified")
-
-            # Different messages for LinkedIn vs other validation issues
-            if reason in ["linkedin_unverifiable", "linkedin"]:
-                validation_warning = f' <span style="color: #3498db; font-size: 11px; background: #ebf5fb; padding: 2px 6px; border-radius: 3px;" title="{reason}">🔒 Requires login to verify</span>'
-            else:
-                validation_warning = f' <span style="color: #e67e22; font-size: 11px; background: #fef5e7; padding: 2px 6px; border-radius: 3px;" title="{reason}">⚠️ Couldn\'t verify freshness</span>'
+        validation_warning = _build_validation_warning(job)
 
         rows += f"""
                 <tr>
@@ -750,6 +759,197 @@ def _prevalidate_jobs_for_all_profiles(
     return result
 
 
+def _fetch_jobs_for_digest(
+    profile: Profile,
+    profile_id: str,
+    db: JobDatabase,
+    force_resend: bool,
+    max_age_days: int,
+    pre_validated_jobs: list[dict] | None,
+) -> list[dict] | None:
+    """
+    Fetch and validate jobs for digest. Returns job list or None if no jobs available.
+    """
+    if pre_validated_jobs is not None:
+        print(f"✓ Using {len(pre_validated_jobs)} pre-validated jobs for {profile.name}")
+        return pre_validated_jobs
+
+    if force_resend:
+        print("⚠️  Force resend mode - including previously sent jobs")
+        jobs = db.get_jobs_for_profile_digest(
+            profile_id=profile_id,
+            min_grade="F",
+            min_location_score=0,
+            limit=100,
+            max_age_days=max_age_days,
+        )
+    else:
+        jobs = db.get_jobs_for_profile_digest(
+            profile_id=profile_id,
+            min_grade=profile.digest_min_grade,
+            min_location_score=profile.digest_min_location_score,
+            limit=100,
+            max_age_days=max_age_days,
+        )
+
+    print(f"✓ Found {len(jobs)} unsent jobs for {profile.name}")
+
+    if len(jobs) == 0:
+        print(f"\n⏸  No new jobs to send to {profile.name}")
+        return None
+
+    return _validate_and_filter_jobs(jobs, db)
+
+
+def _apply_hard_filters_and_dedup(jobs: list[dict], profile: Profile) -> list[dict]:
+    """Apply hard filters and deduplication to job list."""
+    print("\n🚫 Applying hard filters...")
+    filter_pipeline = JobFilterPipeline(profile.scoring)
+    filtered_out: list[tuple[dict, str | None]] = []
+
+    jobs_after_hard_filter = []
+    for job in jobs:
+        passed, filter_reason = filter_pipeline.apply_hard_filters(job)
+        if passed:
+            jobs_after_hard_filter.append(job)
+        else:
+            filtered_out.append((job, filter_reason))
+
+    if filtered_out:
+        print(f"  ✓ Removed {len(filtered_out)} jobs by hard filter:")
+        for job, reason in filtered_out[:5]:
+            print(f"    - {job.get('company')} - {job.get('title', '')[:50]}... ({reason})")
+        if len(filtered_out) > 5:
+            print(f"    ... and {len(filtered_out) - 5} more")
+    else:
+        print("  ✓ All jobs passed hard filters")
+
+    # Deduplicate jobs (same company + title)
+    print("\n🔄 Deduplicating jobs...")
+    jobs_before_dedup = len(jobs_after_hard_filter)
+    result = _deduplicate_jobs(jobs_after_hard_filter)
+    duplicates_removed = jobs_before_dedup - len(result)
+    if duplicates_removed > 0:
+        print(f"  ✓ Removed {duplicates_removed} duplicate job(s)")
+    else:
+        print("  ✓ No duplicates found")
+
+    return result
+
+
+def _build_subject_line(high_count: int, good_count: int) -> str:
+    """Build email subject line based on job grade counts."""
+    if high_count > 0:
+        subject = f"🎯 {high_count} Excellent Job Match{'es' if high_count > 1 else ''} for You"
+    elif good_count > 0:
+        subject = f"✨ {good_count} Good Job Match{'es' if good_count > 1 else ''} Found"
+    else:
+        subject = "📋 Job Digest - No Top Matches This Week"
+    subject += f" - {datetime.now().strftime('%Y-%m-%d')}"
+    return subject
+
+
+def _handle_dry_run(profile: Profile, jobs: list[dict], high_count: int, good_count: int) -> bool:
+    """Display dry-run output and return True."""
+    subject_preview = _build_subject_line(high_count, good_count)
+    print(f"\n🧪 DRY RUN - Would send to {profile.email}")
+    print(f"  Subject: {subject_preview}")
+
+    if len(jobs) > 0:
+        print(f"\nJobs to be sent ({len(jobs)}):")
+        _display_jobs_table(jobs)
+    else:
+        print("\n  No jobs to display")
+
+    return True
+
+
+def _get_email_credentials(profile: Profile) -> tuple[str | None, str | None]:
+    """Resolve email credentials with fallback to legacy env vars."""
+    gmail_user = profile.email_username
+    gmail_password = profile.email_app_password
+
+    if not gmail_password:
+        print("  ⚠️  Using legacy GMAIL credentials (profile password not set)")
+        gmail_user = os.getenv("GMAIL_USERNAME")
+        gmail_password = os.getenv("GMAIL_APP_PASSWORD")
+
+    return gmail_user, gmail_password
+
+
+def _send_email(
+    profile: Profile,
+    profile_id: str,
+    jobs: list[dict],
+    high_scoring: list[dict],
+    good_scoring: list[dict],
+    force_resend: bool,
+    db: JobDatabase,
+) -> bool:
+    """Build and send the digest email via SMTP."""
+    gmail_user, gmail_password = _get_email_credentials(profile)
+    if not gmail_user or not gmail_password:
+        print(f"  ✗ No email credentials available for {profile_id}")
+        return False
+
+    connections_manager = ConnectionsManager(profile_name=profile_id)
+    if connections_manager.connections_exist:
+        print(f"✓ Loaded LinkedIn connections for {profile.name}")
+
+    html_body = generate_email_html(jobs, profile, connections_manager)
+    subject = _build_subject_line(len(high_scoring), len(good_scoring))
+
+    msg = MIMEMultipart("mixed")
+    msg["Subject"] = subject
+    msg["From"] = gmail_user
+    msg["To"] = profile.email
+
+    cc_email = "adamkwhite@gmail.com"
+    msg["Cc"] = cc_email
+
+    text_body = (
+        f"\nHi {profile.name.split()[0]},\n\n"
+        f"I've found {len(high_scoring)} excellent job matches ({Grade.B.value}+ score) "
+        f"and {len(good_scoring)} good matches ({Grade.C.value}-{Grade.B.value - 1} score).\n\n"
+        f"Open the HTML email to see full details and apply links.\n\n"
+        f"Generated on {datetime.now().strftime('%Y-%m-%d at %H:%M')}\n"
+    )
+
+    msg_alternative = MIMEMultipart("alternative")
+    msg_alternative.attach(MIMEText(text_body, "plain"))
+    msg_alternative.attach(MIMEText(html_body, "html"))
+    msg.attach(msg_alternative)
+
+    try:
+        print(f"\nSending digest to {profile.email}...")
+
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(gmail_user, gmail_password)
+
+        recipients = [profile.email, cc_email]
+        server.send_message(msg, to_addrs=recipients)
+        server.quit()
+
+        print(f"✓ Email sent successfully to {profile.email}")
+        print(f"  CC: {cc_email}")
+        print(f"📧 Subject: {subject}")
+
+        if not force_resend:
+            job_ids = [job["id"] for job in jobs]
+            db.mark_profile_digest_sent(job_ids, profile_id)
+            print(f"✓ Marked {len(job_ids)} jobs as sent for {profile.name}")
+
+        return True
+
+    except Exception as e:
+        print(f"✗ Error sending email: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return False
+
+
 def send_digest_to_profile(
     profile_id: str,
     force_resend: bool = False,
@@ -789,81 +989,20 @@ def send_digest_to_profile(
 
     db = JobDatabase()
 
-    if pre_validated_jobs is not None:
-        # Skip fetching and validation — already done
-        jobs = pre_validated_jobs
-        print(f"✓ Using {len(jobs)} pre-validated jobs for {profile.name}")
-    else:
-        # Full pipeline: fetch + validate
-        if force_resend:
-            print("⚠️  Force resend mode - including previously sent jobs")
-            jobs = db.get_jobs_for_profile_digest(
-                profile_id=profile_id,
-                min_grade="F",
-                min_location_score=0,
-                limit=100,
-                max_age_days=max_age_days,
-            )
-        else:
-            jobs = db.get_jobs_for_profile_digest(
-                profile_id=profile_id,
-                min_grade=profile.digest_min_grade,
-                min_location_score=profile.digest_min_location_score,
-                limit=100,
-                max_age_days=max_age_days,
-            )
+    # Step 1: Fetch and validate jobs
+    jobs = _fetch_jobs_for_digest(
+        profile, profile_id, db, force_resend, max_age_days, pre_validated_jobs
+    )
+    if not jobs:
+        return False
 
-        print(f"✓ Found {len(jobs)} unsent jobs for {profile.name}")
-
-        if len(jobs) == 0:
-            print(f"\n⏸  No new jobs to send to {profile.name}")
-            return False
-
-        jobs = _validate_and_filter_jobs(jobs, db)
-
-    if len(jobs) == 0:
+    # Step 2: Apply hard filters and deduplication
+    jobs = _apply_hard_filters_and_dedup(jobs, profile)
+    if not jobs:
         print("\n⏸  No valid jobs to send after filtering")
         return False
 
-    # Apply hard filters to catch any jobs that shouldn't have made it to database
-    print("\n🚫 Applying hard filters...")
-    filter_pipeline = JobFilterPipeline(profile.scoring)
-    filtered_out = []
-
-    jobs_after_hard_filter = []
-    for job in jobs:
-        passed, filter_reason = filter_pipeline.apply_hard_filters(job)
-        if passed:
-            jobs_after_hard_filter.append(job)
-        else:
-            filtered_out.append((job, filter_reason))
-
-    jobs = jobs_after_hard_filter
-
-    if filtered_out:
-        print(f"  ✓ Removed {len(filtered_out)} jobs by hard filter:")
-        for job, reason in filtered_out[:5]:  # Show first 5
-            print(f"    - {job.get('company')} - {job.get('title', '')[:50]}... ({reason})")
-        if len(filtered_out) > 5:
-            print(f"    ... and {len(filtered_out) - 5} more")
-    else:
-        print("  ✓ All jobs passed hard filters")
-
-    if len(jobs) == 0:
-        print("\n⏸  No valid jobs to send after filtering")
-        return False
-
-    # Deduplicate jobs (same company + title)
-    print("\n🔄 Deduplicating jobs...")
-    jobs_before_dedup = len(jobs)
-    jobs = _deduplicate_jobs(jobs)
-    duplicates_removed = jobs_before_dedup - len(jobs)
-    if duplicates_removed > 0:
-        print(f"  ✓ Removed {duplicates_removed} duplicate job(s)")
-    else:
-        print("  ✓ No duplicates found")
-
-    # Count by grade (split high vs good to match email display)
+    # Step 3: Split by grade
     high_scoring = [j for j in jobs if j.get("fit_score", 0) >= Grade.B.value]
     good_scoring = [j for j in jobs if Grade.C.value <= j.get("fit_score", 0) < Grade.B.value]
 
@@ -871,119 +1010,11 @@ def send_digest_to_profile(
     print(f"  - {len(good_scoring)} good matches ({Grade.C.value}-{Grade.B.value - 1})")
     print(f"  - {len(high_scoring) + len(good_scoring)} total matches ({Grade.C.value}+)")
 
+    # Step 4: Dry run or send
     if dry_run:
-        # Generate subject line using same logic as actual email (lines 734-741)
-        if len(high_scoring) > 0:
-            subject_preview = f"🎯 {len(high_scoring)} Excellent Job Match{'es' if len(high_scoring) > 1 else ''} for You"
-        elif len(good_scoring) > 0:
-            subject_preview = f"✨ {len(good_scoring)} Good Job Match{'es' if len(good_scoring) > 1 else ''} Found"
-        else:
-            subject_preview = "📋 Job Digest - No Top Matches This Week"
-        subject_preview += f" - {datetime.now().strftime('%Y-%m-%d')}"
+        return _handle_dry_run(profile, jobs, len(high_scoring), len(good_scoring))
 
-        print(f"\n🧪 DRY RUN - Would send to {profile.email}")
-        print(f"  Subject: {subject_preview}")
-
-        # Display jobs table
-        if len(jobs) > 0:
-            print(f"\nJobs to be sent ({len(jobs)}):")
-            _display_jobs_table(jobs)
-        else:
-            print("\n  No jobs to display")
-
-        return True
-
-    # Initialize connections manager for this profile
-    connections_manager = ConnectionsManager(profile_name=profile_id)
-    if connections_manager.connections_exist:
-        print(f"✓ Loaded LinkedIn connections for {profile.name}")
-
-    # Generate email HTML
-    html_body = generate_email_html(jobs, profile, connections_manager)
-
-    # Build email message
-    msg = MIMEMultipart("mixed")
-
-    if len(high_scoring) > 0:
-        subject = f"🎯 {len(high_scoring)} Excellent Job Match{'es' if len(high_scoring) > 1 else ''} for You"
-    elif len(good_scoring) > 0:
-        subject = (
-            f"✨ {len(good_scoring)} Good Job Match{'es' if len(good_scoring) > 1 else ''} Found"
-        )
-    else:
-        subject = "📋 Job Digest - No Top Matches This Week"
-
-    subject += f" - {datetime.now().strftime('%Y-%m-%d')}"
-
-    # Use profile-specific email credentials
-    gmail_user = profile.email_username
-    gmail_password = profile.email_app_password
-
-    # Fallback to legacy credentials if profile credentials not set
-    if not gmail_password:
-        print("  ⚠️  Using legacy GMAIL credentials (profile password not set)")
-        gmail_user = os.getenv("GMAIL_USERNAME")
-        gmail_password = os.getenv("GMAIL_APP_PASSWORD")
-
-    if not gmail_user or not gmail_password:
-        print(f"  ✗ No email credentials available for {profile_id}")
-        return False
-
-    msg["Subject"] = subject
-    msg["From"] = gmail_user
-    msg["To"] = profile.email
-
-    # CC Adam on all digests for monitoring
-    cc_email = "adamkwhite@gmail.com"
-    msg["Cc"] = cc_email
-
-    # Create message body
-    text_body = f"""
-Hi {profile.name.split()[0]},
-
-I've found {len(high_scoring)} excellent job matches ({Grade.B.value}+ score) and {len(good_scoring)} good matches ({Grade.C.value}-{Grade.B.value - 1} score).
-
-Open the HTML email to see full details and apply links.
-
-Generated on {datetime.now().strftime("%Y-%m-%d at %H:%M")}
-"""
-
-    msg_alternative = MIMEMultipart("alternative")
-    msg_alternative.attach(MIMEText(text_body, "plain"))
-    msg_alternative.attach(MIMEText(html_body, "html"))
-    msg.attach(msg_alternative)
-
-    # Send via SMTP
-    try:
-        print(f"\nSending digest to {profile.email}...")
-
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
-        server.login(gmail_user, gmail_password)
-
-        # Send to both To and CC recipients
-        recipients = [profile.email, cc_email]
-        server.send_message(msg, to_addrs=recipients)
-        server.quit()
-
-        print(f"✓ Email sent successfully to {profile.email}")
-        print(f"  CC: {cc_email}")
-        print(f"📧 Subject: {subject}")
-
-        # Mark jobs as sent for this profile
-        if not force_resend:
-            job_ids = [job["id"] for job in jobs]
-            db.mark_profile_digest_sent(job_ids, profile_id)
-            print(f"✓ Marked {len(job_ids)} jobs as sent for {profile.name}")
-
-        return True
-
-    except Exception as e:
-        print(f"✗ Error sending email: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return False
+    return _send_email(profile, profile_id, jobs, high_scoring, good_scoring, force_resend, db)
 
 
 def send_all_digests(force_resend: bool = False, dry_run: bool = False, max_age_days: int = 7):
