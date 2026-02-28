@@ -3,6 +3,7 @@ Generic company list scraper for curated lists, event pages, and rankings
 Extracts company data from various HTML formats using AI-powered extraction
 """
 
+import argparse
 import json
 import re
 import sys
@@ -293,9 +294,102 @@ Content to extract from:
         return match.group(1) if match else "unknown"
 
 
-def main():
+def _load_urls(args: argparse.Namespace) -> list[str]:
+    """
+    Load URLs from CLI arguments and/or input file.
+
+    Args:
+        args: Parsed argparse namespace with 'url' and 'input_file' attributes
+
+    Returns:
+        List of URLs to process
+
+    Raises:
+        SystemExit: If no URLs provided via either argument
+    """
+    urls: list[str] = []
+
+    if args.url:
+        urls.append(args.url)
+
+    if args.input_file:
+        with open(args.input_file) as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped and not stripped.startswith("#"):
+                    urls.append(stripped)
+
+    if not urls:
+        print("Error: Provide a URL argument or --input-file with URLs")
+        sys.exit(1)
+
+    return urls
+
+
+def _print_opportunities(opportunities: list) -> None:
+    """Print extracted company details to stdout."""
+    for opp in opportunities:
+        print(f"Company: {opp.company}")
+        if opp.company_location:
+            print(f"  Location: {opp.company_location}")
+        if opp.company_website:
+            print(f"  Website: {opp.company_website}")
+        if opp.funding_stage:
+            print(f"  Stage: {opp.funding_stage}")
+        if opp.description:
+            print(f"  Description: {opp.description[:100]}...")
+        print()
+
+
+def _store_to_db(all_opportunities: list) -> dict:
+    """
+    Store extracted companies in the database via CompanyService.
+
+    Args:
+        all_opportunities: List of OpportunityData objects to store
+
+    Returns:
+        Stats dict from CompanyService.add_companies_batch()
+    """
+    from api.company_service import CompanyService
+
+    service = CompanyService()
+    companies_for_db = []
+    for opp in all_opportunities:
+        careers_url = opp.company_website or opp.link or ""
+        notes = f"Source: {opp.source}."
+        if opp.description:
+            notes += f" {opp.description[:200]}"
+        companies_for_db.append(
+            {
+                "name": opp.company,
+                "careers_url": careers_url,
+                "notes": notes,
+            }
+        )
+
+    if not companies_for_db:
+        print("No companies to store in database.")
+        return {"added": 0, "skipped_duplicates": 0, "errors": 0, "details": []}
+
+    return service.add_companies_batch(companies_for_db)
+
+
+def _print_summary(urls: list[str], all_opportunities: list, db_stats: dict | None) -> None:
+    """Print final summary of batch processing results."""
+    print(f"\n{'=' * 70}")
+    print("Summary")
+    print(f"{'=' * 70}")
+    print(f"  URLs processed: {len(urls)}")
+    print(f"  Companies found: {len(all_opportunities)}")
+    if db_stats is not None:
+        print(f"  Stored in DB: {db_stats.get('added', 0)}")
+        print(f"  Skipped (duplicates): {db_stats.get('skipped_duplicates', 0)}")
+        print(f"  Errors: {db_stats.get('errors', 0)}")
+
+
+def main() -> None:
     """CLI entry point"""
-    import argparse
     import os
 
     from dotenv import load_dotenv
@@ -303,7 +397,12 @@ def main():
     load_dotenv()
 
     parser = argparse.ArgumentParser(description="Scrape companies from curated lists")
-    parser.add_argument("url", help="URL to scrape")
+    parser.add_argument("url", nargs="?", default=None, help="URL to scrape")
+    parser.add_argument(
+        "--input-file",
+        help="Text file with URLs (one per line, # comments and blank lines skipped)",
+    )
+    parser.add_argument("--store-db", action="store_true", help="Store extracted companies in DB")
     parser.add_argument("--no-ai", action="store_true", help="Disable AI extraction")
     parser.add_argument("--output", help="Output JSON file path")
     parser.add_argument(
@@ -314,6 +413,8 @@ def main():
     )
 
     args = parser.parse_args()
+
+    urls = _load_urls(args)
 
     # Get API key from environment based on provider
     if args.provider == "anthropic":
@@ -333,50 +434,58 @@ def main():
 
     scraper = CompanyListScraper(api_key=api_key, provider=args.provider)
 
-    try:
-        opportunities = scraper.scrape_url(args.url, use_ai=use_ai)
+    all_opportunities: list[OpportunityData] = []
 
-        print(f"\n{'=' * 70}")
-        print(f"Extracted {len(opportunities)} companies")
-        print(f"{'=' * 70}\n")
+    # Use tqdm progress bar for batch processing (multiple URLs)
+    if len(urls) > 1:
+        try:
+            from tqdm import tqdm
 
-        for opp in opportunities:
-            print(f"Company: {opp.company}")
-            if opp.company_location:
-                print(f"  Location: {opp.company_location}")
-            if opp.company_website:
-                print(f"  Website: {opp.company_website}")
-            if opp.funding_stage:
-                print(f"  Stage: {opp.funding_stage}")
-            if opp.description:
-                print(f"  Description: {opp.description[:100]}...")
-            print()
+            url_iter = tqdm(urls, desc="Scraping URLs")
+        except ImportError:
+            url_iter = urls
+    else:
+        url_iter = urls
 
-        # Save to JSON if requested
-        if args.output:
-            output_data = [
-                {
-                    "company": opp.company,
-                    "website": opp.company_website,
-                    "location": opp.company_location,
-                    "funding_stage": opp.funding_stage,
-                    "description": opp.description,
-                    "source": opp.source,
-                }
-                for opp in opportunities
-            ]
+    for url in url_iter:
+        try:
+            opportunities = scraper.scrape_url(url, use_ai=use_ai)
+            all_opportunities.extend(opportunities)
+        except Exception as e:
+            print(f"Error scraping {url}: {e}")
+            continue
 
-            with open(args.output, "w") as f:
-                json.dump(output_data, f, indent=2)
+    print(f"\n{'=' * 70}")
+    print(f"Extracted {len(all_opportunities)} companies from {len(urls)} URL(s)")
+    print(f"{'=' * 70}\n")
 
-            print(f"Saved to {args.output}")
+    _print_opportunities(all_opportunities)
 
-    except Exception as e:
-        print(f"Error: {e}")
-        import traceback
+    # Save to JSON if requested
+    if args.output:
+        output_data = [
+            {
+                "company": opp.company,
+                "website": opp.company_website,
+                "location": opp.company_location,
+                "funding_stage": opp.funding_stage,
+                "description": opp.description,
+                "source": opp.source,
+            }
+            for opp in all_opportunities
+        ]
 
-        traceback.print_exc()
-        sys.exit(1)
+        with open(args.output, "w") as f:
+            json.dump(output_data, f, indent=2)
+
+        print(f"Saved to {args.output}")
+
+    # Store in DB if requested
+    db_stats = None
+    if args.store_db:
+        db_stats = _store_to_db(all_opportunities)
+
+    _print_summary(urls, all_opportunities, db_stats)
 
 
 if __name__ == "__main__":
