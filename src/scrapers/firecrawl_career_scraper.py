@@ -244,6 +244,56 @@ class FirecrawlCareerScraper:
                 if job.link:
                     print(f"       Link: {job.link}")
 
+    def _fetch_page_markdown(
+        self,
+        url: str,
+        company_name: str,
+        is_main_page: bool,
+    ) -> str | None:
+        """Fetch page markdown from cache or Firecrawl API. Returns None on failure."""
+        if is_main_page:
+            cached = self._check_cache(company_name)
+            if cached:
+                return cached
+
+        if is_main_page:
+            print("  ⚡ Using Firecrawl API...")
+        result = self._firecrawl_scrape(url)
+
+        if not result:
+            if is_main_page:
+                print("  ✗ Failed to scrape page")
+            return None
+
+        markdown = result.get("markdown", "")
+        if markdown and is_main_page:
+            self._save_cache(company_name, markdown)
+        return markdown
+
+    def _run_llm_extraction(
+        self,
+        markdown: str,
+        company_name: str,
+    ) -> list[tuple[OpportunityData, str]]:
+        """Run LLM extraction if enabled and budget available. Returns extracted jobs."""
+        if not (self.enable_llm_extraction and self.llm_extractor):
+            return []
+
+        if not self.llm_extractor.budget_available():
+            logger.warning(f"LLM budget exceeded, skipping LLM extraction for {company_name}")
+            print("  ⚠ LLM budget exceeded, using regex only")
+            return []
+
+        try:
+            logger.info(f"Running LLM extraction for {company_name}")
+            llm_jobs = self.llm_extractor.extract_jobs(markdown, company_name)
+            print(f"  🤖 LLM extraction: {len(llm_jobs)} job listings found")
+            return self._process_extracted_jobs(llm_jobs, company_name, "llm")
+        except Exception as e:
+            logger.error(f"LLM extraction failed for {company_name}: {e}")
+            print(f"  ✗ LLM extraction failed: {e}")
+            return []
+
     def _scrape_single_page(
         self, url: str, company_name: str, is_main_page: bool = False
     ) -> list[tuple[OpportunityData, str]]:
@@ -259,58 +309,18 @@ class FirecrawlCareerScraper:
             List of tuples (OpportunityData, extraction_method)
         """
         try:
-            # Check cache first (only for main page to avoid cache pollution)
-            cached_markdown = None
-            if is_main_page:
-                cached_markdown = self._check_cache(company_name)
+            markdown = self._fetch_page_markdown(url, company_name, is_main_page)
+            if markdown is None:
+                return []
 
-            if cached_markdown:
-                markdown = cached_markdown
-            else:
-                # Cache miss - fetch via Firecrawl API
-                if is_main_page:
-                    print("  ⚡ Using Firecrawl API...")
-                result = self._firecrawl_scrape(url)
-
-                if not result:
-                    if is_main_page:
-                        print("  ✗ Failed to scrape page")
-                    return []
-
-                markdown = result.get("markdown", "")
-
-                # Save to cache for future use (only main page)
-                if markdown and is_main_page:
-                    self._save_cache(company_name, markdown)
-
-            # Extract jobs from markdown using regex (primary method)
             regex_jobs = self._extract_jobs_from_markdown(markdown, url, company_name)
             if is_main_page:
                 print(f"  📝 Regex extraction: {len(regex_jobs)} job listings found")
 
-            # Validate and tag jobs with extraction method
             jobs_with_method = self._process_extracted_jobs(regex_jobs, company_name, "regex")
 
-            # Run LLM extraction if enabled and budget available (only on main page to save costs)
-            if self.enable_llm_extraction and self.llm_extractor and is_main_page:
-                if self.llm_extractor.budget_available():
-                    try:
-                        logger.info(f"Running LLM extraction for {company_name}")
-                        llm_jobs = self.llm_extractor.extract_jobs(markdown, company_name)
-                        print(f"  🤖 LLM extraction: {len(llm_jobs)} job listings found")
-
-                        # Validate and add LLM jobs
-                        jobs_with_method.extend(
-                            self._process_extracted_jobs(llm_jobs, company_name, "llm")
-                        )
-                    except Exception as e:
-                        logger.error(f"LLM extraction failed for {company_name}: {e}")
-                        print(f"  ✗ LLM extraction failed: {e}")
-                else:
-                    logger.warning(
-                        f"LLM budget exceeded, skipping LLM extraction for {company_name}"
-                    )
-                    print("  ⚠ LLM budget exceeded, using regex only")
+            if is_main_page:
+                jobs_with_method.extend(self._run_llm_extraction(markdown, company_name))
 
             return jobs_with_method
 
@@ -572,6 +582,15 @@ class FirecrawlCareerScraper:
 
         return validated_jobs
 
+    @staticmethod
+    def _dedup_score(item: tuple[OpportunityData, str]) -> tuple[int, int, int]:
+        """Score a job for deduplication ranking (higher is better)."""
+        job, method = item
+        has_valid_url = 1 if job.link and job.__dict__.get("url_validated", True) else 0
+        is_llm = 1 if method == "llm" else 0
+        has_url = 1 if job.link else 0
+        return (has_valid_url, is_llm, has_url)
+
     def _deduplicate_jobs(
         self, jobs_with_methods: list[tuple[OpportunityData, str]]
     ) -> list[tuple[OpportunityData, str]]:
@@ -591,38 +610,19 @@ class FirecrawlCareerScraper:
         """
         from collections import defaultdict
 
-        # Group jobs by (title, company) key
         job_groups: dict[tuple[str, str], list[tuple[OpportunityData, str]]] = defaultdict(list)
 
         for job, method in jobs_with_methods:
-            # Normalize title for deduplication (lowercase, strip whitespace)
             title_normalized = " ".join(job.title.lower().split())
             company_normalized = job.company.lower().strip()
-            key = (title_normalized, company_normalized)
-            job_groups[key].append((job, method))
+            job_groups[(title_normalized, company_normalized)].append((job, method))
 
-        # For each group, pick the best job
         deduplicated = []
-        for (_title, _company), group in job_groups.items():
+        for group in job_groups.values():
             if len(group) == 1:
-                # No duplicates, keep as-is
                 deduplicated.append(group[0])
             else:
-                # Multiple duplicates, pick the best one
-                def job_score(item: tuple[OpportunityData, str]) -> tuple[int, int, int]:
-                    job, method = item
-                    # Score criteria (higher is better):
-                    # 1. URL validity (1 if valid, 0 if invalid/missing)
-                    has_valid_url = 1 if job.link and job.__dict__.get("url_validated", True) else 0
-                    # 2. Extraction method (1 for LLM, 0 for regex)
-                    is_llm = 1 if method == "llm" else 0
-                    # 3. URL presence (1 if has URL, 0 if not)
-                    has_url = 1 if job.link else 0
-                    return (has_valid_url, is_llm, has_url)
-
-                # Pick job with highest score
-                best_job = max(group, key=job_score)
-                deduplicated.append(best_job)
+                deduplicated.append(max(group, key=self._dedup_score))
 
         return deduplicated
 
@@ -802,6 +802,30 @@ class FirecrawlCareerScraper:
         logger.info(f"No additional URLs discovered for {company_name}")
         return []
 
+    def _extract_job_urls_from_xml(self, content: bytes) -> list[str]:
+        """Extract job URLs from sitemap XML content, handling namespace variants."""
+        root = ET.fromstring(content)
+
+        # Handle namespace (sitemaps use http://www.sitemaps.org/schemas/sitemap/0.9)
+        # XML namespace URI is an identifier, not an HTTP request - official sitemap schema
+        ns = {"ns": "http://www.sitemaps.org/schemas/sitemap/0.9"}  # NOSONAR
+
+        urls = [
+            loc.text
+            for loc in root.findall(".//ns:loc", ns)
+            if loc.text and self._is_job_url(loc.text)
+        ]
+
+        # Also try without namespace (some sitemaps don't use it)
+        if not urls:
+            urls = [
+                loc.text
+                for loc in root.findall(".//loc")
+                if loc.text and self._is_job_url(loc.text)
+            ]
+
+        return urls
+
     def _parse_sitemap(self, careers_url: str) -> list[str]:
         """
         Parse sitemap.xml to discover job URLs (FREE)
@@ -817,11 +841,9 @@ class FirecrawlCareerScraper:
         Returns:
             List of job URLs found in sitemap, or empty list if no sitemap
         """
-        # Extract domain from careers URL
         parsed = urlparse(careers_url)
         domain = f"{parsed.scheme}://{parsed.netloc}"
 
-        # Try common sitemap locations
         sitemap_candidates = [
             urljoin(domain, "/sitemap.xml"),
             urljoin(domain, "/careers/sitemap.xml"),
@@ -830,54 +852,40 @@ class FirecrawlCareerScraper:
         ]
 
         for sitemap_url in sitemap_candidates:
-            try:
-                logger.debug(f"Trying sitemap: {sitemap_url}")
-                response = requests.get(
-                    sitemap_url,
-                    timeout=10,
-                    headers={
-                        "User-Agent": "Mozilla/5.0 (compatible; JobAgent/1.0; +https://github.com/user/job-agent)"
-                    },
-                )
-
-                if response.status_code != 200:
-                    logger.debug(f"Sitemap {sitemap_url} returned {response.status_code}")
-                    continue
-
-                # Parse XML sitemap
-                root = ET.fromstring(response.content)
-
-                # Handle namespace (sitemaps use http://www.sitemaps.org/schemas/sitemap/0.9)
-                # XML namespace URI is an identifier, not an HTTP request - official sitemap schema
-                ns = {"ns": "http://www.sitemaps.org/schemas/sitemap/0.9"}  # NOSONAR
-
-                # Extract <loc> tags (URLs)
-                urls = []
-                for loc in root.findall(".//ns:loc", ns):
-                    if loc.text and self._is_job_url(loc.text):
-                        urls.append(loc.text)
-
-                # Also try without namespace (some sitemaps don't use it)
-                if not urls:
-                    for loc in root.findall(".//loc"):
-                        if loc.text and self._is_job_url(loc.text):
-                            urls.append(loc.text)
-
-                if urls:
-                    logger.info(f"Found {len(urls)} job URLs in {sitemap_url}")
-                    return urls
-
-            except ET.ParseError as e:
-                logger.debug(f"Failed to parse sitemap {sitemap_url}: {e}")
-                continue
-            except requests.RequestException as e:
-                logger.debug(f"Failed to fetch sitemap {sitemap_url}: {e}")
-                continue
-            except Exception as e:
-                logger.warning(f"Unexpected error parsing {sitemap_url}: {e}")
-                continue
+            urls = self._try_fetch_sitemap(sitemap_url)
+            if urls:
+                return urls
 
         logger.debug("No sitemap found at any candidate location")
+        return []
+
+    def _try_fetch_sitemap(self, sitemap_url: str) -> list[str]:
+        """Fetch and parse a single sitemap URL, returning job URLs or empty list."""
+        try:
+            logger.debug(f"Trying sitemap: {sitemap_url}")
+            response = requests.get(
+                sitemap_url,
+                timeout=10,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (compatible; JobAgent/1.0; +https://github.com/user/job-agent)"
+                },
+            )
+
+            if response.status_code != 200:
+                logger.debug(f"Sitemap {sitemap_url} returned {response.status_code}")
+                return []
+
+            urls = self._extract_job_urls_from_xml(response.content)
+            if urls:
+                logger.info(f"Found {len(urls)} job URLs in {sitemap_url}")
+            return urls
+
+        except ET.ParseError as e:
+            logger.debug(f"Failed to parse sitemap {sitemap_url}: {e}")
+        except requests.RequestException as e:
+            logger.debug(f"Failed to fetch sitemap {sitemap_url}: {e}")
+        except Exception as e:
+            logger.warning(f"Unexpected error parsing {sitemap_url}: {e}")
         return []
 
     def _firecrawl_map(self, careers_url: str, company_name: str) -> list[str]:
