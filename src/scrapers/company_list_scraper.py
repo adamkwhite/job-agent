@@ -5,8 +5,10 @@ Extracts company data from various HTML formats using AI-powered extraction
 
 import argparse
 import json
+import logging
 import re
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
@@ -15,6 +17,8 @@ import requests
 from bs4 import BeautifulSoup
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+logger = logging.getLogger(__name__)
 
 try:
     import anthropic
@@ -26,7 +30,7 @@ try:
 except ImportError:
     OpenAI = None  # type: ignore
 
-from models import OpportunityData
+from models import OpportunityData  # noqa: E402 (requires sys.path insert above)
 
 
 class CompanyListScraper:
@@ -66,7 +70,7 @@ class CompanyListScraper:
         Returns:
             List of OpportunityData objects with type="company_research"
         """
-        print(f"Fetching {url}...")
+        logger.info("Fetching %s", url)
         response = requests.get(url, timeout=30)
         response.raise_for_status()
 
@@ -87,7 +91,7 @@ class CompanyListScraper:
 
     def _extract_with_ai(self, text: str, source_url: str) -> list[OpportunityData]:
         """Use Claude to extract structured company data from text"""
-        print("Extracting company data with AI...")
+        logger.info("Extracting company data with AI...")
 
         # Truncate text if too long (keep first 50k chars)
         if len(text) > 50000:
@@ -135,27 +139,27 @@ Content to extract from:
                 response_text = completion.choices[0].message.content
 
             else:
-                print(f"Unknown provider: {self.provider}")
+                logger.error("Unknown provider: %s", self.provider)
                 return []
 
             # Extract JSON from response
             json_match = re.search(r"\[.*\]", response_text, re.DOTALL)
             if not json_match:
-                print("No JSON array found in AI response")
+                logger.warning("No JSON array found in AI response")
                 return []
 
             companies_data = json.loads(json_match.group(0))
-            print(f"AI extracted {len(companies_data)} companies")
+            logger.info("AI extracted %d companies", len(companies_data))
 
             return self._convert_to_opportunities(companies_data, source_url)
 
         except Exception as e:
-            print(f"AI extraction failed: {e}")
+            logger.exception("AI extraction failed: %s", e)
             return []
 
     def _extract_with_patterns(self, soup: BeautifulSoup, source_url: str) -> list[OpportunityData]:
         """Fallback: Extract using HTML patterns (less accurate)"""
-        print("Extracting company data with pattern matching...")
+        logger.info("Extracting company data with pattern matching...")
 
         companies: list[dict] = []
 
@@ -250,7 +254,7 @@ Content to extract from:
             if details.get("company_name"):
                 companies.append(details)
 
-        print(f"Pattern matching found {len(companies)} companies")
+        logger.info("Pattern matching found %d companies", len(companies))
         return self._convert_to_opportunities(companies, source_url)
 
     def _convert_to_opportunities(
@@ -320,25 +324,23 @@ def _load_urls(args: argparse.Namespace) -> list[str]:
                     urls.append(stripped)
 
     if not urls:
-        print("Error: Provide a URL argument or --input-file with URLs")
+        logger.error("No URLs provided. Use a positional URL argument or --input-file")
         sys.exit(1)
 
     return urls
 
 
 def _print_opportunities(opportunities: list) -> None:
-    """Print extracted company details to stdout."""
+    """Log extracted company details."""
     for opp in opportunities:
-        print(f"Company: {opp.company}")
+        parts = [f"Company: {opp.company}"]
         if opp.company_location:
-            print(f"  Location: {opp.company_location}")
+            parts.append(f"Location: {opp.company_location}")
         if opp.company_website:
-            print(f"  Website: {opp.company_website}")
+            parts.append(f"Website: {opp.company_website}")
         if opp.funding_stage:
-            print(f"  Stage: {opp.funding_stage}")
-        if opp.description:
-            print(f"  Description: {opp.description[:100]}...")
-        print()
+            parts.append(f"Stage: {opp.funding_stage}")
+        logger.info(" | ".join(parts))
 
 
 def _store_to_db(all_opportunities: list) -> dict:
@@ -369,23 +371,41 @@ def _store_to_db(all_opportunities: list) -> dict:
         )
 
     if not companies_for_db:
-        print("No companies to store in database.")
+        logger.info("No companies to store in database.")
         return {"added": 0, "skipped_duplicates": 0, "errors": 0, "details": []}
 
     return service.add_companies_batch(companies_for_db)
 
 
 def _print_summary(urls: list[str], all_opportunities: list, db_stats: dict | None) -> None:
-    """Print final summary of batch processing results."""
-    print(f"\n{'=' * 70}")
-    print("Summary")
-    print(f"{'=' * 70}")
-    print(f"  URLs processed: {len(urls)}")
-    print(f"  Companies found: {len(all_opportunities)}")
+    """Log final summary of batch processing results."""
+    summary = f"Summary: {len(urls)} URLs processed, {len(all_opportunities)} companies found"
     if db_stats is not None:
-        print(f"  Stored in DB: {db_stats.get('added', 0)}")
-        print(f"  Skipped (duplicates): {db_stats.get('skipped_duplicates', 0)}")
-        print(f"  Errors: {db_stats.get('errors', 0)}")
+        summary += (
+            f", {db_stats.get('added', 0)} stored"
+            f", {db_stats.get('skipped_duplicates', 0)} duplicates"
+            f", {db_stats.get('errors', 0)} errors"
+        )
+    logger.info(summary)
+
+
+def _setup_logging() -> None:
+    """Configure dual logging: console (INFO) + file (DEBUG with timestamps)."""
+    log_dir = Path(__file__).parent.parent.parent / "logs"
+    log_dir.mkdir(exist_ok=True)
+    log_file = log_dir / "company_list_scraper.log"
+
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler(log_file),
+        ],
+    )
+    # Suppress noisy third-party loggers
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 def main() -> None:
@@ -395,6 +415,7 @@ def main() -> None:
     from dotenv import load_dotenv
 
     load_dotenv()
+    _setup_logging()
 
     parser = argparse.ArgumentParser(description="Scrape companies from curated lists")
     parser.add_argument("url", nargs="?", default=None, help="URL to scrape")
@@ -425,10 +446,10 @@ def main() -> None:
     use_ai = not args.no_ai and api_key is not None
 
     if args.no_ai:
-        print("AI extraction disabled, using pattern matching")
+        logger.info("AI extraction disabled, using pattern matching")
     elif not api_key:
-        print(
-            f"Warning: {args.provider.upper()}_API_KEY not found, falling back to pattern matching"
+        logger.warning(
+            "%s_API_KEY not found, falling back to pattern matching", args.provider.upper()
         )
         use_ai = False
 
@@ -447,17 +468,30 @@ def main() -> None:
     else:
         url_iter = urls
 
+    start_time = time.time()
+
     for url in url_iter:
         try:
+            url_start = time.time()
             opportunities = scraper.scrape_url(url, use_ai=use_ai)
             all_opportunities.extend(opportunities)
+            logger.info(
+                "Scraped %d companies from %s in %.1fs",
+                len(opportunities),
+                url,
+                time.time() - url_start,
+            )
         except Exception as e:
-            print(f"Error scraping {url}: {e}")
+            logger.error("Error scraping %s: %s", url, e)
             continue
 
-    print(f"\n{'=' * 70}")
-    print(f"Extracted {len(all_opportunities)} companies from {len(urls)} URL(s)")
-    print(f"{'=' * 70}\n")
+    elapsed = time.time() - start_time
+    logger.info(
+        "Extracted %d companies from %d URL(s) in %.1fs",
+        len(all_opportunities),
+        len(urls),
+        elapsed,
+    )
 
     _print_opportunities(all_opportunities)
 
@@ -478,7 +512,7 @@ def main() -> None:
         with open(args.output, "w") as f:
             json.dump(output_data, f, indent=2)
 
-        print(f"Saved to {args.output}")
+        logger.info("Saved to %s", args.output)
 
     # Store in DB if requested
     db_stats = None

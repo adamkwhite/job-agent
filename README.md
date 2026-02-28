@@ -30,7 +30,7 @@ This system automates job discovery for multiple professionals (Wes, Adam, Eli, 
 
 ## Architecture (V2 - Current)
 
-### 1. Job Scoring Engine (`src/agents/job_scorer.py`)
+### 1. Job Scoring Engine (`src/agents/profile_scorer.py`)
 Multi-factor 100-point base scoring system (max 110 with bonuses) with **multi-profile support**:
 - **Seniority** (0-30): Relative scoring based on each profile's target levels (Issue #244)
 - **Domain** (0-25): Profile-specific domain keywords (Robotics, hardware, fintech, etc.)
@@ -55,8 +55,9 @@ Multi-factor 100-point base scoring system (max 110 with bonuses) with **multi-p
 
 ### 3. Web Scrapers
 - **Company Monitoring** (`src/jobs/company_scraper.py`): 68 robotics/deeptech companies via Firecrawl MCP
+- **Company List Scraper** (`src/scrapers/company_list_scraper.py`): Batch scraping of curated company lists with AI extraction, DB storage, and structured logging
 - **Ministry of Testing** (`src/jobs/ministry_scraper.py`): QA/testing job board
-- **Unified Workflow** (`src/jobs/weekly_unified_scraper.py`): Single command for all sources with multi-profile scoring
+- **Unified Workflow** (`src/jobs/weekly_unified_scraper.py`): Single command for all sources with multi-profile scoring and failure monitoring/alerting
 
 ### 4. Email Digest System (`src/send_profile_digest.py`)
 - **Profile-specific digests** with personalized job matches
@@ -303,7 +304,7 @@ SKIP=python-safety-dependencies-check git commit -m "message"
 4. Make changes, commit, and push — fast CI (lint + tests) runs on every push; SonarCloud is skipped on drafts
 5. Monitor PR checks as you go: `gh pr checks`
 6. Mark ready when done: `gh pr ready` — triggers full SonarCloud analysis
-7. Wait for approval before merging
+7. Merge on green CI (routine PRs) or wait for review (architectural changes)
 
 **NEVER commit directly to main branch** - even for small fixes.
 
@@ -377,6 +378,7 @@ The system supports multiple user profiles, each with personalized scoring crite
 - ✅ Intelligent 100-point base scoring system (max 110) with A/B/C/D/F grading
 - ✅ Location-aware filtering (Remote/Hybrid Ontario +15 points)
 - ✅ Noise reduction (A/B grade notifications only, 70+)
+- ✅ Scraper monitoring with email alerts on failures
 - ✅ Weekly automation via cron (Monday 9am)
 - ✅ Email digests with interactive HTML reports
 - ✅ Latest results: 5 excellent matches (70+), 11 good matches (55+)
@@ -400,7 +402,6 @@ The system supports multiple user profiles, each with personalized scoring crite
 - Semi-automated application submission
 - AI-powered resume customization
 - Interview preparation automation
-- Configurable scoring weights
 - Daily digest emails
 
 ## Documentation
