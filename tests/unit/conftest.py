@@ -235,7 +235,19 @@ def _build_mario_profile() -> Profile:
         scoring={
             "target_seniority": ["senior", "staff", "lead", "principal"],
             "domain_keywords": ["qa", "testing", "quality"],
-            "role_types": {"qa": ["qa", "quality", "test"]},
+            "role_types": {
+                "engineering": [
+                    "qa engineer",
+                    "qa lead",
+                    "qa manager",
+                    "test engineer",
+                    "test automation engineer",
+                    "sdet",
+                    "quality engineer",
+                    "automation engineer",
+                ],
+                "data": ["data engineer", "ml engineer", "ai test engineer"],
+            },
             "location_preferences": {
                 "remote_keywords": ["remote"],
                 "hybrid_keywords": ["hybrid"],
