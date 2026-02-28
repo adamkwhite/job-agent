@@ -11,17 +11,51 @@ from BaseEmailParser because it returns feedback data, not job opportunities.
 import logging
 import re
 from email.message import Message
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# Sentinel words that terminate a company name in feedback text
+_STOP_WORDS = {"is", "are", "job", "and", "the"}
 
-class FeedbackParser:
+# Pattern: "Title at Company" — extracted to reduce in-function complexity
+# Title must contain a leadership keyword; company stops at sentence words
+_TITLE_RE = re.compile(
+    r"(?:(?:the|both)\s)?"
+    r"([A-Z][A-Z ]+(?:Director|VP|Engineer|Manager|Lead|Head)[A-Z ]*)"
+    r"\sat\s",
+    re.IGNORECASE,
+)
+
+
+def _extract_company(text: str) -> str | None:
+    """Extract company name from text after 'at', stopping at stop words."""
+    words: list[str] = []
+    for word in text.split():
+        if word.lower().rstrip(".,;") in _STOP_WORDS or word[0] in ".,;":
+            break
+        words.append(word.rstrip(".,;"))
+    return " ".join(words) if words else None
+
+
+_REPLY_KEYWORDS = ("re:", "fwd:", "fw:")
+_DIGEST_KEYWORDS = (
+    "job matches",
+    "job match",
+    "excellent job",
+    "good job",
+    "digest",
+)
+
+
+class FeedbackParser(object):  # noqa: UP004 (explicit object for SonarLint S1722 compatibility)
     """Parse replies to job digest emails for feedback"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.name = "feedback"
 
-    def can_parse(self, msg: Message, _from_addr: str, subject: str) -> bool:
+    @staticmethod
+    def can_parse(msg: Message, _from_addr: str, subject: str) -> bool:
         """
         Detect if email is a reply to a job digest
 
@@ -32,33 +66,21 @@ class FeedbackParser:
         """
         subject_lower = subject.lower()
 
-        # Check if it's a reply (Re:) or forward (Fwd:)
-        if not any(kw in subject_lower for kw in ["re:", "fwd:", "fw:"]):
+        # Must be a reply/forward that mentions digest keywords
+        if not any(kw in subject_lower for kw in _REPLY_KEYWORDS):
+            return False
+        if not any(kw in subject_lower for kw in _DIGEST_KEYWORDS):
             return False
 
-        # Check if subject mentions job matches/digest
-        digest_keywords = [
-            "job matches",
-            "job match",
-            "excellent job",
-            "good job",
-            "digest",
-        ]
-
-        if not any(kw in subject_lower for kw in digest_keywords):
-            return False
-
-        # Check for In-Reply-To header (stronger signal)
+        # Log which signal matched
         in_reply_to = msg.get("In-Reply-To", "")
         if in_reply_to:
             logger.info(f"Found digest reply with In-Reply-To: {in_reply_to}")
-            return True
-
-        # Subject suggests it's a reply to digest
-        logger.info(f"Found potential digest reply from subject: {subject}")
+        else:
+            logger.info(f"Found potential digest reply from subject: {subject}")
         return True
 
-    def parse(self, msg: Message, from_addr: str, subject: str) -> list[dict]:
+    def parse(self, msg: Message, from_addr: str, subject: str) -> list[dict[str, Any]]:
         """
         Parse feedback from digest reply
 
@@ -100,7 +122,8 @@ class FeedbackParser:
 
         return [feedback]
 
-    def _get_email_body(self, msg: Message) -> str:
+    @staticmethod
+    def _get_email_body(msg: Message) -> str:
         """Extract plain text body from email"""
         if msg.is_multipart():
             for part in msg.walk():
@@ -114,7 +137,8 @@ class FeedbackParser:
                 return payload.decode("utf-8", errors="ignore")
         return ""
 
-    def _clean_feedback_body(self, body: str) -> str:
+    @staticmethod
+    def _clean_feedback_body(body: str) -> str:
         """
         Clean feedback text by removing:
         - Quoted original email (lines starting with >)
@@ -149,7 +173,8 @@ class FeedbackParser:
         cleaned_text = "\n".join(cleaned_lines).strip()
         return cleaned_text
 
-    def _extract_job_references(self, text: str) -> list[dict]:
+    @staticmethod
+    def _extract_job_references(text: str) -> list[dict[str, Any]]:
         """
         Extract job references from feedback text
 
@@ -163,20 +188,17 @@ class FeedbackParser:
         """
         job_refs = []
 
-        # Pattern: "Title at Company"
-        # Title: Must contain Director, VP, Engineer, Manager, Lead, or Head
-        # Company: Capitalized name, stops at common sentence words or punctuation
-        # Simplified to reduce complexity and avoid character class duplicates
-        title_company_pattern = r"(?:(?:the|both) )?([A-Z][A-Za-z ]+(?:Director|VP|Engineer|Manager|Lead|Head)[A-Za-z ]*) at ([A-Z][A-Za-z0-9 &]+?)(?= (?:is|are|job|and|the)\b|[.,;]|$)"
-        matches = re.findall(title_company_pattern, text, re.IGNORECASE)
-        for title, company in matches:
-            job_refs.append(
-                {
-                    "title": title.strip(),
-                    "company": company.strip(),
-                    "source": "text_pattern",
-                }
-            )
+        for m in _TITLE_RE.finditer(text):
+            title = m.group(1).strip()
+            company = _extract_company(text[m.end() :])
+            if company:
+                job_refs.append(
+                    {
+                        "title": title,
+                        "company": company,
+                        "source": "text_pattern",
+                    }
+                )
 
         # Pattern: LinkedIn URLs
         linkedin_pattern = r"https?://(?:www\.)?linkedin\.com/jobs/view/(\d+)"
