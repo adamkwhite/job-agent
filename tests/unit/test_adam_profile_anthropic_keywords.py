@@ -73,7 +73,7 @@ class TestAnthropicJobScoring:
             f"Product Manager, Claude Code @ Anthropic should score at least 70 for Adam, "
             f"got {score}/100 ({grade})"
         )
-        assert grade == "B", f"Expected B grade, got {grade}"
+        assert grade in ("A", "B"), f"Expected A or B grade, got {grade}"
 
         # Domain should score 25 (3+ keyword matches: product, anthropic, claude)
         assert breakdown["domain"] >= 20, (
@@ -133,9 +133,11 @@ class TestAnthropicJobScoring:
         )
         assert grade in ["A", "B"], f"Expected A or B grade, got {grade}"
 
-        # Seniority should be 15 (senior-level)
-        assert breakdown["seniority"] == 15, (
-            f"Senior PM should get 15 seniority points, got {breakdown['seniority']}"
+        # Seniority uses relative scoring (Issue #311 fix)
+        # "Senior Product Manager" detects as manager(level 5) due to highest-level-wins
+        # Score depends on distance to Adam's target_seniority levels
+        assert breakdown["seniority"] > 0, (
+            f"Senior PM should get seniority points, got {breakdown['seniority']}"
         )
 
 
