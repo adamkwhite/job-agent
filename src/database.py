@@ -390,6 +390,25 @@ class JobDatabase:
         conn.commit()
         conn.close()
 
+    def update_job_description(self, job_id: int, description: str) -> None:
+        """Update job description after enrichment fetch"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        now = datetime.now().isoformat()
+
+        cursor.execute(
+            """
+            UPDATE jobs
+            SET description = ?, updated_at = ?
+            WHERE id = ?
+        """,
+            (description, now, job_id),
+        )
+
+        conn.commit()
+        conn.close()
+
     def mark_job_filtered(self, job_id: int, filter_reason: str):
         """Mark job as filtered with reason"""
         conn = sqlite3.connect(self.db_path)
