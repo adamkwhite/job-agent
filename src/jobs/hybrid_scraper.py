@@ -18,7 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from agents.job_scorer import JobScorer
+from agents.profile_scorer import ProfileScorer
 from api.company_service import CompanyService
 from database import JobDatabase
 from job_filter import JobFilter
@@ -26,6 +26,7 @@ from notifier import JobNotifier
 from scrapers.company_discoverer import CompanyDiscoverer
 from scrapers.firecrawl_career_scraper import FirecrawlCareerScraper
 from scrapers.robotics_deeptech_scraper import RoboticsDeeptechScraper
+from utils.profile_manager import get_profile_manager
 
 
 class HybridJobScraper:
@@ -60,7 +61,8 @@ class HybridJobScraper:
         self.firecrawl_scraper = FirecrawlCareerScraper()
         self.robotics_scraper = RoboticsDeeptechScraper()
         self.job_filter = JobFilter()
-        self.scorer = JobScorer()
+        wes_profile = get_profile_manager().get_profile("wes")
+        self.scorer = ProfileScorer(wes_profile)
         self.database = JobDatabase()
         self.notifier = JobNotifier()
 

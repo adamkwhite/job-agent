@@ -16,27 +16,63 @@ Fix: Added domain keywords to role_types for proper matching.
 import pytest
 
 from agents.profile_scorer import ProfileScorer
-from utils.profile_manager import get_profile_manager
-
-
-@pytest.fixture
-def wes_profile():
-    """Get Wes's actual profile"""
-    pm = get_profile_manager()
-    profile = pm.get_profile("wes")
-    if not profile:
-        pytest.skip("Wes's profile not found")
-    return profile
+from utils.profile_manager import Profile
 
 
 @pytest.fixture
 def eli_profile():
-    """Get Eli's actual profile"""
-    pm = get_profile_manager()
-    profile = pm.get_profile("eli")
-    if not profile:
-        pytest.skip("Eli's profile not found")
-    return profile
+    """Eli's profile inline for CI-safe testing"""
+    return Profile(
+        id="eli",
+        name="Eli",
+        email="test@example.com",
+        enabled=True,
+        email_username="",
+        email_app_password_env="",
+        scoring={
+            "target_seniority": ["director", "vp", "head of", "chief", "cto", "cpo"],
+            "domain_keywords": [
+                "fintech",
+                "healthtech",
+                "proptech",
+                "insurtech",
+                "edtech",
+                "regtech",
+                "legaltech",
+            ],
+            "role_types": {
+                "engineering_leadership": [
+                    "engineering",
+                    "technical",
+                    "cto",
+                    "vp engineering",
+                    "director engineering",
+                    "fintech",
+                    "healthtech",
+                    "saas",
+                ],
+            },
+            "location_preferences": {
+                "remote_keywords": ["remote"],
+                "hybrid_keywords": ["hybrid"],
+                "preferred_cities": ["toronto"],
+                "preferred_regions": ["ontario", "canada"],
+            },
+            "filtering": {
+                "aggression_level": "moderate",
+                "hardware_company_boost": 10,
+                "software_company_penalty": -20,
+            },
+        },
+        digest_min_grade="C",
+        digest_min_score=55,
+        digest_min_location_score=0,
+        digest_include_grades=["A", "B", "C"],
+        digest_frequency="weekly",
+        notifications_enabled=False,
+        notifications_min_grade="B",
+        notifications_min_score=70,
+    )
 
 
 class TestWesRoboticsKeywords:

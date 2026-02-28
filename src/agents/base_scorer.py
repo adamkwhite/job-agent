@@ -2,9 +2,8 @@
 Base Job Scorer
 Abstract base class for job scoring with shared logic
 
-This class provides common scoring methods used by both:
-- JobScorer (hardcoded Wesley profile)
-- ProfileScorer (dynamic profiles)
+ProfileScorer extends this class with role-type matching.
+All scoring features are profile-configurable via optional fields.
 
 Shared Methods:
 - _score_seniority() - Score based on seniority level (0-30)
@@ -15,8 +14,6 @@ Shared Methods:
 
 Abstract Methods:
 - _score_role_type() - Must be implemented by subclasses (0-20 points)
-  - JobScorer: Uses detailed matchers for Wes's role categories
-  - ProfileScorer: Uses simple keyword matching for generic profiles
 """
 
 import copy
@@ -59,6 +56,13 @@ def load_role_category_keywords() -> dict:
     return config.get("role_category_keywords", {})
 
 
+def load_location_settings() -> dict:
+    """Load location restriction patterns from config file"""
+    config_path = Path(__file__).parent.parent.parent / "config" / "location-settings.json"
+    with open(config_path) as f:
+        return json.load(f)
+
+
 class BaseScorer:
     """
     Abstract base class for job scoring
@@ -73,18 +77,12 @@ class BaseScorer:
         company_classifier: Company classifier for software/hardware detection
     """
 
-    def __init__(self, profile: dict):
+    def __init__(self, profile):
         """
         Initialize base scorer with profile configuration
 
         Args:
-            profile: Profile dict with keys:
-                - target_seniority: list[str] - Seniority keywords (e.g., ["vp", "director"])
-                - domain_keywords: list[str] - Domain keywords (e.g., ["robotics", "automation"])
-                - role_types: dict - Role type categories
-                - location_preferences: dict - Location settings
-                - filtering: dict - Filtering configuration
-                - (optional) technical_keywords: list[str] - Additional technical keywords
+            profile: Profile object with scoring criteria
         """
         # Deep copy profile to prevent test mutation bugs
         # Tests that modify scorer.profile["filtering"]["aggression_level"]
@@ -93,6 +91,7 @@ class BaseScorer:
         self.db = JobDatabase()
         self.role_category_keywords = load_role_category_keywords()
         self.company_classifier = CompanyClassifier()
+        self.location_settings = load_location_settings()
 
     def score_job(self, job: dict) -> tuple[int, str, dict, dict]:
         """
@@ -120,6 +119,7 @@ class BaseScorer:
         company = job["company"].lower()
         company_display = job["company"]  # Keep original case for classification
         location = (job.get("location") or "").lower()
+        description = job.get("description", "")
 
         breakdown = {}
 
@@ -138,7 +138,7 @@ class BaseScorer:
         breakdown["domain"] = domain_score
 
         # 4. Location Match (0-15 points)
-        location_score = self._score_location(location)
+        location_score = self._score_location(location, description)
         breakdown["location"] = location_score
 
         # 5. Technical Keywords (0-10 points)
@@ -296,12 +296,8 @@ class BaseScorer:
         """
         Score based on domain keyword matches (0-25 points)
 
-        Scoring:
-        - 3+ keyword matches: 25 points
-        - 2 keyword matches: 20 points
-        - 1 keyword match: 15 points
-        - Engineering/product generic: 10 points
-        - Default: 5 points
+        If domain_tiers is configured, uses tiered matching (tier1=25, tier2=20, tier3=15).
+        Otherwise, uses count-based matching (3+=25, 2=20, 1=15).
 
         Args:
             title: Job title (lowercase)
@@ -311,12 +307,14 @@ class BaseScorer:
             Score 0-25 based on domain match
         """
         text = f"{title} {company}"
-        domain_keywords = self._get_domain_keywords()
+        domain_tiers = self._get_domain_tiers()
 
-        # Count domain keyword matches
+        if domain_tiers:
+            return self._score_domain_tiered(text, domain_tiers)
+
+        domain_keywords = self._get_domain_keywords()
         matches = sum(1 for kw in domain_keywords if kw in text)
 
-        # More matches = higher score
         if matches >= 3:
             return 25
         elif matches >= 2:
@@ -327,12 +325,37 @@ class BaseScorer:
             return 10
         return 5
 
-    def _score_location(self, location: str) -> int:
+    def _score_domain_tiered(self, text: str, tiers: dict[str, list[str]]) -> int:
+        """
+        Score domain using tiered keyword lists
+
+        Checks highest-value tier first and returns on first match.
+
+        Args:
+            text: Combined title + company text
+            tiers: Dict with tier1/tier2/tier3 keyword lists
+
+        Returns:
+            Score 5-25 based on tier match
+        """
+        tier_scores = [
+            (tiers.get("tier1", []), 25),
+            (tiers.get("tier2", []), 20),
+            (tiers.get("tier3", []), 15),
+        ]
+        for keywords, score in tier_scores:
+            if any(kw in text for kw in keywords):
+                return score
+
+        return 10 if "engineering" in text else 5
+
+    def _score_location(self, location: str, description: str = "") -> int:
         """
         Score based on location preferences (0-15 points)
 
         Scoring:
-        - Remote: 15 points
+        - Remote (unrestricted): 15 points
+        - Remote (country-restricted, if enabled): 0 points
         - Hybrid + preferred city/region: 15 points
         - Preferred city: 12 points
         - Preferred region: 8 points
@@ -340,6 +363,7 @@ class BaseScorer:
 
         Args:
             location: Location string (any case)
+            description: Job description for country restriction check
 
         Returns:
             Score 0-15 based on location match
@@ -355,8 +379,14 @@ class BaseScorer:
         preferred_cities = prefs.get("preferred_cities", [])
         preferred_regions = prefs.get("preferred_regions", [])
 
-        # Check for remote (15 points)
+        # Check for remote (15 points - but verify no country restrictions if enabled)
         if any(kw in location_lower for kw in remote_keywords):
+            if (
+                self._is_country_restriction_enabled()
+                and self._get_candidate_country()
+                and self._is_country_restricted(location, description)
+            ):
+                return 0
             return 15
 
         # Check for hybrid
@@ -382,6 +412,8 @@ class BaseScorer:
         Score based on technical keyword matches (0-10 points)
 
         Gives +2 points per matching technical keyword (max 10).
+        Uses dedicated technical_keywords if configured, else falls back to domain_keywords.
+        When technical_keywords is explicitly set, uses word boundary matching.
 
         Args:
             title: Job title (lowercase)
@@ -391,11 +423,13 @@ class BaseScorer:
             Score 0-10 based on technical keyword matches
         """
         text = f"{title} {company}".lower()
-        domain_keywords = self._get_domain_keywords()
+        tech_keywords = self._get_technical_keywords()
+        use_word_boundary = self._has_explicit_technical_keywords()
 
         score = 0
-        for keyword in domain_keywords:
-            if keyword in text:
+        for keyword in tech_keywords:
+            matched = self._has_keyword(text, keyword) if use_word_boundary else keyword in text
+            if matched:
                 score += 2
                 if score >= 10:
                     break
@@ -467,32 +501,122 @@ class BaseScorer:
         leadership_keywords = ["vp", "director", "head", "chief", "executive"]
         return any(self._has_keyword(title_lower, kw) for kw in leadership_keywords)
 
+    # ========== Country Restriction Methods ==========
+
+    def _is_country_restricted(self, location: str, description: str = "") -> bool:
+        """
+        Check if remote job is restricted to specific countries (excluding candidate's)
+
+        Args:
+            location: Location string
+            description: Job description text
+
+        Returns:
+            True if job is country-restricted (e.g., US-only for Canadian candidates)
+        """
+        if not location:
+            return False
+
+        location_lower = location.lower()
+        description_lower = description.lower() if description else ""
+        patterns = self.location_settings.get("country_restriction_patterns", {})
+
+        if self._is_canada_friendly(location_lower, description_lower, patterns):
+            return False
+        return self._is_us_only(
+            location_lower, description_lower, patterns
+        ) or self._has_us_state_in_remote(location_lower, patterns)
+
+    def _is_canada_friendly(
+        self, location_lower: str, description_lower: str, patterns: dict
+    ) -> bool:
+        """Check if job explicitly welcomes Canadian candidates."""
+        canada_friendly = patterns.get("canada_friendly", [])
+        return any(p in location_lower or p in description_lower for p in canada_friendly)
+
+    def _is_us_only(self, location_lower: str, description_lower: str, patterns: dict) -> bool:
+        """Check if job is restricted to US-only."""
+        us_only_patterns = patterns.get("us_only", [])
+        return any(p in location_lower or p in description_lower for p in us_only_patterns)
+
+    def _has_us_state_in_remote(self, location_lower: str, patterns: dict) -> bool:
+        """Check if remote job mentions a specific US state/city."""
+        if not any(kw in location_lower for kw in ["remote", "work from home", "wfh"]):
+            return False
+        us_states = patterns.get("us_states", [])
+        return any(
+            f" {state} " in f" {location_lower} " or location_lower.endswith(f" {state}")
+            for state in us_states
+        )
+
+    # ========== Keyword Bonus ==========
+
+    def _calculate_keyword_bonus(self, title: str, category: str | None) -> int:
+        """
+        Calculate bonus points from keyword matches in config (max +2)
+
+        Args:
+            title: Job title (original case)
+            category: Role category (engineering_leadership, product_leadership, etc.)
+
+        Returns:
+            Bonus points 0-2
+        """
+        if not category:
+            return 0
+
+        if category not in self.role_category_keywords:
+            logger.warning(
+                f"Role category '{category}' not found in config/filter-keywords.json. "
+                f"Job '{title}' will not receive keyword-based bonus points. "
+                f"Please add '{category}' to 'role_category_keywords' section in config."
+            )
+            return 0
+
+        category_keywords = self.role_category_keywords[category]
+        must_kw = category_keywords.get("must_keywords", [])
+        nice_kw = category_keywords.get("nice_keywords", [])
+
+        must_matches = self._count_keyword_matches(title, must_kw)
+        nice_matches = self._count_keyword_matches(title, nice_kw)
+
+        return (must_matches + nice_matches) * 2
+
     # ========== Profile Accessors ==========
-    # These helper methods allow both dict-based and Profile object-based access
 
     def _get_target_seniority(self) -> list[str]:
         """Get target seniority keywords from profile"""
-        if hasattr(self.profile, "get_target_seniority"):
-            # Profile object (ProfileScorer)
-            return self.profile.get_target_seniority()
-        # Dict-based (JobScorer)
-        return self.profile.get("target_seniority", [])
+        return self.profile.get_target_seniority()
 
     def _get_domain_keywords(self) -> list[str]:
         """Get domain keywords from profile"""
-        if hasattr(self.profile, "get_domain_keywords"):
-            # Profile object (ProfileScorer)
-            return self.profile.get_domain_keywords()
-        # Dict-based (JobScorer)
-        return self.profile.get("domain_keywords", [])
+        return self.profile.get_domain_keywords()
 
     def _get_location_preferences(self) -> dict:
         """Get location preferences from profile"""
-        if hasattr(self.profile, "get_location_preferences"):
-            # Profile object (ProfileScorer)
-            return self.profile.get_location_preferences()
-        # Dict-based (JobScorer)
-        return self.profile.get("location_preferences", {})
+        return self.profile.get_location_preferences()
+
+    def _get_candidate_country(self) -> str | None:
+        """Get candidate's country from profile"""
+        return self.profile.scoring.get("candidate_country")
+
+    def _is_country_restriction_enabled(self) -> bool:
+        """Check if country restriction filtering is enabled"""
+        prefs = self._get_location_preferences()
+        return prefs.get("country_restriction_enabled", False)
+
+    def _get_domain_tiers(self) -> dict | None:
+        """Get tiered domain keywords if configured"""
+        return self.profile.scoring.get("domain_tiers")
+
+    def _get_technical_keywords(self) -> list[str]:
+        """Get technical keywords (falls back to domain_keywords)"""
+        explicit = self.profile.scoring.get("technical_keywords")
+        return explicit if explicit else self._get_domain_keywords()
+
+    def _has_explicit_technical_keywords(self) -> bool:
+        """Check if profile has explicit technical_keywords configured"""
+        return self.profile.scoring.get("technical_keywords") is not None
 
     # ========== Seniority Detection Helpers (Issue #244) ==========
 
@@ -556,16 +680,8 @@ class BaseScorer:
 
     def _get_role_types(self) -> dict:
         """Get role types from profile"""
-        if hasattr(self.profile, "scoring"):
-            # Profile object (ProfileScorer)
-            return self.profile.scoring.get("role_types", {})
-        # Dict-based (JobScorer)
-        return self.profile.get("role_types", {})
+        return self.profile.scoring.get("role_types", {})
 
     def _get_filtering_config(self) -> dict:
         """Get filtering configuration from profile"""
-        if hasattr(self.profile, "scoring"):
-            # Profile object (ProfileScorer)
-            return self.profile.scoring.get("filtering", {})
-        # Dict-based (JobScorer)
-        return self.profile.get("filtering", {})
+        return self.profile.scoring.get("filtering", {})

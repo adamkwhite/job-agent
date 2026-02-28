@@ -60,6 +60,9 @@ class LocationPreferences(BaseModel):
     )
     preferred_cities: list[str] = Field(default_factory=list, description="Preferred cities")
     preferred_regions: list[str] = Field(default_factory=list, description="Preferred regions")
+    country_restriction_enabled: bool = Field(
+        default=False, description="Whether to filter remote jobs by candidate country"
+    )
 
 
 class Filtering(BaseModel):
@@ -77,6 +80,9 @@ class Filtering(BaseModel):
     )
     software_company_penalty: int = Field(
         default=0, ge=-50, le=50, description="Score penalty for software companies"
+    )
+    role_software_penalty: int = Field(
+        default=0, ge=-50, le=0, description="Penalty for software dev leadership titles"
     )
 
     @field_validator("aggression_level")
@@ -122,7 +128,8 @@ class ContextFilters(BaseModel):
 class RoleTypes(BaseModel):
     """Role types configuration - flexible dictionary of role categories"""
 
-    model_config = {"extra": "allow"}  # Allow any additional role categories
+    # Allow any additional role categories
+    model_config = {"extra": "allow"}
 
     # Common role categories (optional)
     engineering_leadership: list[str] = Field(
@@ -156,6 +163,15 @@ class Scoring(BaseModel):
     )
     context_filters: ContextFilters | None = Field(
         default=None, description="Context filters (optional)"
+    )
+    candidate_country: str | None = Field(
+        default=None, description="Candidate's country for restriction filtering"
+    )
+    domain_tiers: dict[str, list[str]] | None = Field(
+        default=None, description="Tiered domain scoring (tier1/tier2/tier3)"
+    )
+    technical_keywords: list[str] | None = Field(
+        default=None, description="Dedicated tech keywords (falls back to domain_keywords)"
     )
 
     @field_validator("target_seniority")

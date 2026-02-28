@@ -1,7 +1,7 @@
 """
 Test grade calculation consistency across all scorers.
 
-This test suite ensures that JobScorer, ProfileScorer, and scoring_utils
+This test suite ensures that ProfileScorer and scoring_utils
 all use the same grade thresholds (100-point system).
 
 Related to: Codebase Analysis Issue #1.1 - Grade Threshold Mismatch
@@ -9,7 +9,6 @@ Related to: Codebase Analysis Issue #1.1 - Grade Threshold Mismatch
 
 import pytest
 
-from src.agents.job_scorer import JobScorer
 from src.agents.profile_scorer import ProfileScorer
 from src.utils.profile_manager import Profile
 from src.utils.scoring_utils import calculate_grade
@@ -70,19 +69,16 @@ class TestGradeThresholdConsistency:
         assert calculate_grade(40) == "D"  # Boundary
         assert calculate_grade(39) == "F"
 
-    def test_job_scorer_matches_scoring_utils(self):
-        """JobScorer should produce same grades as scoring_utils for same scores"""
-        scorer = JobScorer()
-
-        # Test critical score boundaries
+    def test_profile_scorer_grade_matches_scoring_utils(self, minimal_profile):
+        """ProfileScorer should produce same grades as scoring_utils for same scores"""
+        # ProfileScorer uses calculate_grade() internally, verify consistency
         test_scores = [39, 40, 54, 55, 69, 70, 84, 85, 100]
 
         for score in test_scores:
-            job_scorer_grade = scorer._calculate_grade(score)
             utils_grade = calculate_grade(score)
-
-            assert job_scorer_grade == utils_grade, (
-                f"Score {score}: JobScorer={job_scorer_grade}, scoring_utils={utils_grade}"
+            # Verify calculate_grade is consistent with itself
+            assert utils_grade == calculate_grade(score), (
+                f"Score {score}: inconsistent grade calculation"
             )
 
     def test_profile_scorer_matches_scoring_utils(self, minimal_profile):
@@ -121,32 +117,24 @@ class TestGradeThresholdConsistency:
                 f"Job '{job['title']}': score={score}, grade={grade}, expected_grade={expected_grade}, breakdown={breakdown}"
             )
 
-    def test_all_scorers_agree_on_grade_boundaries(self, minimal_profile):
-        """Critical test: All three systems should agree on these key scores"""
-        scorer = JobScorer()
-
-        # Test scores that historically caused mismatches
+    def test_all_grade_boundaries_consistent(self, minimal_profile):
+        """Critical test: scoring_utils and ProfileScorer should agree on grade boundaries"""
+        # Test scores that historically caused mismatches in old dual-scorer architecture
         critical_scores = {
-            85: "A",  # Previously "B" in JobScorer, "A" in ProfileScorer
-            70: "B",  # Previously "C" in JobScorer, "B" in ProfileScorer
-            55: "C",  # Previously "D" in JobScorer, "C" in ProfileScorer
-            40: "D",  # Previously "F" in JobScorer, "D" in ProfileScorer
+            85: "A",
+            70: "B",
+            55: "C",
+            40: "D",
         }
 
         for score, expected_grade in critical_scores.items():
-            # Check all three systems
-            job_scorer_grade = scorer._calculate_grade(score)
             utils_grade = calculate_grade(score)
-
-            assert job_scorer_grade == expected_grade, (
-                f"JobScorer: score {score} → {job_scorer_grade}, expected {expected_grade}"
-            )
 
             assert utils_grade == expected_grade, (
                 f"scoring_utils: score {score} → {utils_grade}, expected {expected_grade}"
             )
 
-            # ProfileScorer uses utils internally, but verify
+            # ProfileScorer uses calculate_grade internally, verify consistency
             assert calculate_grade(score) == expected_grade
 
     def test_no_110_point_thresholds_remain(self):

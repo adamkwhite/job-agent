@@ -1,7 +1,7 @@
 """
 Unit tests for BaseScorer shared scoring logic
 
-Tests all shared methods extracted from JobScorer and ProfileScorer:
+Tests all shared methods:
 - _score_seniority() - Seniority level scoring (0-30 points)
 - _score_domain() - Domain keyword matching (0-25 points)
 - _score_location() - Location preferences (0-15 points)
@@ -15,6 +15,7 @@ BaseScorer is abstract, so tests use a concrete test subclass.
 import pytest
 
 from agents.base_scorer import BaseScorer
+from utils.profile_manager import Profile
 
 
 class TestScorer(BaseScorer):
@@ -27,25 +28,48 @@ class TestScorer(BaseScorer):
         return 0
 
 
+def _make_test_profile(scoring: dict) -> Profile:
+    """Create a Profile object for testing"""
+    return Profile(
+        id="test",
+        name="Test User",
+        email="test@example.com",
+        enabled=True,
+        email_username="",
+        email_app_password_env="",
+        scoring=scoring,
+        digest_min_grade="C",
+        digest_min_score=55,
+        digest_min_location_score=0,
+        digest_include_grades=["A", "B", "C"],
+        digest_frequency="weekly",
+        notifications_enabled=False,
+        notifications_min_grade="B",
+        notifications_min_score=70,
+    )
+
+
 @pytest.fixture
 def test_profile():
     """Basic profile for testing shared methods"""
-    return {
-        "target_seniority": ["vp", "director", "senior", "manager"],
-        "domain_keywords": ["robotics", "automation", "hardware", "ai", "ml"],
-        "role_types": {"engineering": ["engineering", "technical"]},
-        "location_preferences": {
-            "remote_keywords": ["remote", "work from home", "wfh", "anywhere"],
-            "hybrid_keywords": ["hybrid"],
-            "preferred_cities": ["toronto", "waterloo", "san francisco"],
-            "preferred_regions": ["ontario", "canada", "california"],
-        },
-        "filtering": {
-            "aggression_level": "moderate",
-            "hardware_company_boost": 10,
-            "software_company_penalty": -20,
-        },
-    }
+    return _make_test_profile(
+        {
+            "target_seniority": ["vp", "director", "senior", "manager"],
+            "domain_keywords": ["robotics", "automation", "hardware", "ai", "ml"],
+            "role_types": {"engineering": ["engineering", "technical"]},
+            "location_preferences": {
+                "remote_keywords": ["remote", "work from home", "wfh", "anywhere"],
+                "hybrid_keywords": ["hybrid"],
+                "preferred_cities": ["toronto", "waterloo", "san francisco"],
+                "preferred_regions": ["ontario", "canada", "california"],
+            },
+            "filtering": {
+                "aggression_level": "moderate",
+                "hardware_company_boost": 10,
+                "software_company_penalty": -20,
+            },
+        }
+    )
 
 
 class TestSeniorityScoring:
@@ -67,12 +91,15 @@ class TestSeniorityScoring:
 
     def test_no_target_seniority_falls_back_to_absolute(self):
         """When profile has no target_seniority, should fall back to absolute scoring"""
-        profile_no_targets = {
-            "domain_keywords": ["robotics"],
-            "role_types": {"engineering": ["engineering"]},
-            "location_preferences": {"remote_keywords": ["remote"]},
-            "filtering": {"aggression_level": "moderate"},
-        }
+        profile_no_targets = _make_test_profile(
+            {
+                "target_seniority": [],
+                "domain_keywords": ["robotics"],
+                "role_types": {"engineering": ["engineering"]},
+                "location_preferences": {"remote_keywords": ["remote"]},
+                "filtering": {"aggression_level": "moderate"},
+            }
+        )
         scorer = TestScorer(profile_no_targets)
 
         # Should use absolute scoring fallback (VP = 30)
@@ -369,39 +396,39 @@ class TestScoreJobOrchestration:
 
 
 class TestProfileAccessors:
-    """Test profile accessor methods (dict and Profile object support)"""
+    """Test profile accessor methods"""
 
-    def test_get_target_seniority_from_dict(self, test_profile):
-        """_get_target_seniority works with dict profile"""
+    def test_get_target_seniority(self, test_profile):
+        """_get_target_seniority works with Profile object"""
         scorer = TestScorer(test_profile)
 
         seniority = scorer._get_target_seniority()
         assert seniority == ["vp", "director", "senior", "manager"]
 
-    def test_get_domain_keywords_from_dict(self, test_profile):
-        """_get_domain_keywords works with dict profile"""
+    def test_get_domain_keywords(self, test_profile):
+        """_get_domain_keywords works with Profile object"""
         scorer = TestScorer(test_profile)
 
         keywords = scorer._get_domain_keywords()
         assert keywords == ["robotics", "automation", "hardware", "ai", "ml"]
 
-    def test_get_location_preferences_from_dict(self, test_profile):
-        """_get_location_preferences works with dict profile"""
+    def test_get_location_preferences(self, test_profile):
+        """_get_location_preferences works with Profile object"""
         scorer = TestScorer(test_profile)
 
         prefs = scorer._get_location_preferences()
         assert "remote_keywords" in prefs
         assert "preferred_cities" in prefs
 
-    def test_get_role_types_from_dict(self, test_profile):
-        """_get_role_types works with dict profile"""
+    def test_get_role_types(self, test_profile):
+        """_get_role_types works with Profile object"""
         scorer = TestScorer(test_profile)
 
         role_types = scorer._get_role_types()
         assert "engineering" in role_types
 
-    def test_get_filtering_config_from_dict(self, test_profile):
-        """_get_filtering_config works with dict profile"""
+    def test_get_filtering_config(self, test_profile):
+        """_get_filtering_config works with Profile object"""
         scorer = TestScorer(test_profile)
 
         filtering = scorer._get_filtering_config()
