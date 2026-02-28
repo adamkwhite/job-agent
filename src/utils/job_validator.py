@@ -19,6 +19,52 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
+# ATS platforms requiring a minimum number of URL path segments to be specific
+_ATS_MIN_PARTS: dict[str, int] = {
+    "jobs.ashbyhq.com": 5,
+    "jobs.lever.co": 5,
+    "careers.smartrecruiters.com": 5,
+    "jobs.smartrecruiters.com": 5,
+}
+
+
+def _is_ats_generic_url(url: str, url_clean: str) -> bool:
+    """Check if URL matches a known ATS domain but lacks enough path segments."""
+    for domain, min_parts in _ATS_MIN_PARTS.items():
+        if domain in url:
+            parts = url_clean.split("/")
+            if len(parts) < min_parts:
+                logger.info(f"Generic {domain} URL (flagged for review): {url}")
+                return True
+    return False
+
+
+def _is_keyword_generic_url(url: str, url_clean: str) -> bool:
+    """Check for Greenhouse/Workday patterns and catch-all career paths."""
+    if "greenhouse.io" in url and "/jobs/" not in url and "/job/" not in url:
+        logger.info(f"Generic Greenhouse URL (flagged for review): {url}")
+        return True
+
+    if "myworkdayjobs.com" in url and "/job/" not in url:
+        logger.info(f"Generic Workday URL (flagged for review): {url}")
+        return True
+
+    if url_clean.endswith("/careers") or url_clean.endswith("/jobs"):
+        logger.info(f"Generic career path (flagged for review): {url}")
+        return True
+
+    return False
+
+
+def _is_generic_career_subdomain(url_clean: str) -> bool:
+    """Check for subdomain-only career/jobs sites with no path."""
+    if url_clean.startswith("https://jobs.") or url_clean.startswith("https://careers."):
+        parts = url_clean.split("/")
+        if len(parts) <= 3:
+            logger.info(f"Generic career subdomain (flagged for review): {url_clean}")
+            return True
+    return False
+
 
 class JobValidator:
     """Validate job posting URLs"""
@@ -118,9 +164,30 @@ class JobValidator:
         Returns:
             (is_stale, matched_phrase) tuple
         """
+        check_areas = self._find_linkedin_check_areas(soup)
+
+        # Check each high-signal area
+        for area in check_areas:
+            if not area:
+                continue
+
+            area_text = area.get_text().lower()
+
+            for indicator in self.STALENESS_INDICATORS:
+                if indicator in area_text:
+                    logger.debug(
+                        f"LinkedIn job appears stale in {area.name} "
+                        f"(class={area.get('class')}, matched: '{indicator}')"
+                    )
+                    return (True, indicator)
+
+        return (False, None)
+
+    @staticmethod
+    def _find_linkedin_check_areas(soup: BeautifulSoup) -> list:
+        """Build list of high-signal HTML areas to check for LinkedIn staleness."""
         from bs4 import Tag
 
-        # High-signal areas to check (in priority order)
         check_areas: list = []
 
         # 1. Alert/banner messages (highest signal)
@@ -135,7 +202,6 @@ class JobValidator:
         # 2. Job header/title area
         job_header = soup.find("h1") or soup.find("h2", class_=lambda c: c and "job" in c.lower())
         if job_header:
-            # Check parent container for status messages
             header_container = job_header.find_parent(["div", "section", "header"])
             if header_container and isinstance(header_container, Tag):
                 check_areas.append(header_container)
@@ -150,26 +216,9 @@ class JobValidator:
         # 4. Main content area (but not entire page)
         main_content = soup.find("main") or soup.find("div", {"role": "main"})
         if main_content and isinstance(main_content, Tag):
-            # Only check direct text in main, not nested elements
             check_areas.append(main_content)
 
-        # Check each high-signal area
-        for area in check_areas:
-            if not area:
-                continue
-
-            area_text = area.get_text().lower()
-
-            # Check for staleness indicators
-            for indicator in self.STALENESS_INDICATORS:
-                if indicator in area_text:
-                    logger.debug(
-                        f"LinkedIn job appears stale in {area.name} "
-                        f"(class={area.get('class')}, matched: '{indicator}')"
-                    )
-                    return (True, indicator)
-
-        return (False, None)
+        return check_areas
 
     def validate_url(self, url: str) -> tuple[bool, str, bool]:
         """
@@ -195,98 +244,73 @@ class JobValidator:
         if not url:
             return (False, "empty_url", False)
 
-        # ===== URL Pattern-Based Detection (No HTTP Request Needed) =====
-        # Check these BEFORE making HTTP requests for efficiency
+        # Step 1: URL pattern-based detection (no HTTP request needed)
+        career_page_result = self._check_generic_career_page(url)
+        if career_page_result is not None:
+            return career_page_result
 
-        # Generic career page detection for Ashby
-        # These might have jobs listed, but we can't verify specific postings
-        # Flag for review rather than reject
-        if "jobs.ashbyhq.com" in url:
-            # Remove trailing slash for consistent parsing
-            url_clean = url.rstrip("/")
-            parts = url_clean.split("/")
-            # Should have at least: https://jobs.ashbyhq.com/company/job-id
-            if len(parts) < 5:  # scheme, empty, domain, company, job-id
-                logger.info(f"Generic Ashby URL (flagged for review): {url}")
-                return (True, "generic_career_page", True)
+        # Step 2: HTTP-based validation with retry logic
+        result = self._make_http_request_with_retries(url)
+        if isinstance(result, tuple):
+            return result  # Error tuple from request failure
 
-        # Generic career page detection for Lever
-        # Flag for review rather than reject
-        if "jobs.lever.co" in url:
-            url_clean = url.rstrip("/")
-            parts = url_clean.split("/")
-            if len(parts) < 5:
-                logger.info(f"Generic Lever URL (flagged for review): {url}")
-                return (True, "generic_career_page", True)
+        # Step 3: Classify the HTTP response
+        return self._classify_http_response(url, result)
 
-        # Generic career page detection for Greenhouse
-        # Flag for review rather than reject
-        if "greenhouse.io" in url and "/jobs/" not in url and "/job/" not in url:
-            logger.info(f"Generic Greenhouse URL (flagged for review): {url}")
-            return (True, "generic_career_page", True)
+    @staticmethod
+    def _check_generic_career_page(url: str) -> tuple[bool, str, bool] | None:
+        """
+        Check if URL is a generic career page (ATS pattern detection).
 
-        # Generic career page detection for Workday
-        # Workday job URLs must have /job/ with an ID after it
-        if "myworkdayjobs.com" in url and "/job/" not in url:
-            logger.info(f"Generic Workday URL (flagged for review): {url}")
-            return (True, "generic_career_page", True)
-
-        # Generic career page detection for SmartRecruiters
-        # SmartRecruiters needs company + job-id after domain
-        if "careers.smartrecruiters.com" in url or "jobs.smartrecruiters.com" in url:
-            url_clean = url.rstrip("/")
-            parts = url_clean.split("/")
-            # Should have: https://careers.smartrecruiters.com/Company/job-id
-            if len(parts) < 5:  # scheme, empty, domain, company, job-id
-                logger.info(f"Generic SmartRecruiters URL (flagged for review): {url}")
-                return (True, "generic_career_page", True)
-
-        # Generic career path detection (catch-all for common patterns)
-        # Flag landing pages like company.com/careers or jobs.company.com
+        Returns:
+            (is_valid, reason, needs_review) tuple if generic page detected,
+            None if URL should proceed to HTTP validation.
+        """
+        generic_result = (True, "generic_career_page", True)
         url_clean = url.rstrip("/")
-        if url_clean.endswith("/careers") or url_clean.endswith("/jobs"):
-            logger.info(f"Generic career path (flagged for review): {url}")
-            return (True, "generic_career_page", True)
 
-        # Check for subdomain-only career/jobs sites (e.g., jobs.company.com, careers.company.com)
-        # But exclude if they have specific path components
-        if url_clean.startswith("https://jobs.") or url_clean.startswith("https://careers."):
-            parts = url_clean.split("/")
-            # If only domain with no path, or just trailing slash, it's generic
-            if len(parts) <= 3:  # scheme, empty, domain (no path)
-                logger.info(f"Generic career subdomain (flagged for review): {url}")
-                return (True, "generic_career_page", True)
+        if _is_ats_generic_url(url, url_clean):
+            return generic_result
 
-        # ===== HTTP-Based Validation (Makes Network Request) =====
-        # Only reached if URL pattern checks didn't flag it
+        if _is_keyword_generic_url(url, url_clean):
+            return generic_result
 
-        # Retry logic for rate limiting (429)
-        for attempt in range(self.max_retries + 1):  # +1 for initial attempt
+        if _is_generic_career_subdomain(url_clean):
+            return generic_result
+
+        return None
+
+    def _make_http_request_with_retries(
+        self, url: str
+    ) -> "requests.Response | tuple[bool, str, bool]":
+        """
+        Make HEAD request with exponential backoff retry on 429.
+
+        Returns:
+            Response object on success, or error tuple on failure.
+        """
+        response: requests.Response | None = None
+        for attempt in range(self.max_retries + 1):
             try:
-                # HEAD request first (faster, no body download)
                 response = self.session.head(url, allow_redirects=True, timeout=self.timeout)
 
-                # Handle 429 rate limiting with exponential backoff
-                if response.status_code == 429:
-                    if attempt < self.max_retries:
-                        # Calculate exponential backoff: 2s, 4s, 8s...
-                        delay = self.base_backoff * (2**attempt)
-                        logger.info(
-                            f"Rate limited (429) on attempt {attempt + 1}/{self.max_retries + 1} "
-                            f"for {url}, retrying in {delay}s..."
-                        )
-                        time.sleep(delay)
-                        continue  # Retry
-                    else:
-                        # Max retries reached, assume valid but flag for review
-                        logger.warning(
-                            f"Rate limited (429) after {self.max_retries + 1} attempts: {url} "
-                            f"(assuming valid, flagging for review)"
-                        )
-                        return (True, "rate_limited_assumed_valid", True)
+                if response.status_code != 429:
+                    return response
 
-                # If we got here, we have a non-429 response, break retry loop
-                break
+                if attempt < self.max_retries:
+                    delay = self.base_backoff * (2**attempt)
+                    logger.info(
+                        f"Rate limited (429) on attempt {attempt + 1}/{self.max_retries + 1} "
+                        f"for {url}, retrying in {delay}s..."
+                    )
+                    time.sleep(delay)
+                    continue
+
+                logger.warning(
+                    f"Rate limited (429) after {self.max_retries + 1} attempts: {url} "
+                    f"(assuming valid, flagging for review)"
+                )
+                return (True, "rate_limited_assumed_valid", True)
 
             except requests.Timeout:
                 logger.error(f"Job URL timeout: {url}")
@@ -298,39 +322,47 @@ class JobValidator:
                 logger.error(f"Job URL validation error ({url}): {e}")
                 return (False, "validation_error", False)
 
-        # Process the response (only reached if not 429 or retries exhausted)
-        # Check for 404
+        # Should not reach here, but satisfy type checker
+        assert response is not None  # noqa: S101
+        return response
+
+    def _classify_http_response(
+        self, url: str, response: "requests.Response"
+    ) -> tuple[bool, str, bool]:
+        """
+        Classify an HTTP response into a validation result.
+
+        Handles 404, LinkedIn redirects, 200 (with optional staleness check),
+        same-domain redirects, and unexpected status codes.
+        """
         if response.status_code == 404:
             logger.warning(f"Job URL 404: {url}")
             return (False, "404_not_found", False)
 
-        # LinkedIn redirects to login page - we can't verify these, flag for review
         if "linkedin.com/login" in response.url or "linkedin.com/authwall" in response.url:
             logger.info(f"LinkedIn job (unverifiable): {url}")
             return (True, "linkedin_unverifiable", True)
 
-        # Check for successful response
         if response.status_code == 200:
-            # Check page content for staleness indicators (if enabled)
-            if self.check_content:
-                is_stale, matched_phrase = self._check_content_for_staleness(url)
-                if is_stale and matched_phrase:
-                    logger.debug(f"Job appears stale: {url} (matched: '{matched_phrase}')")
-                    return (False, f"stale_{matched_phrase.replace(' ', '_')}", False)
+            return self._classify_success_response(url)
 
-            return (True, "valid", False)
-
-        # Check for redirects that might indicate moved/deleted jobs
         if response.status_code in (301, 302, 307, 308):
-            # If redirect is to same domain, likely OK
             if response.url.split("/")[2] == url.split("/")[2]:
                 return (True, "valid", False)
             logger.warning(f"Job URL redirects to different domain: {url} -> {response.url}")
             return (False, "invalid_redirect", False)
 
-        # Other status codes are suspicious
         logger.warning(f"Job URL returned {response.status_code}: {url}")
         return (False, "invalid_response", False)
+
+    def _classify_success_response(self, url: str) -> tuple[bool, str, bool]:
+        """Check page content for staleness on a 200 response."""
+        if self.check_content:
+            is_stale, matched_phrase = self._check_content_for_staleness(url)
+            if is_stale and matched_phrase:
+                logger.debug(f"Job appears stale: {url} (matched: '{matched_phrase}')")
+                return (False, f"stale_{matched_phrase.replace(' ', '_')}", False)
+        return (True, "valid", False)
 
     def validate_batch(self, urls: list[str]) -> dict[str, tuple[bool, str, bool]]:
         """
@@ -360,41 +392,64 @@ class JobValidator:
             - flagged_jobs: Jobs that need manual review (generic URLs, LinkedIn, etc.)
             - invalid_jobs: Jobs with broken URLs (404, timeout, etc.)
         """
-        valid_jobs = []
-        flagged_jobs = []
-        invalid_jobs = []
+        valid_jobs: list[dict] = []
+        flagged_jobs: list[dict] = []
+        invalid_jobs: list[dict] = []
         total = len(jobs)
 
         for idx, job in enumerate(jobs, 1):
             url = job.get("link", "")
-
-            # Show progress
-            if show_progress:
-                company = job.get("company", "Unknown")[:20]
-                title = job.get("title", "Unknown")[:30]
-                print(f"  [{idx}/{total}] {company} - {title}...", end="", flush=True)
-
             is_valid, reason, needs_review = self.validate_url(url)
-
-            # Add validation metadata to job
-            job["validation_reason"] = reason
-            job["needs_review"] = needs_review
-
-            if not is_valid:
-                invalid_jobs.append(job)
-                if show_progress:
-                    status_emoji = "⛔" if reason.startswith("stale") else "❌"
-                    print(f" {status_emoji} {reason}")
-            elif needs_review:
-                flagged_jobs.append(job)
-                if show_progress:
-                    print(f" ⚠️  {reason}")
-            else:
-                valid_jobs.append(job)
-                if show_progress:
-                    print(" ✓")
+            self._categorize_validation_result(
+                job,
+                is_valid,
+                reason,
+                needs_review,
+                valid_jobs,
+                flagged_jobs,
+                invalid_jobs,
+                idx,
+                total,
+                show_progress,
+            )
 
         return (valid_jobs, flagged_jobs, invalid_jobs)
+
+    @staticmethod
+    def _categorize_validation_result(
+        job: dict,
+        is_valid: bool,
+        reason: str,
+        needs_review: bool,
+        valid_jobs: list[dict],
+        flagged_jobs: list[dict],
+        invalid_jobs: list[dict],
+        idx: int,
+        total: int,
+        show_progress: bool,
+    ) -> None:
+        """Categorize a single job's validation result and optionally print progress."""
+        if show_progress:
+            company = job.get("company", "Unknown")[:20]
+            title = job.get("title", "Unknown")[:30]
+            print(f"  [{idx}/{total}] {company} - {title}...", end="", flush=True)
+
+        job["validation_reason"] = reason
+        job["needs_review"] = needs_review
+
+        if not is_valid:
+            invalid_jobs.append(job)
+            if show_progress:
+                status_emoji = "⛔" if reason.startswith("stale") else "❌"
+                print(f" {status_emoji} {reason}")
+        elif needs_review:
+            flagged_jobs.append(job)
+            if show_progress:
+                print(f" ⚠️  {reason}")
+        else:
+            valid_jobs.append(job)
+            if show_progress:
+                print(" ✓")
 
     def validate_for_digest(self, job: dict, use_cache: bool = True) -> tuple[bool, str | None]:
         """
@@ -421,34 +476,50 @@ class JobValidator:
             ...     print(f"Job rejected: {reason}")
         """
         # Check 1: Job age
-        received_at = job.get("received_at")
-        if received_at:
-            try:
-                # Parse timestamp (supports ISO format)
-                if isinstance(received_at, str):
-                    received_date = datetime.fromisoformat(received_at.replace("Z", "+00:00"))
-                else:
-                    received_date = received_at
-
-                # Calculate age
-                age_days = (datetime.now(received_date.tzinfo) - received_date).days
-
-                if age_days > self.age_threshold_days:
-                    logger.info(
-                        f"Job too old ({age_days} days, threshold: {self.age_threshold_days}): "
-                        f"{job.get('title', 'Unknown')} at {job.get('company', 'Unknown')}"
-                    )
-                    return (False, "stale_job_age")
-
-            except (ValueError, TypeError) as e:
-                logger.warning(f"Could not parse received_at date: {received_at} ({e})")
-                # Don't filter on parse error, just log and continue to URL check
+        age_result = self._check_job_age(job)
+        if age_result is not None:
+            return age_result
 
         # Check 2: URL validation (with caching)
         url = job.get("link", "")
         if not url:
             return (False, "missing_url")
 
+        return self._check_url_with_cache(url, use_cache)
+
+    def _check_job_age(self, job: dict) -> tuple[bool, str | None] | None:
+        """
+        Check if job is too old based on received_at timestamp.
+
+        Returns:
+            (False, "stale_job_age") if too old, None to continue validation.
+        """
+        received_at = job.get("received_at")
+        if not received_at:
+            return None
+
+        try:
+            if isinstance(received_at, str):
+                received_date = datetime.fromisoformat(received_at.replace("Z", "+00:00"))
+            else:
+                received_date = received_at
+
+            age_days = (datetime.now(received_date.tzinfo) - received_date).days
+
+            if age_days > self.age_threshold_days:
+                logger.info(
+                    f"Job too old ({age_days} days, threshold: {self.age_threshold_days}): "
+                    f"{job.get('title', 'Unknown')} at {job.get('company', 'Unknown')}"
+                )
+                return (False, "stale_job_age")
+
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Could not parse received_at date: {received_at} ({e})")
+
+        return None
+
+    def _check_url_with_cache(self, url: str, use_cache: bool) -> tuple[bool, str | None]:
+        """Validate URL with optional caching of results."""
         # Check cache first
         if use_cache and url in self._validation_cache:
             is_valid, reason, _needs_review = self._validation_cache[url]
@@ -459,16 +530,12 @@ class JobValidator:
         # Not in cache, validate and cache result
         is_valid, reason, needs_review = self.validate_url(url)
 
-        # Store in cache
         if use_cache:
             self._validation_cache[url] = (is_valid, reason, needs_review)
 
-        # Return result
         if not is_valid:
-            # Job URL is invalid/stale
             return (False, reason)
 
-        # URL is valid (may need review, but not filtered)
         return (True, None)
 
     def clear_cache(self) -> None:
