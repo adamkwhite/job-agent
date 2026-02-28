@@ -19,7 +19,7 @@ def mock_dependencies():
         patch("jobs.hybrid_scraper.FirecrawlCareerScraper") as mock_firecrawl,
         patch("jobs.hybrid_scraper.RoboticsDeeptechScraper") as mock_robotics,
         patch("jobs.hybrid_scraper.JobFilter") as mock_filter,
-        patch("jobs.hybrid_scraper.JobScorer") as mock_scorer,
+        patch("jobs.hybrid_scraper.ProfileScorer") as mock_scorer,
         patch("jobs.hybrid_scraper.JobDatabase") as mock_database,
         patch("jobs.hybrid_scraper.JobNotifier") as mock_notifier,
     ):

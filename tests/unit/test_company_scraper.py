@@ -19,7 +19,7 @@ def company_scraper():
         patch("src.jobs.company_scraper.CompanyService"),
         patch("src.jobs.company_scraper.FirecrawlCareerScraper"),
         patch("src.jobs.company_scraper.JobFilter"),
-        patch("src.jobs.company_scraper.JobScorer"),
+        patch("src.jobs.company_scraper.ProfileScorer"),
         patch("src.jobs.company_scraper.JobDatabase"),
         patch("src.jobs.company_scraper.JobNotifier"),
     ):
@@ -542,7 +542,7 @@ class TestFilterPipelineIntegration:
             patch("src.jobs.company_scraper.CompanyService"),
             patch("src.jobs.company_scraper.FirecrawlCareerScraper"),
             patch("src.jobs.company_scraper.JobFilter"),
-            patch("src.jobs.company_scraper.JobScorer") as mock_scorer_class,
+            patch("src.jobs.company_scraper.ProfileScorer") as mock_scorer_class,
             patch("src.jobs.company_scraper.JobDatabase") as mock_db_class,
             patch("src.jobs.company_scraper.JobNotifier"),
         ):
@@ -618,7 +618,7 @@ class TestFilterPipelineIntegration:
             patch("src.jobs.company_scraper.CompanyService"),
             patch("src.jobs.company_scraper.FirecrawlCareerScraper"),
             patch("src.jobs.company_scraper.JobFilter"),
-            patch("src.jobs.company_scraper.JobScorer"),
+            patch("src.jobs.company_scraper.ProfileScorer"),
             patch("src.jobs.company_scraper.JobDatabase"),
             patch("src.jobs.company_scraper.JobNotifier"),
         ):
@@ -683,7 +683,7 @@ class TestFilterPipelineIntegration:
             patch("src.jobs.company_scraper.CompanyService"),
             patch("src.jobs.company_scraper.FirecrawlCareerScraper"),
             patch("src.jobs.company_scraper.JobFilter"),
-            patch("src.jobs.company_scraper.JobScorer") as mock_scorer_class,
+            patch("src.jobs.company_scraper.ProfileScorer") as mock_scorer_class,
             patch("src.jobs.company_scraper.JobDatabase") as mock_db_class,
             patch("src.jobs.company_scraper.JobNotifier"),
         ):

@@ -17,6 +17,7 @@ Total: 29 tests
 import pytest
 
 from agents.base_scorer import SENIORITY_HIERARCHY, BaseScorer
+from utils.profile_manager import Profile
 
 
 class RelativeSeniorityTestScorer(BaseScorer):
@@ -27,88 +28,125 @@ class RelativeSeniorityTestScorer(BaseScorer):
         return 20 if "engineer" in title.lower() else 0
 
 
+def _make_test_profile(scoring: dict, profile_id: str = "test", name: str = "Test") -> Profile:
+    """Create a Profile object for testing with the given scoring config."""
+    return Profile(
+        id=profile_id,
+        name=name,
+        email="test@example.com",
+        enabled=True,
+        email_username="",
+        email_app_password_env="",
+        scoring=scoring,
+        digest_min_grade="C",
+        digest_min_score=55,
+        digest_min_location_score=0,
+        digest_include_grades=["A", "B", "C"],
+        digest_frequency="weekly",
+        notifications_enabled=False,
+        notifications_min_grade="B",
+        notifications_min_score=70,
+    )
+
+
 @pytest.fixture
 def mario_profile():
     """Mario's profile - targets Senior/Staff/Lead roles"""
-    return {
-        "target_seniority": ["senior", "staff", "lead", "principal"],
-        "domain_keywords": ["qa", "testing", "quality"],
-        "role_types": {"qa": ["qa", "quality", "test"]},
-        "location_preferences": {
-            "remote_keywords": ["remote"],
-            "hybrid_keywords": ["hybrid"],
-            "preferred_cities": ["toronto"],
-            "preferred_regions": ["ontario", "canada"],
+    return _make_test_profile(
+        {
+            "target_seniority": ["senior", "staff", "lead", "principal"],
+            "domain_keywords": ["qa", "testing", "quality"],
+            "role_types": {"qa": ["qa", "quality", "test"]},
+            "location_preferences": {
+                "remote_keywords": ["remote"],
+                "hybrid_keywords": ["hybrid"],
+                "preferred_cities": ["toronto"],
+                "preferred_regions": ["ontario", "canada"],
+            },
+            "filtering": {
+                "aggression_level": "moderate",
+                "hardware_company_boost": 10,
+                "software_company_penalty": -20,
+            },
         },
-        "filtering": {
-            "aggression_level": "moderate",
-            "hardware_company_boost": 10,
-            "software_company_penalty": -20,
-        },
-    }
+        profile_id="mario",
+        name="Mario",
+    )
 
 
 @pytest.fixture
 def wes_profile():
     """Wes's profile - targets Director/VP/Head roles"""
-    return {
-        "target_seniority": ["director", "vp", "head of", "chief"],
-        "domain_keywords": ["robotics", "automation", "hardware"],
-        "role_types": {"engineering": ["engineering"]},
-        "location_preferences": {
-            "remote_keywords": ["remote"],
-            "hybrid_keywords": ["hybrid"],
-            "preferred_cities": ["toronto"],
-            "preferred_regions": ["ontario"],
+    return _make_test_profile(
+        {
+            "target_seniority": ["director", "vp", "head of", "chief"],
+            "domain_keywords": ["robotics", "automation", "hardware"],
+            "role_types": {"engineering": ["engineering"]},
+            "location_preferences": {
+                "remote_keywords": ["remote"],
+                "hybrid_keywords": ["hybrid"],
+                "preferred_cities": ["toronto"],
+                "preferred_regions": ["ontario"],
+            },
+            "filtering": {
+                "aggression_level": "moderate",
+                "hardware_company_boost": 10,
+                "software_company_penalty": -20,
+            },
         },
-        "filtering": {
-            "aggression_level": "moderate",
-            "hardware_company_boost": 10,
-            "software_company_penalty": -20,
-        },
-    }
+        profile_id="wes",
+        name="Wes",
+    )
 
 
 @pytest.fixture
 def adam_profile():
     """Adam's profile - targets Senior/Staff/Principal roles"""
-    return {
-        "target_seniority": ["senior", "staff", "principal", "lead", "architect"],
-        "domain_keywords": ["software", "product", "engineering"],
-        "role_types": {"engineering": ["engineer", "developer"]},
-        "location_preferences": {
-            "remote_keywords": ["remote"],
-            "hybrid_keywords": ["hybrid"],
-            "preferred_cities": ["toronto"],
-            "preferred_regions": ["canada"],
+    return _make_test_profile(
+        {
+            "target_seniority": ["senior", "staff", "principal", "lead", "architect"],
+            "domain_keywords": ["software", "product", "engineering"],
+            "role_types": {"engineering": ["engineer", "developer"]},
+            "location_preferences": {
+                "remote_keywords": ["remote"],
+                "hybrid_keywords": ["hybrid"],
+                "preferred_cities": ["toronto"],
+                "preferred_regions": ["canada"],
+            },
+            "filtering": {
+                "aggression_level": "moderate",
+                "hardware_company_boost": 10,
+                "software_company_penalty": -20,
+            },
         },
-        "filtering": {
-            "aggression_level": "moderate",
-            "hardware_company_boost": 10,
-            "software_company_penalty": -20,
-        },
-    }
+        profile_id="adam",
+        name="Adam",
+    )
 
 
 @pytest.fixture
 def eli_profile():
     """Eli's profile - targets Director/VP/CTO roles"""
-    return {
-        "target_seniority": ["director", "vp", "cto", "chief technology officer", "head of"],
-        "domain_keywords": ["fintech", "healthtech", "proptech"],
-        "role_types": {"engineering": ["engineering"]},
-        "location_preferences": {
-            "remote_keywords": ["remote"],
-            "hybrid_keywords": ["hybrid"],
-            "preferred_cities": ["toronto"],
-            "preferred_regions": ["canada"],
+    return _make_test_profile(
+        {
+            "target_seniority": ["director", "vp", "cto", "chief technology officer", "head of"],
+            "domain_keywords": ["fintech", "healthtech", "proptech"],
+            "role_types": {"engineering": ["engineering"]},
+            "location_preferences": {
+                "remote_keywords": ["remote"],
+                "hybrid_keywords": ["hybrid"],
+                "preferred_cities": ["toronto"],
+                "preferred_regions": ["canada"],
+            },
+            "filtering": {
+                "aggression_level": "moderate",
+                "hardware_company_boost": 10,
+                "software_company_penalty": -20,
+            },
         },
-        "filtering": {
-            "aggression_level": "moderate",
-            "hardware_company_boost": 10,
-            "software_company_penalty": -20,
-        },
-    }
+        profile_id="eli",
+        name="Eli",
+    )
 
 
 class TestDetectSeniorityLevel:
@@ -263,13 +301,15 @@ class TestRelativeSeniorityScoring:
 
     def test_fallback_to_absolute_when_no_target(self):
         """Falls back to absolute scoring when target_seniority is empty"""
-        profile_no_target = {
-            "target_seniority": [],  # Empty target
-            "domain_keywords": ["software"],
-            "role_types": {},
-            "location_preferences": {},
-            "filtering": {},
-        }
+        profile_no_target = _make_test_profile(
+            {
+                "target_seniority": [],  # Empty target
+                "domain_keywords": ["software"],
+                "role_types": {},
+                "location_preferences": {},
+                "filtering": {},
+            }
+        )
         scorer = RelativeSeniorityTestScorer(profile_no_target)
 
         # Should use absolute scoring (VP=30, Director=25, etc.)

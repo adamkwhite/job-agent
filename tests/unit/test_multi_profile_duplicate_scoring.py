@@ -738,6 +738,17 @@ class TestMultiProfileDuplicateScoring:
         mario_scraper.database = JobDatabase(profile="mario", db_path=temp_db)
         mario_scraper.notifier = mock_notifier
 
+        # Mock Mario's scorer to return scores above threshold so jobs reach
+        # the duplicate detection path (Mario's real ProfileScorer scores these
+        # jobs below min_score, causing them to be skipped before add_job)
+        mario_scraper.scorer = mocker.MagicMock()
+        mario_scraper.scorer.score_job.return_value = (
+            75,
+            "B",
+            {"seniority": 25, "domain": 20, "role_type": 15, "location": 15},
+            {},
+        )
+
         # Process same jobs as Mario (min_score=50 to test duplicate handling)
         mario_stats = mario_scraper.process_scraped_jobs(
             company_name="Test Companies",

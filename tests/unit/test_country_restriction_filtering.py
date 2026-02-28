@@ -8,12 +8,26 @@ Addresses Issue #132 - Filter out country-restricted remote jobs
 import json
 import sys
 from pathlib import Path
-from unittest.mock import patch
+
+import pytest
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from agents.job_scorer import JobScorer
+from agents.profile_scorer import ProfileScorer
+from utils.profile_manager import get_profile_manager
+
+
+@pytest.fixture
+def wes_profile():
+    """Load Wes profile with country_restriction_enabled=true"""
+    return get_profile_manager().get_profile("wes")
+
+
+@pytest.fixture
+def scorer(wes_profile):
+    """Create ProfileScorer with Wes's profile"""
+    return ProfileScorer(wes_profile)
 
 
 class TestCountryRestrictionFiltering:
@@ -32,196 +46,137 @@ class TestCountryRestrictionFiltering:
             "source": "test",
         }
 
-    def test_unrestricted_remote_gets_15_points(self):
+    def test_unrestricted_remote_gets_15_points(self, scorer):
         """Test that unrestricted 'Remote' jobs get 15 points"""
-        with patch("agents.job_scorer.JobDatabase"):
-            scorer = JobScorer()
+        job = self._create_test_job(location="Remote")
+        score, grade, breakdown, _ = scorer.score_job(job)
+        assert breakdown["location"] == 15, "Unrestricted remote should get 15 points"
 
-            job = self._create_test_job(location="Remote")
-            score, grade, breakdown, _ = scorer.score_job(job)
-
-            assert breakdown["location"] == 15, "Unrestricted remote should get 15 points"
-
-    def test_us_only_remote_location_gets_0_points(self):
+    def test_us_only_remote_location_gets_0_points(self, scorer):
         """Test that 'United States (Remote)' gets 0 points for Canadian candidates"""
-        with patch("agents.job_scorer.JobDatabase"):
-            scorer = JobScorer()
+        job = self._create_test_job(location="United States (Remote)")
+        score, grade, breakdown, _ = scorer.score_job(job)
+        assert breakdown["location"] == 0, "US-only remote should get 0 points"
 
-            job = self._create_test_job(location="United States (Remote)")
-            score, grade, breakdown, _ = scorer.score_job(job)
-
-            assert breakdown["location"] == 0, "US-only remote should get 0 points"
-
-    def test_remote_us_format_gets_0_points(self):
+    def test_remote_us_format_gets_0_points(self, scorer):
         """Test that 'Remote - United States' gets 0 points"""
-        with patch("agents.job_scorer.JobDatabase"):
-            scorer = JobScorer()
+        job = self._create_test_job(location="Remote - United States")
+        score, grade, breakdown, _ = scorer.score_job(job)
+        assert breakdown["location"] == 0, "Remote - US should get 0 points"
 
-            job = self._create_test_job(location="Remote - United States")
-            score, grade, breakdown, _ = scorer.score_job(job)
-
-            assert breakdown["location"] == 0, "Remote - US should get 0 points"
-
-    def test_remote_with_us_state_gets_0_points(self):
+    def test_remote_with_us_state_gets_0_points(self, scorer):
         """Test that remote jobs with US state/city get 0 points"""
-        with patch("agents.job_scorer.JobDatabase"):
-            scorer = JobScorer()
+        test_cases = [
+            "Montgomery, AL (Remote)",
+            "Remote - California",
+            "Texas (Remote)",
+            "San Francisco (Remote)",
+        ]
 
-            test_cases = [
-                "Montgomery, AL (Remote)",
-                "Remote - California",
-                "Texas (Remote)",
-                "San Francisco (Remote)",
-            ]
+        for location in test_cases:
+            job = self._create_test_job(location=location)
+            score, grade, breakdown, _ = scorer.score_job(job)
+            assert breakdown["location"] == 0, (
+                f"Remote job with US location '{location}' should get 0 points"
+            )
 
-            for location in test_cases:
-                job = self._create_test_job(location=location)
-                score, grade, breakdown, _ = scorer.score_job(job)
-
-                assert breakdown["location"] == 0, (
-                    f"Remote job with US location '{location}' should get 0 points"
-                )
-
-    def test_canada_friendly_remote_gets_15_points(self):
+    def test_canada_friendly_remote_gets_15_points(self, scorer):
         """Test that Canada-specific remote jobs get 15 points"""
-        with patch("agents.job_scorer.JobDatabase"):
-            scorer = JobScorer()
+        test_cases = [
+            "Remote - Canada",
+            "Remote - North America",
+            "Canada (Remote)",
+        ]
 
-            test_cases = [
-                "Remote - Canada",
-                "Remote - North America",
-                "Canada (Remote)",
-            ]
+        for location in test_cases:
+            job = self._create_test_job(location=location)
+            score, grade, breakdown, _ = scorer.score_job(job)
+            assert breakdown["location"] == 15, (
+                f"Canada-friendly remote '{location}' should get 15 points"
+            )
 
-            for location in test_cases:
-                job = self._create_test_job(location=location)
-                score, grade, breakdown, _ = scorer.score_job(job)
-
-                assert breakdown["location"] == 15, (
-                    f"Canada-friendly remote '{location}' should get 15 points"
-                )
-
-    def test_us_work_auth_in_description_gets_0_points(self):
+    def test_us_work_auth_in_description_gets_0_points(self, scorer):
         """Test that job description with US work auth requirement gets 0 points"""
-        with patch("agents.job_scorer.JobDatabase"):
-            scorer = JobScorer()
+        descriptions = [
+            "Must be based in the U.S. and authorized to work.",
+            "U.S. work authorization required.",
+            "Candidates must reside in the United States.",
+            "Only considering U.S. applicants.",
+        ]
 
-            descriptions = [
-                "Must be based in the U.S. and authorized to work.",
-                "U.S. work authorization required.",
-                "Candidates must reside in the United States.",
-                "Only considering U.S. applicants.",
-            ]
+        for desc in descriptions:
+            job = self._create_test_job(location="Remote", description=desc)
+            score, grade, breakdown, _ = scorer.score_job(job)
+            assert breakdown["location"] == 0, (
+                f"Remote job with US requirement should get 0 points: {desc}"
+            )
 
-            for desc in descriptions:
-                job = self._create_test_job(location="Remote", description=desc)
-                score, grade, breakdown, _ = scorer.score_job(job)
-
-                assert breakdown["location"] == 0, (
-                    f"Remote job with US requirement in description should get 0 points: {desc}"
-                )
-
-    def test_canada_friendly_description_gets_15_points(self):
+    def test_canada_friendly_description_gets_15_points(self, scorer):
         """Test that job description welcoming Canadian candidates gets 15 points"""
-        with patch("agents.job_scorer.JobDatabase"):
-            scorer = JobScorer()
+        descriptions = [
+            "Canadian candidates welcome to apply!",
+            "Open to Canadian applicants.",
+            "Remote - North America (US/Canada)",
+        ]
 
-            descriptions = [
-                "Canadian candidates welcome to apply!",
-                "Open to Canadian applicants.",
-                "Remote - North America (US/Canada)",
-            ]
-
-            for desc in descriptions:
-                job = self._create_test_job(location="Remote", description=desc)
-                score, grade, breakdown, _ = scorer.score_job(job)
-
-                assert breakdown["location"] == 15, (
-                    f"Remote job welcoming Canadians should get 15 points: {desc}"
-                )
-
-    def test_regression_issue_132_alma_example(self):
-        """
-        Regression test for Issue #132 - Alma job example
-
-        Wes received: Alma - "United States (Remote)" - 80 points
-        Should get 0 location points, dropping overall score
-        """
-        with patch("agents.job_scorer.JobDatabase"):
-            scorer = JobScorer()
-
-            job = {
-                "title": "Director, Clinical Operations",
-                "company": "Alma",
-                "location": "United States (Remote)",
-                "description": "",
-                "link": "https://example.com/job",
-                "source": "test",
-            }
-
+        for desc in descriptions:
+            job = self._create_test_job(location="Remote", description=desc)
             score, grade, breakdown, _ = scorer.score_job(job)
-
-            assert breakdown["location"] == 0, (
-                "Alma US-only remote job should get 0 location points"
+            assert breakdown["location"] == 15, (
+                f"Remote job welcoming Canadians should get 15 points: {desc}"
             )
 
-    def test_regression_issue_132_steris_example(self):
-        """
-        Regression test for Issue #132 - STERIS job example
+    def test_regression_issue_132_alma_example(self, scorer):
+        """Regression test for Issue #132 - Alma job example"""
+        job = {
+            "title": "Director, Clinical Operations",
+            "company": "Alma",
+            "location": "United States (Remote)",
+            "description": "",
+            "link": "https://example.com/job",
+            "source": "test",
+        }
 
-        Wes received: STERIS - "Montgomery, AL (Remote)" - 80 points
-        Should get 0 location points
-        """
-        with patch("agents.job_scorer.JobDatabase"):
-            scorer = JobScorer()
+        score, grade, breakdown, _ = scorer.score_job(job)
+        assert breakdown["location"] == 0, "Alma US-only remote should get 0 location points"
 
-            job = {
-                "title": "Sr. Director, Project Management",
-                "company": "STERIS",
-                "location": "Montgomery, AL (Remote)",
-                "description": "",
-                "link": "https://example.com/job",
-                "source": "test",
-            }
+    def test_regression_issue_132_steris_example(self, scorer):
+        """Regression test for Issue #132 - STERIS job example"""
+        job = {
+            "title": "Sr. Director, Project Management",
+            "company": "STERIS",
+            "location": "Montgomery, AL (Remote)",
+            "description": "",
+            "link": "https://example.com/job",
+            "source": "test",
+        }
 
-            score, grade, breakdown, _ = scorer.score_job(job)
+        score, grade, breakdown, _ = scorer.score_job(job)
+        assert breakdown["location"] == 0, "STERIS Montgomery, AL remote should get 0 points"
 
-            assert breakdown["location"] == 0, (
-                "STERIS Montgomery, AL remote job should get 0 location points"
-            )
-
-    def test_is_country_restricted_method_directly(self):
+    def test_is_country_restricted_method_directly(self, scorer):
         """Test the _is_country_restricted helper method directly"""
-        with patch("agents.job_scorer.JobDatabase"):
-            scorer = JobScorer()
+        # US-only cases (should return True)
+        assert scorer._is_country_restricted("United States (Remote)") is True
+        assert scorer._is_country_restricted("Remote - US") is True
+        assert scorer._is_country_restricted("Montgomery, AL (Remote)") is True
+        assert scorer._is_country_restricted("Remote", "Must be based in the U.S.") is True
 
-            # US-only cases (should return True)
-            assert scorer._is_country_restricted("United States (Remote)") is True
-            assert scorer._is_country_restricted("Remote - US") is True
-            assert scorer._is_country_restricted("Montgomery, AL (Remote)") is True
-            assert scorer._is_country_restricted("Remote", "Must be based in the U.S.") is True
+        # Canada-friendly cases (should return False)
+        assert scorer._is_country_restricted("Remote - Canada") is False
+        assert scorer._is_country_restricted("Remote - North America") is False
+        assert scorer._is_country_restricted("Remote") is False
+        assert scorer._is_country_restricted("Remote", "Canadian candidates welcome") is False
 
-            # Canada-friendly cases (should return False)
-            assert scorer._is_country_restricted("Remote - Canada") is False
-            assert scorer._is_country_restricted("Remote - North America") is False
-            assert scorer._is_country_restricted("Remote") is False
-            assert scorer._is_country_restricted("Remote", "Canadian candidates welcome") is False
-
-    def test_edge_case_or_not_matched_as_oregon(self):
+    def test_edge_case_or_not_matched_as_oregon(self, scorer):
         """Test that 'OR' in 'Director' doesn't match Oregon state code"""
-        with patch("agents.job_scorer.JobDatabase"):
-            scorer = JobScorer()
-
-            job = self._create_test_job(location="Remote", title="Director of Engineering")
-            score, grade, breakdown, _ = scorer.score_job(job)
-
-            # Should still get 15 points (not falsely matched as Oregon)
-            assert breakdown["location"] == 15
+        job = self._create_test_job(location="Remote", title="Director of Engineering")
+        score, grade, breakdown, _ = scorer.score_job(job)
+        assert breakdown["location"] == 15
 
     def test_location_config_loads_correctly(self):
         """Test that location settings config file loads properly"""
         config_path = Path(__file__).parent.parent.parent / "config" / "location-settings.json"
-
         assert config_path.exists(), "location-settings.json should exist"
 
         with open(config_path) as f:
