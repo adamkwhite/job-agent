@@ -16,7 +16,6 @@ Usage:
 
 import argparse
 import sys
-from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -296,6 +295,81 @@ class JobRescorer:
         except Exception:
             return None
 
+    def _collect_existing_scores(
+        self,
+        job_id: int,
+        profiles: list[str] | None,
+    ) -> dict[str, int]:
+        """Collect existing scores for a job across target profiles."""
+        existing_scores: dict[str, int] = {}
+        if profiles:
+            for profile_id in profiles:
+                existing = self._get_existing_scores(job_id, profile_id)
+                if existing:
+                    existing_scores[profile_id] = existing["fit_score"]
+        return existing_scores
+
+    def _track_score_changes(
+        self,
+        job: dict,
+        profile_scores: dict,
+        profiles: list[str] | None,
+        existing_scores: dict[str, int],
+        stats: dict[str, Any],
+    ) -> None:
+        """Compare new scores against existing and track significant changes (Δ ≥ 10)."""
+        for profile_id, (score, _grade) in profile_scores.items():
+            if profiles and profile_id not in profiles:
+                continue
+
+            stats["profiles_scored"] = int(stats["profiles_scored"]) + 1
+
+            old_score = existing_scores.get(profile_id)
+            if old_score is None:
+                continue
+
+            delta = abs(score - old_score)
+            if delta >= 10:
+                significant_changes: list = stats["significant_changes"]  # type: ignore
+                significant_changes.append(
+                    {
+                        "job_id": job["id"],
+                        "title": job["title"],
+                        "company": job["company"],
+                        "profile": profile_id,
+                        "old_score": old_score,
+                        "new_score": score,
+                        "delta": delta,
+                    }
+                )
+
+    @staticmethod
+    def _print_rescore_summary(stats: dict[str, Any]) -> None:
+        """Print re-scoring summary with top score changes."""
+        print(f"\n{'=' * 70}")
+        print("RE-SCORING SUMMARY")
+        print(f"{'=' * 70}\n")
+        print(f"Jobs processed: {stats['jobs_processed']}")
+        print(f"Profile scores updated: {stats['profiles_scored']}")
+        print(f"Errors: {stats['errors']}")
+        significant_changes: list = stats["significant_changes"]  # type: ignore
+        print(f"Significant changes (Δ ≥ 10): {len(significant_changes)}")
+
+        if not significant_changes:
+            return
+
+        print(f"\n{'=' * 70}")
+        print("TOP SCORE CHANGES")
+        print(f"{'=' * 70}\n")
+
+        top_changes = sorted(significant_changes, key=lambda x: x["delta"], reverse=True)[:10]
+        for change in top_changes:
+            delta_sign = "+" if change["new_score"] > change["old_score"] else ""
+            print(f"{change['profile']}: {change['title']} at {change['company']}")
+            print(
+                f"  {change['old_score']} → {change['new_score']} ({delta_sign}{change['new_score'] - change['old_score']})"
+            )
+
     def _rescore_jobs(
         self, jobs: list[dict], profiles: list[str] | None, dry_run: bool
     ) -> dict[str, Any]:
@@ -316,55 +390,23 @@ class JobRescorer:
             "significant_changes": [],
         }
 
-        profile_changes = defaultdict(list)
-
         for job in jobs:
             try:
                 job_id = job["id"]
+                existing_scores = self._collect_existing_scores(job_id, profiles)
 
-                # Get existing scores for comparison
-                existing_scores = {}
-                if profiles:
-                    for profile_id in profiles:
-                        existing = self._get_existing_scores(job_id, profile_id)
-                        if existing:
-                            existing_scores[profile_id] = existing["fit_score"]
-
-                # Score job for all profiles
                 if dry_run:
-                    # In dry run, just show what would happen
                     print(f"  Would rescore: {job['title']} at {job['company']}")
                 else:
                     profile_scores = self.multi_scorer.score_job_for_all(job, job_id)
-
                     if profile_scores:
-                        for profile_id, (score, _grade) in profile_scores.items():
-                            # Skip if not in target profiles list
-                            if profiles and profile_id not in profiles:
-                                continue
-
-                            stats["profiles_scored"] = int(stats["profiles_scored"]) + 1
-
-                            # Track significant changes (Δ ≥ 10 points)
-                            old_score = existing_scores.get(profile_id)
-                            if old_score is not None:
-                                delta = abs(score - old_score)
-                                if delta >= 10:
-                                    significant_changes: list = stats["significant_changes"]  # type: ignore
-                                    significant_changes.append(
-                                        {
-                                            "job_id": job_id,
-                                            "title": job["title"],
-                                            "company": job["company"],
-                                            "profile": profile_id,
-                                            "old_score": old_score,
-                                            "new_score": score,
-                                            "delta": delta,
-                                        }
-                                    )
-                                    profile_changes[profile_id].append(
-                                        (job["title"], old_score, score, delta)
-                                    )
+                        self._track_score_changes(
+                            job,
+                            profile_scores,
+                            profiles,
+                            existing_scores,
+                            stats,
+                        )
 
                 stats["jobs_processed"] = int(stats["jobs_processed"]) + 1
 
@@ -372,31 +414,7 @@ class JobRescorer:
                 print(f"  ❌ Error scoring {job.get('title', 'Unknown')}: {e}")
                 stats["errors"] = int(stats["errors"]) + 1
 
-        # Print summary
-        print(f"\n{'=' * 70}")
-        print("RE-SCORING SUMMARY")
-        print(f"{'=' * 70}\n")
-        print(f"Jobs processed: {stats['jobs_processed']}")
-        print(f"Profile scores updated: {stats['profiles_scored']}")
-        print(f"Errors: {stats['errors']}")
-        significant_changes: list = stats["significant_changes"]  # type: ignore
-        print(f"Significant changes (Δ ≥ 10): {len(significant_changes)}")
-
-        if significant_changes:
-            print(f"\n{'=' * 70}")
-            print("TOP SCORE CHANGES")
-            print(f"{'=' * 70}\n")
-
-            # Show top 10 changes by delta
-            top_changes = sorted(significant_changes, key=lambda x: x["delta"], reverse=True)[:10]
-
-            for change in top_changes:
-                delta_sign = "+" if change["new_score"] > change["old_score"] else ""
-                print(f"{change['profile']}: {change['title']} at {change['company']}")
-                print(
-                    f"  {change['old_score']} → {change['new_score']} ({delta_sign}{change['new_score'] - change['old_score']})"
-                )
-
+        self._print_rescore_summary(stats)
         return stats
 
 
