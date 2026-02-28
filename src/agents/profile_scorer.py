@@ -2,10 +2,8 @@
 Profile-Based Job Scorer
 Evaluates job opportunities against any user profile
 
-This is the multi-person version of JobScorer that uses Profile objects
-instead of hardcoded Wesley preferences.
-
-Extends BaseScorer with generic role type matching.
+Uses Profile objects for configurable scoring criteria.
+Extends BaseScorer with role type matching, software penalty, and keyword bonus.
 """
 
 import re
@@ -21,61 +19,70 @@ from utils.profile_manager import Profile, get_profile_manager
 class ProfileScorer(BaseScorer):
     """Score jobs against a specific user profile"""
 
-    def __init__(self, profile: Profile):
+    def __init__(self, profile: Profile) -> None:
         """
         Initialize scorer with a Profile object
 
         Args:
             profile: Profile object with scoring criteria
         """
-        # Pass profile to BaseScorer (it handles both dict and Profile object)
         super().__init__(profile)
-        self.profile = profile  # Keep Profile object for convenience
+        # Keep Profile object for convenience
+        self.profile = profile
 
     def _score_role_type(self, title: str) -> int:
         """
-        Score based on role type (0-20 points)
+        Score based on role type (-5 to 22 points)
 
-        Uses word boundary matching to prevent false positives like:
-        - "cto" matching "director"
-        - "product" matching "production"
-
-        Generic implementation for multi-profile support.
-        Uses simple keyword matching without complex matchers.
+        Uses word boundary matching to prevent false positives.
+        Applies configurable software penalty and keyword bonus.
 
         Args:
             title: Job title (lowercase)
 
         Returns:
-            Score 0-20 based on role type match
+            Score -5 to 22 based on role type match
         """
         title_lower = title.lower()
         scoring = self.profile.scoring
         role_types = scoring.get("role_types", {})
 
-        is_leadership = any(
-            kw in title_lower for kw in ["vp", "director", "head", "chief", "executive"]
-        )
+        is_leadership = self._is_leadership_title(title_lower)
+
+        # Check for software development penalty (configurable, default 0)
+        penalty = self._get_role_software_penalty()
+        if penalty < 0 and is_leadership and self._is_software_title(title_lower):
+            return penalty
 
         # Check each role type category with word boundary matching
-        for _role_type, keywords in role_types.items():
-            # Use word boundaries to prevent substring false positives
-            # e.g., "cto" should not match "director"
+        for role_category, keywords in role_types.items():
             for kw in keywords:
-                # Create regex pattern with word boundaries
-                # \b matches word boundary (start/end of word)
                 pattern = rf"\b{re.escape(kw)}\b"
                 if re.search(pattern, title_lower):
-                    if is_leadership:
-                        return 20
-                    return 15
+                    score = 20 if is_leadership else 15
+                    bonus = self._calculate_keyword_bonus(title, role_category)
+                    return min(score + bonus, 22)
 
-        # No fallback points - only award points for explicit role type matches
-        # This prevents "Performance Marketing Director" from scoring 10 points
         return 0
 
+    def _is_software_title(self, title_lower: str) -> bool:
+        """Check if title indicates a software development role"""
+        software_indicators = ["software", "backend", "frontend", "web", "mobile"]
+        is_software_dev = "software" in title_lower and "development" in title_lower
+        is_software_eng = "engineering" in title_lower and any(
+            ind in title_lower for ind in software_indicators
+        )
+        return is_software_dev or is_software_eng
 
-def score_job_for_profile(job: dict, profile_id: str) -> tuple[int, str, dict, dict] | None:
+    def _get_role_software_penalty(self) -> int:
+        """Get the software role penalty from filtering config (default 0)"""
+        filtering = self.profile.scoring.get("filtering", {})
+        return filtering.get("role_software_penalty", 0)
+
+
+def score_job_for_profile(
+    job: dict[str, str], profile_id: str
+) -> tuple[int, str, dict[str, int], dict[str, object]] | None:
     """
     Convenience function to score a job for a specific profile
 
@@ -96,7 +103,9 @@ def score_job_for_profile(job: dict, profile_id: str) -> tuple[int, str, dict, d
     return scorer.score_job(job)
 
 
-def score_job_for_all_profiles(job: dict) -> dict[str, tuple[int, str, dict, dict]]:
+def score_job_for_all_profiles(
+    job: dict[str, str],
+) -> dict[str, tuple[int, str, dict[str, int], dict[str, object]]]:
     """
     Score a job for all enabled profiles
 
@@ -107,7 +116,7 @@ def score_job_for_all_profiles(job: dict) -> dict[str, tuple[int, str, dict, dic
         Dictionary mapping profile_id to (score, grade, breakdown, classification_metadata)
     """
     manager = get_profile_manager()
-    results: dict[str, tuple[int, str, dict, dict]] = {}
+    results: dict[str, tuple[int, str, dict[str, int], dict[str, object]]] = {}
 
     for profile in manager.get_enabled_profiles():
         scorer = ProfileScorer(profile)
