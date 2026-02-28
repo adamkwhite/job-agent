@@ -451,4 +451,117 @@ class TestAbstractMethod:
             scorer._score_role_type("test title")
 
 
+# ========== DESCRIPTION-AWARE SCORING TESTS (Issue #316) ==========
+
+
+class TestDescriptionAwareDomainScoring:
+    """Test that job descriptions improve domain scoring"""
+
+    def test_description_adds_domain_keywords(self, test_profile):
+        """Domain score improves when description contains domain keywords"""
+        scorer = TestScorer(test_profile)
+
+        # Without description: generic title/company, low domain match
+        score_without = scorer._score_domain("engineer", "tech startup")
+
+        # With description containing domain keywords
+        score_with = scorer._score_domain(
+            "engineer",
+            "tech startup",
+            "Building robotics automation systems with AI and ML pipelines",
+        )
+
+        assert score_with > score_without
+
+    def test_description_empty_string_no_change(self, test_profile):
+        """Empty description produces same score as no description"""
+        scorer = TestScorer(test_profile)
+
+        score_default = scorer._score_domain("robotics engineer", "hardware company")
+        score_empty = scorer._score_domain("robotics engineer", "hardware company", "")
+
+        assert score_default == score_empty
+
+    def test_description_case_insensitive(self, test_profile):
+        """Description matching is case-insensitive"""
+        scorer = TestScorer(test_profile)
+
+        score_lower = scorer._score_domain("engineer", "startup", "robotics automation hardware")
+        score_upper = scorer._score_domain("engineer", "startup", "ROBOTICS AUTOMATION HARDWARE")
+
+        assert score_lower == score_upper
+
+
+class TestDescriptionAwareTechScoring:
+    """Test that job descriptions improve technical keyword scoring"""
+
+    def test_description_adds_tech_keywords(self, test_profile):
+        """Technical score improves when description contains tech keywords"""
+        scorer = TestScorer(test_profile)
+
+        # Without description: generic title
+        score_without = scorer._score_technical_keywords("manager", "consulting firm")
+
+        # With description containing tech keywords
+        score_with = scorer._score_technical_keywords(
+            "manager",
+            "consulting firm",
+            "Experience with robotics, automation, and hardware systems required",
+        )
+
+        assert score_with > score_without
+
+    def test_description_empty_string_no_change(self, test_profile):
+        """Empty description produces same score as no description"""
+        scorer = TestScorer(test_profile)
+
+        score_default = scorer._score_technical_keywords("robotics engineer", "automation company")
+        score_empty = scorer._score_technical_keywords(
+            "robotics engineer", "automation company", ""
+        )
+
+        assert score_default == score_empty
+
+
+class TestDescriptionInScoreJob:
+    """Test that score_job() passes description through to domain and tech scoring"""
+
+    def test_score_job_with_description_improves_score(self, test_profile):
+        """score_job total score improves when description has relevant keywords"""
+        scorer = TestScorer(test_profile)
+
+        job_no_desc = {
+            "title": "Engineering Manager",
+            "company": "Tech Startup",
+            "location": "Remote",
+        }
+
+        job_with_desc = {
+            "title": "Engineering Manager",
+            "company": "Tech Startup",
+            "location": "Remote",
+            "description": "Lead our robotics automation team building AI-powered hardware systems",
+        }
+
+        score_without, _, _, _ = scorer.score_job(job_no_desc)
+        score_with, _, _, _ = scorer.score_job(job_with_desc)
+
+        assert score_with > score_without
+
+    def test_score_job_missing_description_works(self, test_profile):
+        """score_job works when job dict has no description key"""
+        scorer = TestScorer(test_profile)
+
+        job = {
+            "title": "VP of Engineering",
+            "company": "Robotics Company",
+            "location": "Remote",
+        }
+
+        # Should not raise any errors
+        score, grade, breakdown, metadata = scorer.score_job(job)
+        assert isinstance(score, int)
+        assert isinstance(grade, str)
+
+
 # ========== RELATIVE SENIORITY SCORING TESTS (Issue #244) ==========

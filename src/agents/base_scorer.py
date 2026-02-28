@@ -134,7 +134,7 @@ class BaseScorer:
         breakdown["seniority"] = seniority_score
 
         # 3. Domain Match (0-25 points)
-        domain_score = self._score_domain(title, company)
+        domain_score = self._score_domain(title, company, description)
         breakdown["domain"] = domain_score
 
         # 4. Location Match (0-15 points)
@@ -142,7 +142,7 @@ class BaseScorer:
         breakdown["location"] = location_score
 
         # 5. Technical Keywords (0-10 points)
-        tech_score = self._score_technical_keywords(title, company)
+        tech_score = self._score_technical_keywords(title, company, description)
         breakdown["technical"] = tech_score
 
         # 6. Company Classification Adjustment (filtering penalties/boosts)
@@ -292,7 +292,7 @@ class BaseScorer:
         # IC roles (0 points)
         return 0
 
-    def _score_domain(self, title: str, company: str) -> int:
+    def _score_domain(self, title: str, company: str, description: str = "") -> int:
         """
         Score based on domain keyword matches (0-25 points)
 
@@ -302,11 +302,14 @@ class BaseScorer:
         Args:
             title: Job title (lowercase)
             company: Company name (lowercase)
+            description: Job description text (optional, for enriched jobs)
 
         Returns:
             Score 0-25 based on domain match
         """
         text = f"{title} {company}"
+        if description:
+            text = f"{text} {description.lower()}"
         domain_tiers = self._get_domain_tiers()
 
         if domain_tiers:
@@ -407,7 +410,7 @@ class BaseScorer:
             return 8
         return 0
 
-    def _score_technical_keywords(self, title: str, company: str) -> int:
+    def _score_technical_keywords(self, title: str, company: str, description: str = "") -> int:
         """
         Score based on technical keyword matches (0-10 points)
 
@@ -418,11 +421,14 @@ class BaseScorer:
         Args:
             title: Job title (lowercase)
             company: Company name (lowercase)
+            description: Job description text (optional, for enriched jobs)
 
         Returns:
             Score 0-10 based on technical keyword matches
         """
         text = f"{title} {company}".lower()
+        if description:
+            text = f"{text} {description.lower()}"
         tech_keywords = self._get_technical_keywords()
         use_word_boundary = self._has_explicit_technical_keywords()
 

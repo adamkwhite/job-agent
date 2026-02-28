@@ -214,6 +214,61 @@ class TestMarkJobFiltered:
             assert result[0] == reason
 
 
+class TestUpdateJobDescription:
+    """Test update_job_description method (Issue #316)"""
+
+    def test_update_job_description(self, test_db):
+        """Test that description is updated for an existing job"""
+        job_dict = {
+            "source": "test",
+            "type": "direct_job",
+            "company": "Robotics Corp",
+            "title": "Senior Engineer",
+            "location": "Remote",
+            "link": "https://test.com/job/1",
+            "keywords_matched": "[]",
+            "source_email": "",
+        }
+
+        job_id = test_db.add_job(job_dict)
+        assert job_id is not None
+
+        test_db.update_job_description(job_id, "Build robotics systems with ROS2")
+
+        conn = sqlite3.connect(test_db.db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT description FROM jobs WHERE id = ?", (job_id,))
+        result = cursor.fetchone()
+        conn.close()
+
+        assert result[0] == "Build robotics systems with ROS2"
+
+    def test_update_job_description_overwrites(self, test_db):
+        """Test that description can be overwritten"""
+        job_dict = {
+            "source": "test",
+            "type": "direct_job",
+            "company": "AI Startup",
+            "title": "ML Engineer",
+            "location": "Remote",
+            "link": "https://test.com/job/2",
+            "keywords_matched": "[]",
+            "source_email": "",
+        }
+
+        job_id = test_db.add_job(job_dict)
+        test_db.update_job_description(job_id, "Old description")
+        test_db.update_job_description(job_id, "New enriched description")
+
+        conn = sqlite3.connect(test_db.db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT description FROM jobs WHERE id = ?", (job_id,))
+        result = cursor.fetchone()
+        conn.close()
+
+        assert result[0] == "New enriched description"
+
+
 class TestDatabaseIncrementalMigration:
     """Test that init_database() applies ALTER TABLE guards for legacy databases.
 
