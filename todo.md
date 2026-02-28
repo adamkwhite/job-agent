@@ -7,31 +7,30 @@
 - [ ] Add email alerts if weekly scraper fails
 
 ### Code Quality (SonarCloud)
-- [ ] Overnight batch A: trivial fixes (S3626, S125, S1481, S6965) — tui.py, company_service.py, app.py, 4 scrapers/parsers
-- [ ] Overnight batch B: company_scraper.py unused params (S1172) — 5 parameters
-- [x] **Issue #294: All complexity reductions complete** — 5 files reduced from 15-19 → 5-10 (PRs #304-308)
-  - [x] database.py: 17→5 (PR #304, merged)
-  - [x] firecrawl_career_scraper.py: 16→≤15 (PR #305, all checks pass ✅)
-  - [x] linkedin_parser.py: 17→≤15 (PR #306, all checks pass ✅)
-  - [x] testdevjobs_scraper.py: 19→10 (PR #307, all checks pass ✅)
-  - [x] wellfound_parser.py: 19→8 (PR #308, all checks pass ✅)
-- [ ] Overnight batch E: feedback_parser.py regex — S5869 x3 (duplicate chars) + S6019 (logic bug)
+- [x] ~~Overnight batch A: trivial fixes (S3626, S125, S1481)~~ — all resolved
+- [x] ~~Overnight batch B: company_scraper.py unused params (S1172)~~ — all resolved
+- [x] **Issue #294: All complexity reductions complete** — 5 files reduced, PRs #304-308 merged
+- [ ] Issue #295: feedback_parser.py regex — S5843 (complexity 27→≤20) + S5869 (duplicate chars)
+- [ ] Remaining S3776 complexity issues (tui.py ×6, firecrawl_career_scraper.py ×3, rescore_jobs.py, others)
+- [ ] S1192 string duplication in tui.py (2 open: "Last Run", magenta borders)
 
 ## Medium Priority
 
 ### Features
 - [ ] Daily digest option (Issue #3)
-- [ ] Two-tier scoring: skip low-hit-rate companies to save Firecrawl credits (Issue #78)
+- [ ] Selective job description enrichment for improved scoring accuracy (Issue #316, replaces #78)
 - [ ] Add 'Clear Digest Tracking' to TUI for easy job resending (Issue #137)
 
 ### Backlog (tracked in GitHub Issues)
-- Issue #9: Generic company list scraper enhancements
+- Issue #317: Batch processing + DB storage for company list scraper CLI
 - Issue #29: End-to-end testing with multiple profiles
 - Issue #79: Enhanced statistics tracking for scraper observability
 - Issue #168: Skip known-stale jobs during scraping
 - Issue #180: Performance monitoring dashboard for company scraping costs
 - Issue #185: Document multi-profile scoring optimization strategy
 - Issue #193: Company Location Management in TUI
+- Issue #318: Structured logging for company list scraper
+- Issue #319: Improve website extraction accuracy in company list scraper
 
 ## Completed This Session (Feb 2026)
 
@@ -45,18 +44,20 @@
 
 **PRs Created:**
 - PR #304: database.py (17→5) - **Merged** ✅
-- PR #305: firecrawl_career_scraper.py (16→≤15) - All checks pass ✅
-- PR #306: linkedin_parser.py (17→≤15) - All checks pass ✅
-- PR #307: testdevjobs_scraper.py (19→10) - All checks pass ✅
-- PR #308: wellfound_parser.py (19→8) + guidelines docs - All checks pass ✅
+- PR #305: firecrawl_career_scraper.py (16→≤15) - **Merged** ✅
+- PR #306: linkedin_parser.py (17→≤15) - **Merged** ✅
+- PR #307: testdevjobs_scraper.py (19→10) - **Merged** ✅
+- PR #308: wellfound_parser.py (19→8) + guidelines docs - **Merged** ✅
 
 ### Issue Triage
+- [x] Closed #9 (company list scraper umbrella — 6/11 done, remaining → #317, #318, #319)
 - [x] Closed #4 (configurable weights — superseded by profiles/*.json)
 - [x] Closed #28 (cron update — superseded by --all-inboxes architecture)
 - [x] Closed #50 (recruiter attribution — won't fix; disabled 4 zero-value companies)
 - [x] Closed #83 (Firecrawl automation — fully implemented)
 - [x] Closed #93, #94 (LLM validation/deployment — superseded, in production)
 - [x] Updated #78: re-scoped to company-level credit optimization
+- [x] Closed #78 (two-tier scoring — incorrect Firecrawl assumption) → replaced by #316
 
 ### Overnight Agent (PRs #286–289)
 - [x] Reduce testdevjobs scraper complexity 24→5 (PR #286)
