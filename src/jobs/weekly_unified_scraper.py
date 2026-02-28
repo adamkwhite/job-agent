@@ -846,6 +846,19 @@ def main():
         # Output JSON for logging
         print("\n" + json.dumps(stats, indent=2))
 
+        # Monitor and alert on failures
+        from utils.scraper_monitor import ScraperMonitor
+
+        monitor = ScraperMonitor()
+        if args.all_inboxes:
+            monitor.check_all_inboxes_stats(stats)
+        else:
+            monitor.check_single_profile_stats(stats)
+
+        if monitor.get_exit_code() != 0:
+            monitor.send_alert("Weekly Scraper FAILED - Issues Detected")
+        sys.exit(monitor.get_exit_code())
+
     except KeyboardInterrupt:
         print("\n\n" + "=" * 60)
         print("⚠️  SCRAPING INTERRUPTED")
@@ -855,6 +868,13 @@ def main():
         print("   Already-scraped companies will be skipped if using --skip-recent-hours")
         print("\n" + "=" * 60 + "\n")
         sys.exit(0)
+    except Exception as e:
+        from utils.scraper_monitor import ScraperMonitor
+
+        monitor = ScraperMonitor()
+        monitor.failures.append(f"Scraper crashed: {e}")
+        monitor.send_alert("Weekly Scraper CRASHED")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
