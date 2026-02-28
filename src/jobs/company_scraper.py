@@ -16,6 +16,7 @@ from agents.job_filter_pipeline import JobFilterPipeline
 from agents.profile_scorer import ProfileScorer
 from api.company_service import CompanyService
 from database import JobDatabase
+from enrichment.job_description_enricher import JobDescriptionEnricher
 from job_filter import JobFilter
 from models import OpportunityData
 from notifier import JobNotifier
@@ -59,6 +60,10 @@ class CompanyScraper:
         )
         self.database = JobDatabase(profile=profile)
         self.notifier = JobNotifier()
+        self.enricher = JobDescriptionEnricher(
+            firecrawl_scraper=self.firecrawl_scraper,
+            db=self.database,
+        )
 
         # Initialize failure logging
         self.failure_log_path = Path("logs/scraper_failures.log")
@@ -313,6 +318,7 @@ class CompanyScraper:
             Stats dictionary
         """
         stats = self._init_job_stats()
+        stored_jobs: list[dict] = []  # Track for enrichment post-processing
         print(f"\nProcessing {len(jobs)} jobs from {company_name}")
 
         for job, extraction_method in jobs:
@@ -386,9 +392,20 @@ class CompanyScraper:
                     notify_threshold,
                     stats,
                 )
+                stored_jobs.append(
+                    {
+                        "id": job_id,
+                        "link": job_dict.get("link", ""),
+                        "description": "",
+                        "score": score,
+                    }
+                )
             else:
                 # Duplicate job
                 self._handle_duplicate_job(job, job_dict, stats)
+
+        # Post-processing: enrich high-scoring jobs with full descriptions
+        self._enrich_and_rescore(stored_jobs, stats)
 
         return stats
 
@@ -535,6 +552,33 @@ class CompanyScraper:
                 print(f"    {pid}: {s}/{g}")
         except Exception as mp_error:
             print(f"  ⚠ Multi-profile scoring failed: {mp_error}")
+
+    def _enrich_and_rescore(self, stored_jobs: list[dict], stats: dict) -> None:
+        """Enrich high-scoring jobs with descriptions and rescore them."""
+        if not stored_jobs:
+            return
+
+        enrichment_stats = self.enricher.enrich_jobs(stored_jobs, threshold=70)
+
+        if enrichment_stats.enriched == 0:
+            return
+
+        print(
+            f"\n  📝 Enriched {enrichment_stats.enriched} job descriptions"
+            f" (~${enrichment_stats.estimated_cost:.3f})"
+        )
+
+        # Rescore enriched jobs (description now included in job dict)
+        from utils.multi_scorer import get_multi_scorer
+
+        multi_scorer = get_multi_scorer()
+        for job in stored_jobs:
+            if job.get("description"):
+                multi_scorer.score_job_for_all(job, job["id"])
+                enrichment_stats.rescored += 1
+
+        stats["jobs_enriched"] = enrichment_stats.enriched
+        stats["enrichment_cost"] = enrichment_stats.estimated_cost
 
     def _send_notification_if_needed(
         self,
