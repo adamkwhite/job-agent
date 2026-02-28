@@ -31,6 +31,11 @@ python3 src/jobs/weekly_unified_scraper.py \
   --companies-min-score 50 \
   >> "$LOG_FILE" 2>&1
 
+EXIT_CODE=$?
+if [ $EXIT_CODE -ne 0 ]; then
+    echo "SCRAPER FAILED with exit code $EXIT_CODE at $(date)" >> "$LOG_FILE"
+fi
+
 # Generate HTML report (optional - if you use this)
 # echo "" >> "$LOG_FILE"
 # echo "Generating HTML report..." >> "$LOG_FILE"
@@ -43,5 +48,5 @@ python3 src/jobs/weekly_unified_scraper.py \
 # python3 src/send_profile_digest.py --all >> "$LOG_FILE" 2>&1
 
 echo "" >> "$LOG_FILE"
-echo "Completed: $(date)" >> "$LOG_FILE"
+echo "Completed: $(date) (exit code: $EXIT_CODE)" >> "$LOG_FILE"
 echo "" >> "$LOG_FILE"
