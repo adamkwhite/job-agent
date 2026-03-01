@@ -5,6 +5,7 @@ Integrates with unified weekly scraper
 """
 
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -20,7 +21,6 @@ from enrichment.job_description_enricher import JobDescriptionEnricher
 from job_filter import JobFilter
 from models import OpportunityData
 from notifier import JobNotifier
-from scrapers.firecrawl_career_scraper import FirecrawlCareerScraper
 from utils.profile_manager import get_profile_manager
 
 # Auto-disable threshold: companies with this many consecutive failures will be auto-disabled
@@ -38,6 +38,7 @@ class CompanyScraper:
         profile: str | None = None,
         enable_llm_extraction: bool = False,
         enable_pagination: bool = True,
+        scraper_backend: str | None = None,
     ):
         # Store profile for multi-profile support
         self.profile = profile
@@ -49,9 +50,11 @@ class CompanyScraper:
 
         # Initialize components
         self.company_service = CompanyService()
-        self.firecrawl_scraper = FirecrawlCareerScraper(
-            enable_llm_extraction=enable_llm_extraction,
-            enable_pagination=enable_pagination,
+
+        # Select scraper backend: CLI arg > env var > default (playwright)
+        backend = scraper_backend or os.getenv("SCRAPER_BACKEND") or "playwright"
+        self.career_scraper = self._create_career_scraper(
+            backend, enable_llm_extraction, enable_pagination
         )
         self.job_filter = JobFilter()
         self.filter_pipeline = JobFilterPipeline(profile_config) if profile_config else None
@@ -60,10 +63,7 @@ class CompanyScraper:
         )
         self.database = JobDatabase(profile=profile)
         self.notifier = JobNotifier()
-        self.enricher = JobDescriptionEnricher(
-            firecrawl_scraper=self.firecrawl_scraper,
-            db=self.database,
-        )
+        self.enricher = JobDescriptionEnricher(self.career_scraper, self.database)
 
         # Initialize failure logging
         self.failure_log_path = Path("logs/scraper_failures.log")
@@ -71,7 +71,32 @@ class CompanyScraper:
         self.failure_log = open(self.failure_log_path, "a", encoding="utf-8")  # noqa: SIM115
         self.failures: list[dict[str, Any]] = []  # Track for summary
 
-    def __del__(self):
+    @staticmethod
+    def _create_career_scraper(
+        backend: str,
+        enable_llm_extraction: bool,
+        enable_pagination: bool,
+    ):  # type: ignore[return]  # returns BaseCareerScraper subclass
+        """Create career scraper instance based on backend selection."""
+        if backend == "firecrawl":
+            from scrapers.firecrawl_career_scraper import FirecrawlCareerScraper
+
+            return FirecrawlCareerScraper(
+                enable_llm_extraction=enable_llm_extraction,
+                enable_pagination=enable_pagination,
+            )
+
+        from scrapers.playwright_career_scraper import PlaywrightCareerScraper
+
+        if backend != "playwright":
+            print(f"  ⚠ Unknown backend '{backend}', defaulting to playwright")
+
+        return PlaywrightCareerScraper(
+            enable_llm_extraction=enable_llm_extraction,
+            enable_pagination=enable_pagination,
+        )
+
+    def __del__(self) -> None:
         """Ensure failure log is closed on cleanup"""
         self._close_failure_log()
 
@@ -215,7 +240,7 @@ class CompanyScraper:
 
             try:
                 # Scrape jobs from career page using Firecrawl
-                jobs = self.firecrawl_scraper.scrape_jobs(
+                jobs = self.career_scraper.scrape_jobs(
                     careers_url=company["careers_url"],
                     company_name=company["name"],
                 )
@@ -223,7 +248,7 @@ class CompanyScraper:
                 stats["jobs_scraped"] += len(jobs)
 
                 # Track companies where both regex AND LLM extraction failed
-                if not jobs and self.firecrawl_scraper.enable_llm_extraction:
+                if not jobs and self.career_scraper.enable_llm_extraction:
                     stats["failed_extractions"].append(
                         {"name": company["name"], "url": company["careers_url"]}
                     )

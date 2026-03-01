@@ -33,7 +33,7 @@ class WeeklyUnifiedScraper:
     3. Ministry of Testing (QA/testing job board)
     """
 
-    def __init__(self, profile: str | None = None):
+    def __init__(self, profile: str | None = None, scraper_backend: str | None = None):
         # Store profile for logging and sub-components
         self.profile = profile
 
@@ -52,7 +52,10 @@ class WeeklyUnifiedScraper:
 
         # Company monitoring scraper (with pagination enabled by default)
         self.company_scraper = CompanyScraper(
-            profile=profile, enable_llm_extraction=llm_enabled, enable_pagination=True
+            profile=profile,
+            enable_llm_extraction=llm_enabled,
+            enable_pagination=True,
+            scraper_backend=scraper_backend,
         )
 
         # Ministry of Testing scraper
@@ -800,6 +803,13 @@ def main():
         type=int,
         help="Skip companies checked within this many hours (saves API credits)",
     )
+    parser.add_argument(
+        "--scraper-backend",
+        type=str,
+        choices=["playwright", "firecrawl"],
+        default=None,
+        help="Career page scraper backend (default: playwright, env: SCRAPER_BACKEND)",
+    )
 
     args = parser.parse_args()
 
@@ -833,7 +843,9 @@ def main():
             )
         else:
             # Single profile mode
-            scraper = WeeklyUnifiedScraper(profile=args.profile)
+            scraper = WeeklyUnifiedScraper(
+                profile=args.profile, scraper_backend=args.scraper_backend
+            )
             stats = scraper.run_all(
                 fetch_emails=run_emails,
                 email_limit=args.email_limit,
