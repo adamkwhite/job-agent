@@ -2,7 +2,7 @@
 Unit tests for HybridJobScraper (orchestration)
 """
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -13,10 +13,11 @@ from models import OpportunityData
 @pytest.fixture
 def mock_dependencies():
     """Mock all HybridJobScraper dependencies"""
+    mock_career_scraper = MagicMock()
     with (
         patch("jobs.hybrid_scraper.CompanyService") as mock_company_service,
         patch("jobs.hybrid_scraper.CompanyDiscoverer") as mock_discoverer,
-        patch("jobs.hybrid_scraper.FirecrawlCareerScraper") as mock_firecrawl,
+        patch.object(HybridJobScraper, "_create_scraper", return_value=mock_career_scraper),
         patch("jobs.hybrid_scraper.RoboticsDeeptechScraper") as mock_robotics,
         patch("jobs.hybrid_scraper.JobFilter") as mock_filter,
         patch("jobs.hybrid_scraper.ProfileScorer") as mock_scorer,
@@ -26,7 +27,7 @@ def mock_dependencies():
         yield {
             "company_service": mock_company_service.return_value,
             "discoverer": mock_discoverer.return_value,
-            "firecrawl": mock_firecrawl.return_value,
+            "firecrawl": mock_career_scraper,
             "robotics": mock_robotics.return_value,
             "filter": mock_filter.return_value,
             "scorer": mock_scorer.return_value,

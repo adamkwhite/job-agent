@@ -17,7 +17,7 @@ def company_scraper():
     """Create CompanyScraper instance with mocked dependencies"""
     with (
         patch("src.jobs.company_scraper.CompanyService"),
-        patch("src.jobs.company_scraper.FirecrawlCareerScraper"),
+        patch("src.scrapers.playwright_career_scraper.PlaywrightCareerScraper"),
         patch("src.jobs.company_scraper.JobFilter"),
         patch("src.jobs.company_scraper.ProfileScorer"),
         patch("src.jobs.company_scraper.JobDatabase"),
@@ -35,7 +35,7 @@ class TestCompanyScraperInit:
     def test_init_creates_dependencies(self, company_scraper):
         """Should initialize all required dependencies"""
         assert company_scraper.company_service is not None
-        assert company_scraper.firecrawl_scraper is not None
+        assert company_scraper.career_scraper is not None
         assert company_scraper.job_filter is not None
         assert company_scraper.scorer is not None
         assert company_scraper.database is not None
@@ -69,13 +69,13 @@ class TestScrapeAllCompanies:
             }
         ]
         company_scraper.company_service.get_all_companies = MagicMock(return_value=companies)
-        company_scraper.firecrawl_scraper.scrape_jobs = MagicMock(return_value=[])
+        company_scraper.career_scraper.scrape_jobs = MagicMock(return_value=[])
         company_scraper.company_service.update_last_checked = MagicMock()
 
         stats = company_scraper.scrape_all_companies()
 
         assert stats["companies_checked"] == 1
-        company_scraper.firecrawl_scraper.scrape_jobs.assert_called_once()
+        company_scraper.career_scraper.scrape_jobs.assert_called_once()
 
     def test_scrape_all_companies_filters_by_notes(self, company_scraper):
         """Should filter companies by notes when company_filter provided"""
@@ -94,7 +94,7 @@ class TestScrapeAllCompanies:
             },
         ]
         company_scraper.company_service.get_all_companies = MagicMock(return_value=companies)
-        company_scraper.firecrawl_scraper.scrape_jobs = MagicMock(return_value=[])
+        company_scraper.career_scraper.scrape_jobs = MagicMock(return_value=[])
         company_scraper.company_service.update_last_checked = MagicMock()
 
         stats = company_scraper.scrape_all_companies(company_filter="From Wes")
@@ -108,7 +108,7 @@ class TestScrapeAllCompanies:
             {"id": 1, "name": "Test Company", "careers_url": "https://test.com", "notes": "Test"}
         ]
         company_scraper.company_service.get_all_companies = MagicMock(return_value=companies)
-        company_scraper.firecrawl_scraper.scrape_jobs = MagicMock(
+        company_scraper.career_scraper.scrape_jobs = MagicMock(
             side_effect=Exception("Scraping failed")
         )
         company_scraper.company_service.update_last_checked = MagicMock()
@@ -350,7 +350,7 @@ class TestProcessScrapedJobs:
         ]
 
         company_scraper.company_service.get_all_companies = MagicMock(return_value=companies)
-        company_scraper.firecrawl_scraper.scrape_jobs = MagicMock(return_value=jobs_with_methods)
+        company_scraper.career_scraper.scrape_jobs = MagicMock(return_value=jobs_with_methods)
         company_scraper.company_service.update_last_checked = MagicMock()
         company_scraper.job_filter.is_leadership_role = MagicMock(return_value=True)
         company_scraper.scorer.score_job = MagicMock(
@@ -540,7 +540,7 @@ class TestFilterPipelineIntegration:
 
         with (
             patch("src.jobs.company_scraper.CompanyService"),
-            patch("src.jobs.company_scraper.FirecrawlCareerScraper"),
+            patch("src.scrapers.playwright_career_scraper.PlaywrightCareerScraper"),
             patch("src.jobs.company_scraper.JobFilter"),
             patch("src.jobs.company_scraper.ProfileScorer") as mock_scorer_class,
             patch("src.jobs.company_scraper.JobDatabase") as mock_db_class,
@@ -616,7 +616,7 @@ class TestFilterPipelineIntegration:
 
         with (
             patch("src.jobs.company_scraper.CompanyService"),
-            patch("src.jobs.company_scraper.FirecrawlCareerScraper"),
+            patch("src.scrapers.playwright_career_scraper.PlaywrightCareerScraper"),
             patch("src.jobs.company_scraper.JobFilter"),
             patch("src.jobs.company_scraper.ProfileScorer"),
             patch("src.jobs.company_scraper.JobDatabase"),
@@ -681,7 +681,7 @@ class TestFilterPipelineIntegration:
 
         with (
             patch("src.jobs.company_scraper.CompanyService"),
-            patch("src.jobs.company_scraper.FirecrawlCareerScraper"),
+            patch("src.scrapers.playwright_career_scraper.PlaywrightCareerScraper"),
             patch("src.jobs.company_scraper.JobFilter"),
             patch("src.jobs.company_scraper.ProfileScorer") as mock_scorer_class,
             patch("src.jobs.company_scraper.JobDatabase") as mock_db_class,
@@ -802,7 +802,7 @@ class TestSkipRecentHours:
         ]
 
         company_scraper.company_service.get_all_companies = MagicMock(return_value=companies)
-        company_scraper.firecrawl_scraper.scrape_jobs = MagicMock(return_value=[])
+        company_scraper.career_scraper.scrape_jobs = MagicMock(return_value=[])
         company_scraper.company_service.update_last_checked = MagicMock()
 
         stats = company_scraper.scrape_all_companies(skip_recent_hours=2)
@@ -835,7 +835,7 @@ class TestSkipRecentHours:
         ]
 
         company_scraper.company_service.get_all_companies = MagicMock(return_value=companies)
-        company_scraper.firecrawl_scraper.scrape_jobs = MagicMock(return_value=[])
+        company_scraper.career_scraper.scrape_jobs = MagicMock(return_value=[])
         company_scraper.company_service.update_last_checked = MagicMock()
 
         stats = company_scraper.scrape_all_companies(skip_recent_hours=None)
@@ -876,7 +876,7 @@ class TestSkipRecentHours:
         ]
 
         company_scraper.company_service.get_all_companies = MagicMock(return_value=companies)
-        company_scraper.firecrawl_scraper.scrape_jobs = MagicMock(return_value=[])
+        company_scraper.career_scraper.scrape_jobs = MagicMock(return_value=[])
         company_scraper.company_service.update_last_checked = MagicMock()
 
         stats = company_scraper.scrape_all_companies(company_filter="From Wes", skip_recent_hours=2)
@@ -963,7 +963,7 @@ class TestFailureLogging:
         ]
 
         company_scraper.company_service.get_all_companies = MagicMock(return_value=companies)
-        company_scraper.firecrawl_scraper.scrape_jobs = MagicMock(return_value=[])  # No jobs
+        company_scraper.career_scraper.scrape_jobs = MagicMock(return_value=[])  # No jobs
         company_scraper.company_service.increment_company_failures = MagicMock(return_value=2)
         company_scraper.company_service.update_last_checked = MagicMock()
         company_scraper._log_failure = MagicMock()
@@ -985,7 +985,7 @@ class TestFailureLogging:
         ]
 
         company_scraper.company_service.get_all_companies = MagicMock(return_value=companies)
-        company_scraper.firecrawl_scraper.scrape_jobs = MagicMock(
+        company_scraper.career_scraper.scrape_jobs = MagicMock(
             side_effect=Exception("Firecrawl API error")
         )
         company_scraper._log_failure = MagicMock()
@@ -1095,7 +1095,7 @@ class TestFailureLogging:
         ]
 
         company_scraper.company_service.get_all_companies = MagicMock(return_value=companies)
-        company_scraper.firecrawl_scraper.scrape_jobs = MagicMock(return_value=[])
+        company_scraper.career_scraper.scrape_jobs = MagicMock(return_value=[])
         company_scraper.company_service.increment_company_failures = MagicMock(return_value=1)
         company_scraper.company_service.update_last_checked = MagicMock()
         company_scraper._print_failure_summary = MagicMock()
@@ -1106,3 +1106,52 @@ class TestFailureLogging:
         # Should call both methods at end
         company_scraper._print_failure_summary.assert_called_once()
         company_scraper._close_failure_log.assert_called_once()
+
+
+class TestScraperBackendSelection:
+    """Test scraper backend selection"""
+
+    def test_default_backend_is_playwright(self):
+        """Default backend should be playwright"""
+        with (
+            patch("src.jobs.company_scraper.CompanyService"),
+            patch("src.jobs.company_scraper.JobFilter"),
+            patch("src.jobs.company_scraper.ProfileScorer"),
+            patch("src.jobs.company_scraper.JobDatabase"),
+            patch("src.jobs.company_scraper.JobNotifier"),
+            patch("scrapers.playwright_career_scraper.PlaywrightCareerScraper") as mock_playwright,
+        ):
+            scraper = CompanyScraper()
+            mock_playwright.assert_called_once()
+            assert scraper.career_scraper is not None
+
+    def test_firecrawl_backend(self, monkeypatch):
+        """scraper_backend='firecrawl' uses FirecrawlCareerScraper"""
+        monkeypatch.setenv("FIRECRAWL_API_KEY", "test-key")
+        with (
+            patch("src.jobs.company_scraper.CompanyService"),
+            patch("src.jobs.company_scraper.JobFilter"),
+            patch("src.jobs.company_scraper.ProfileScorer"),
+            patch("src.jobs.company_scraper.JobDatabase"),
+            patch("src.jobs.company_scraper.JobNotifier"),
+            patch("scrapers.firecrawl_career_scraper.FirecrawlCareerScraper") as mock_firecrawl,
+        ):
+            scraper = CompanyScraper(scraper_backend="firecrawl")
+            mock_firecrawl.assert_called_once()
+            assert scraper.career_scraper is not None
+
+    def test_env_var_backend(self, monkeypatch):
+        """SCRAPER_BACKEND env var is respected when no CLI arg"""
+        monkeypatch.setenv("FIRECRAWL_API_KEY", "test-key")
+        monkeypatch.setenv("SCRAPER_BACKEND", "firecrawl")
+        with (
+            patch("src.jobs.company_scraper.CompanyService"),
+            patch("src.jobs.company_scraper.JobFilter"),
+            patch("src.jobs.company_scraper.ProfileScorer"),
+            patch("src.jobs.company_scraper.JobDatabase"),
+            patch("src.jobs.company_scraper.JobNotifier"),
+            patch("scrapers.firecrawl_career_scraper.FirecrawlCareerScraper") as mock_firecrawl,
+        ):
+            scraper = CompanyScraper()
+            mock_firecrawl.assert_called_once()
+            assert scraper.career_scraper is not None

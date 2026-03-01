@@ -23,8 +23,8 @@ from api.company_service import CompanyService
 from database import JobDatabase
 from job_filter import JobFilter
 from notifier import JobNotifier
+from scrapers.base_career_scraper import BaseCareerScraper
 from scrapers.company_discoverer import CompanyDiscoverer
-from scrapers.firecrawl_career_scraper import FirecrawlCareerScraper
 from scrapers.robotics_deeptech_scraper import RoboticsDeeptechScraper
 from utils.profile_manager import get_profile_manager
 
@@ -42,6 +42,7 @@ class HybridJobScraper:
         similarity_threshold: float = 90.0,
         min_score: int = 50,
         notify_threshold: int = 80,
+        scraper_backend: str | None = None,
     ):
         """
         Initialize hybrid scraper
@@ -50,6 +51,7 @@ class HybridJobScraper:
             similarity_threshold: Fuzzy matching threshold (0-100, default 90)
             min_score: Minimum score to store jobs (default 50 for D+ grade)
             notify_threshold: Score threshold for notifications (default 80 for A grade)
+            scraper_backend: Career scraper backend ('playwright' or 'firecrawl')
         """
         self.similarity_threshold = similarity_threshold
         self.min_score = min_score
@@ -58,13 +60,28 @@ class HybridJobScraper:
         # Initialize components
         self.company_service = CompanyService()
         self.company_discoverer = CompanyDiscoverer()
-        self.firecrawl_scraper = FirecrawlCareerScraper()
+        self.career_scraper = self._create_scraper(scraper_backend)
         self.robotics_scraper = RoboticsDeeptechScraper()
         self.job_filter = JobFilter()
         wes_profile = get_profile_manager().get_profile("wes")
         self.scorer = ProfileScorer(wes_profile)
         self.database = JobDatabase()
         self.notifier = JobNotifier()
+
+    @staticmethod
+    def _create_scraper(backend: str | None) -> "BaseCareerScraper":
+        """Create career scraper instance based on backend selection."""
+        import os
+
+        backend = backend or os.getenv("SCRAPER_BACKEND", "playwright")
+        if backend == "firecrawl":
+            from scrapers.firecrawl_career_scraper import FirecrawlCareerScraper
+
+            return FirecrawlCareerScraper()
+
+        from scrapers.playwright_career_scraper import PlaywrightCareerScraper
+
+        return PlaywrightCareerScraper()
 
     def run_hybrid_scrape(
         self,
@@ -262,7 +279,7 @@ class HybridJobScraper:
         }
 
         # Scrape with Firecrawl
-        jobs = self.firecrawl_scraper.scrape_jobs(careers_url, company_name)
+        jobs = self.career_scraper.scrape_jobs(careers_url, company_name)
         stats["jobs_found"] = len(jobs)
 
         if not jobs:
