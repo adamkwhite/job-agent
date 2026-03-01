@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass, field
 
 from database import JobDatabase
-from scrapers.firecrawl_career_scraper import FirecrawlCareerScraper
+from scrapers.base_career_scraper import BaseCareerScraper
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class JobDescriptionEnricher:
 
     def __init__(
         self,
-        firecrawl_scraper: FirecrawlCareerScraper,
+        firecrawl_scraper: BaseCareerScraper,
         db: JobDatabase,
     ) -> None:
         self.scraper = firecrawl_scraper
@@ -140,11 +140,7 @@ class JobDescriptionEnricher:
 
     def _fetch_description(self, url: str) -> str | None:
         """Fetch job page markdown and extract description text."""
-        result = self.scraper._firecrawl_scrape(url)
-        if not result:
-            return None
-
-        markdown = result.get("markdown", "")
+        markdown = self.scraper.fetch_page_markdown(url, "", is_main_page=False)
         if not markdown:
             return None
 

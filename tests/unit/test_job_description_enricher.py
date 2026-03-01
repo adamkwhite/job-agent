@@ -104,9 +104,9 @@ class TestEnrichmentFetching:
     def test_fetches_and_stores_description(self):
         """Successfully fetched descriptions are stored in DB"""
         mock_scraper = MagicMock()
-        mock_scraper._firecrawl_scrape.return_value = {
-            "markdown": "# Senior Robotics Engineer\n\nBuild autonomous systems with ROS2."
-        }
+        mock_scraper.fetch_page_markdown.return_value = (
+            "# Senior Robotics Engineer\n\nBuild autonomous systems with ROS2."
+        )
         mock_db = MagicMock()
 
         enricher = JobDescriptionEnricher(
@@ -126,9 +126,9 @@ class TestEnrichmentFetching:
         assert "Robotics Engineer" in call_args[0][1]  # description text
 
     def test_tracks_fetch_failures(self):
-        """Failed Firecrawl fetches are tracked"""
+        """Failed fetches are tracked"""
         mock_scraper = MagicMock()
-        mock_scraper._firecrawl_scrape.return_value = None
+        mock_scraper.fetch_page_markdown.return_value = None
         mock_db = MagicMock()
 
         enricher = JobDescriptionEnricher(
@@ -148,7 +148,7 @@ class TestEnrichmentFetching:
     def test_updates_job_dict_in_place(self):
         """Enriched description is written back to the job dict for rescoring"""
         mock_scraper = MagicMock()
-        mock_scraper._firecrawl_scrape.return_value = {"markdown": "Build hardware systems."}
+        mock_scraper.fetch_page_markdown.return_value = "Build hardware systems."
 
         enricher = JobDescriptionEnricher(
             firecrawl_scraper=mock_scraper,
@@ -198,7 +198,7 @@ class TestDescriptionTruncation:
         """Descriptions exceeding max length are truncated"""
         mock_scraper = MagicMock()
         long_text = "x" * (MAX_DESCRIPTION_LENGTH + 1000)
-        mock_scraper._firecrawl_scrape.return_value = {"markdown": long_text}
+        mock_scraper.fetch_page_markdown.return_value = long_text
         mock_db = MagicMock()
 
         enricher = JobDescriptionEnricher(

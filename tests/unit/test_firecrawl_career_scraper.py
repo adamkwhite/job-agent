@@ -363,7 +363,7 @@ class TestRateLimiting:
         scraper = FirecrawlCareerScraper(requests_per_minute=2)
 
         # Mock time.sleep to avoid actual delays
-        mock_sleep = mocker.patch("src.scrapers.firecrawl_career_scraper.time.sleep")
+        mock_sleep = mocker.patch("src.scrapers.base_career_scraper.time.sleep")
 
         # Simulate being at the rate limit (2 requests in last 60 seconds)
         import time
@@ -382,7 +382,7 @@ class TestRateLimiting:
         scraper = FirecrawlCareerScraper(requests_per_minute=9)
 
         # Mock time.sleep
-        mock_sleep = mocker.patch("src.scrapers.firecrawl_career_scraper.time.sleep")
+        mock_sleep = mocker.patch("src.scrapers.base_career_scraper.time.sleep")
 
         # Simulate a very recent request (less than min_delay ago)
         import time
