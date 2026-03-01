@@ -57,7 +57,7 @@ class TestURLFiltering:
 class TestSitemapParsing:
     """Test _parse_sitemap method"""
 
-    @patch("src.scrapers.firecrawl_career_scraper.requests.get")
+    @patch("src.scrapers.base_career_scraper.requests.get")
     def test_parse_sitemap_success(self, mock_get):
         """Successful sitemap parsing"""
         scraper = FirecrawlCareerScraper(enable_pagination=True)
@@ -81,7 +81,7 @@ class TestSitemapParsing:
         assert "https://company.com/jobs/123" in urls
         assert "https://company.com/jobs/456" in urls
 
-    @patch("src.scrapers.firecrawl_career_scraper.requests.get")
+    @patch("src.scrapers.base_career_scraper.requests.get")
     def test_parse_sitemap_no_sitemap(self, mock_get):
         """No sitemap found returns empty list"""
         scraper = FirecrawlCareerScraper(enable_pagination=True)
@@ -94,7 +94,7 @@ class TestSitemapParsing:
 
         assert urls == []
 
-    @patch("src.scrapers.firecrawl_career_scraper.requests.get")
+    @patch("src.scrapers.base_career_scraper.requests.get")
     def test_parse_sitemap_network_error(self, mock_get):
         """Network errors return empty list"""
         scraper = FirecrawlCareerScraper(enable_pagination=True)
