@@ -141,6 +141,104 @@ class TestFetchPageContent:
         assert result is None
 
 
+class TestAsyncFetch:
+    """Test _async_fetch logic via _fetch_page_content with a mock loop.
+
+    We can't use asyncio.new_event_loop() because other test modules leave
+    a global event loop running (Python 3.13+ detects this). Instead, we
+    inject a mock loop whose run_until_complete actually invokes the coroutine
+    using a helper that extracts the coroutine's result synchronously.
+    """
+
+    def _make_crawl_result(
+        self, *, success=True, fit_markdown="", raw_markdown="", error_message=""
+    ):
+        """Create a mock CrawlResult with markdown sub-object."""
+        result = MagicMock()
+        result.success = success
+        result.error_message = error_message
+        md = MagicMock()
+        md.fit_markdown = fit_markdown
+        md.raw_markdown = raw_markdown
+        result.markdown = md
+        return result
+
+    def _make_scraper(self, crawl_result):
+        """Create scraper with mock crawler that returns given result.
+
+        The mock loop's run_until_complete drives the coroutine by sending
+        None to advance it, which works for simple await-based coroutines.
+        """
+        scraper = Crawl4AICareerScraper()
+        scraper._wait_for_rate_limit = MagicMock()
+
+        mock_crawler = AsyncMock()
+        mock_crawler.arun.return_value = crawl_result
+        scraper._crawler = mock_crawler
+
+        # Mock loop that actually runs the coroutine to completion
+        mock_loop = MagicMock()
+
+        def _run_coro(coro):
+            """Drive an async coroutine synchronously."""
+            try:
+                coro.send(None)
+            except StopIteration as e:
+                return e.value
+            finally:
+                coro.close()
+
+        mock_loop.run_until_complete = _run_coro
+        scraper._loop = mock_loop
+        return scraper
+
+    def test_prefers_fit_markdown(self):
+        """_async_fetch should prefer fit_markdown over raw_markdown"""
+        scraper = self._make_scraper(
+            self._make_crawl_result(fit_markdown="# Clean Content", raw_markdown="# Raw Content")
+        )
+        result = scraper._fetch_page_content("https://example.com/careers")
+        assert result == "# Clean Content"
+
+    def test_falls_back_to_raw_markdown(self):
+        """_async_fetch should fall back to raw_markdown when fit_markdown is empty"""
+        scraper = self._make_scraper(
+            self._make_crawl_result(fit_markdown="", raw_markdown="# Raw Content")
+        )
+        result = scraper._fetch_page_content("https://example.com/careers")
+        assert result == "# Raw Content"
+
+    def test_returns_none_on_crawl_failure(self):
+        """_async_fetch should return None when crawl fails"""
+        scraper = self._make_scraper(
+            self._make_crawl_result(success=False, error_message="Connection refused")
+        )
+        result = scraper._fetch_page_content("https://example.com/careers")
+        assert result is None
+
+    def test_returns_none_on_empty_markdown(self):
+        """_async_fetch should return None when both markdown fields are empty"""
+        scraper = self._make_scraper(self._make_crawl_result(fit_markdown="", raw_markdown=""))
+        result = scraper._fetch_page_content("https://example.com/careers")
+        assert result is None
+
+    def test_returns_none_on_whitespace_only(self):
+        """_async_fetch should return None for whitespace-only markdown"""
+        scraper = self._make_scraper(
+            self._make_crawl_result(fit_markdown="   \n  ", raw_markdown="")
+        )
+        result = scraper._fetch_page_content("https://example.com/careers")
+        assert result is None
+
+    def test_handles_missing_markdown_attr(self):
+        """_async_fetch should handle result without markdown attribute"""
+        result_obj = MagicMock(spec=["success", "error_message"])
+        result_obj.success = True
+        scraper = self._make_scraper(result_obj)
+        result = scraper._fetch_page_content("https://example.com/careers")
+        assert result is None
+
+
 class TestCrawlerCleanup:
     """Test crawler resource cleanup"""
 
