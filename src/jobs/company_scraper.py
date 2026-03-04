@@ -86,6 +86,14 @@ class CompanyScraper:
                 enable_pagination=enable_pagination,
             )
 
+        if backend == "crawl4ai":
+            from scrapers.crawl4ai_career_scraper import Crawl4AICareerScraper
+
+            return Crawl4AICareerScraper(
+                enable_llm_extraction=enable_llm_extraction,
+                enable_pagination=enable_pagination,
+            )
+
         from scrapers.playwright_career_scraper import PlaywrightCareerScraper
 
         if backend != "playwright":

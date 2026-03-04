@@ -7,9 +7,19 @@ Tests the Playwright-based career page scraper:
 - Page fetching and HTML-to-markdown conversion
 - Error handling (timeout, connection issues)
 - Resource cleanup
+- playwright-stealth integration
 """
 
+import sys
+from types import ModuleType
 from unittest.mock import MagicMock, patch
+
+# Inject a mock playwright_stealth module so @patch and lazy imports work
+# even when playwright-stealth is not installed (optional dependency)
+if "playwright_stealth" not in sys.modules:
+    _mock_stealth = ModuleType("playwright_stealth")
+    _mock_stealth.stealth_sync = MagicMock()  # type: ignore[attr-defined]
+    sys.modules["playwright_stealth"] = _mock_stealth
 
 from src.scrapers.playwright_career_scraper import PlaywrightCareerScraper
 
@@ -255,6 +265,72 @@ class TestBrowserCleanup:
         scraper.close()  # Should not raise
 
         assert scraper._browser is None
+
+
+class TestStealthIntegration:
+    """Test playwright-stealth integration"""
+
+    @patch("playwright_stealth.stealth_sync")
+    @patch("playwright.sync_api.sync_playwright")
+    def test_stealth_called_per_page(self, mock_sync_playwright, mock_stealth, mocker):
+        """stealth_sync should be called on each new page"""
+        mock_pw = MagicMock()
+        mock_sync_playwright.return_value.start.return_value = mock_pw
+        mock_browser = MagicMock()
+        mock_pw.chromium.launch.return_value = mock_browser
+        mock_page = MagicMock()
+        mock_browser.new_page.return_value = mock_page
+        mock_page.content.return_value = "<html><body><h1>Jobs</h1></body></html>"
+
+        scraper = PlaywrightCareerScraper()
+        mocker.patch.object(scraper, "_wait_for_rate_limit")
+
+        scraper._fetch_page_content("https://example.com/careers")
+
+        mock_stealth.assert_called_once_with(mock_page)
+
+    @patch("playwright_stealth.stealth_sync")
+    @patch("playwright.sync_api.sync_playwright")
+    def test_stealth_called_before_goto(self, mock_sync_playwright, mock_stealth, mocker):
+        """stealth_sync must be called BEFORE page.goto to mask signals"""
+        call_order = []
+        mock_pw = MagicMock()
+        mock_sync_playwright.return_value.start.return_value = mock_pw
+        mock_browser = MagicMock()
+        mock_pw.chromium.launch.return_value = mock_browser
+        mock_page = MagicMock()
+        mock_browser.new_page.return_value = mock_page
+        mock_page.content.return_value = "<html><body><h1>Jobs</h1></body></html>"
+
+        mock_stealth.side_effect = lambda _p: call_order.append("stealth")
+        mock_page.goto.side_effect = lambda *_a, **_kw: call_order.append("goto")
+
+        scraper = PlaywrightCareerScraper()
+        mocker.patch.object(scraper, "_wait_for_rate_limit")
+
+        scraper._fetch_page_content("https://example.com/careers")
+
+        assert call_order == ["stealth", "goto"]
+
+    @patch("playwright_stealth.stealth_sync")
+    @patch("playwright.sync_api.sync_playwright")
+    def test_stealth_called_on_multiple_fetches(self, mock_sync_playwright, mock_stealth, mocker):
+        """stealth_sync should be called once per page (per fetch call)"""
+        mock_pw = MagicMock()
+        mock_sync_playwright.return_value.start.return_value = mock_pw
+        mock_browser = MagicMock()
+        mock_pw.chromium.launch.return_value = mock_browser
+        mock_page = MagicMock()
+        mock_browser.new_page.return_value = mock_page
+        mock_page.content.return_value = "<html><body><h1>Jobs</h1></body></html>"
+
+        scraper = PlaywrightCareerScraper()
+        mocker.patch.object(scraper, "_wait_for_rate_limit")
+
+        scraper._fetch_page_content("https://example.com/careers")
+        scraper._fetch_page_content("https://example.com/careers2")
+
+        assert mock_stealth.call_count == 2
 
 
 class TestHtml2textMarkdownFormat:
