@@ -1140,6 +1140,20 @@ class TestScraperBackendSelection:
             mock_firecrawl.assert_called_once()
             assert scraper.career_scraper is not None
 
+    def test_crawl4ai_backend(self):
+        """scraper_backend='crawl4ai' uses Crawl4AICareerScraper"""
+        with (
+            patch("src.jobs.company_scraper.CompanyService"),
+            patch("src.jobs.company_scraper.JobFilter"),
+            patch("src.jobs.company_scraper.ProfileScorer"),
+            patch("src.jobs.company_scraper.JobDatabase"),
+            patch("src.jobs.company_scraper.JobNotifier"),
+            patch("scrapers.crawl4ai_career_scraper.Crawl4AICareerScraper") as mock_crawl4ai,
+        ):
+            scraper = CompanyScraper(scraper_backend="crawl4ai")
+            mock_crawl4ai.assert_called_once()
+            assert scraper.career_scraper is not None
+
     def test_env_var_backend(self, monkeypatch):
         """SCRAPER_BACKEND env var is respected when no CLI arg"""
         monkeypatch.setenv("FIRECRAWL_API_KEY", "test-key")

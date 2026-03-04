@@ -806,7 +806,7 @@ def main():
     parser.add_argument(
         "--scraper-backend",
         type=str,
-        choices=["playwright", "firecrawl"],
+        choices=["playwright", "firecrawl", "crawl4ai"],
         default=None,
         help="Career page scraper backend (default: playwright, env: SCRAPER_BACKEND)",
     )

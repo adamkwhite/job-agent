@@ -79,6 +79,11 @@ class HybridJobScraper:
 
             return FirecrawlCareerScraper()
 
+        if backend == "crawl4ai":
+            from scrapers.crawl4ai_career_scraper import Crawl4AICareerScraper
+
+            return Crawl4AICareerScraper()
+
         from scrapers.playwright_career_scraper import PlaywrightCareerScraper
 
         return PlaywrightCareerScraper()

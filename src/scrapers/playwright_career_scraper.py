@@ -5,12 +5,17 @@ Uses Playwright Chromium to render JS-heavy career pages locally (free),
 converting HTML to markdown via html2text for extraction by BaseCareerScraper.
 """
 
+from __future__ import annotations
+
 import logging
-from typing import Any
+from typing import TYPE_CHECKING
 
 import html2text
 
 from scrapers.base_career_scraper import BaseCareerScraper
+
+if TYPE_CHECKING:
+    from playwright.sync_api import Browser, Playwright
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +64,8 @@ class PlaywrightCareerScraper(BaseCareerScraper):
         self._h2t.protect_links = False
 
         # Lazy browser init — don't start Chromium until first cache miss
-        self._playwright: Any = None
-        self._browser: Any = None
+        self._playwright: Playwright | None = None
+        self._browser: Browser | None = None
 
     def _ensure_browser(self) -> None:
         """Lazy-init Playwright Chromium on first cache miss."""
@@ -79,6 +84,8 @@ class PlaywrightCareerScraper(BaseCareerScraper):
         try:
             self._wait_for_rate_limit()
             self._ensure_browser()
+            # Guaranteed non-None by _ensure_browser above
+            assert self._browser is not None
 
             page = self._browser.new_page(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -87,6 +94,11 @@ class PlaywrightCareerScraper(BaseCareerScraper):
             )
 
             try:
+                # Apply stealth patches to mask automation signals
+                from playwright_stealth import stealth_sync
+
+                stealth_sync(page)
+
                 page.goto(url, wait_until="networkidle", timeout=60000)
                 # Extra wait for JS-heavy career pages (React, Angular, etc.)
                 page.wait_for_timeout(2000)
