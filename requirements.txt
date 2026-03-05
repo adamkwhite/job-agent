@@ -49,9 +49,8 @@ packaging==25.0
 pathspec==0.12.1
 platformdirs==4.5.0
 playwright==1.55.0
-# Optional scraper backends (install manually, not needed for tests/CI):
-#   tf-playwright-stealth>=1.0.12  — stealth patches for Playwright backend
-#   crawl4ai>=0.6.0                — Crawl4AI scraper backend
+tf-playwright-stealth>=1.0.12
+crawl4ai>=0.6.0
 pluggy==1.6.0
 pre_commit==4.3.0
 propcache==0.4.1
