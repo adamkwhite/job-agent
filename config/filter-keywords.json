@@ -187,6 +187,102 @@
         "firmware",
         "controls"
       ]
+    },
+    "product": {
+      "must_keywords": [
+        "product roadmap",
+        "cross functional",
+        "stakeholders",
+        "go to market",
+        "okrs",
+        "kpis"
+      ],
+      "nice_keywords": [
+        "platform",
+        "apis",
+        "integrations",
+        "data driven",
+        "pricing",
+        "monetization"
+      ]
+    },
+    "engineering": {
+      "must_keywords": [
+        "delivery",
+        "quality",
+        "reliability",
+        "process",
+        "architecture"
+      ],
+      "nice_keywords": [
+        "sdlc",
+        "scalability",
+        "microservices",
+        "ci/cd",
+        "infrastructure"
+      ]
+    },
+    "data": {
+      "must_keywords": [
+        "data pipeline",
+        "data modeling",
+        "analytics",
+        "sql",
+        "python"
+      ],
+      "nice_keywords": [
+        "machine learning",
+        "ml",
+        "data warehouse",
+        "etl",
+        "spark"
+      ]
+    },
+    "devops": {
+      "must_keywords": [
+        "infrastructure",
+        "automation",
+        "deployment",
+        "monitoring",
+        "ci/cd"
+      ],
+      "nice_keywords": [
+        "kubernetes",
+        "docker",
+        "terraform",
+        "aws",
+        "gcp"
+      ]
+    },
+    "dual_role": {
+      "must_keywords": [
+        "product roadmap",
+        "technical",
+        "cross functional",
+        "execution"
+      ],
+      "nice_keywords": [
+        "hardware",
+        "product engineering",
+        "technical product",
+        "roadmap"
+      ]
+    },
+    "operations_leadership": {
+      "must_keywords": [
+        "manufacturing",
+        "supply chain",
+        "process",
+        "quality",
+        "operations"
+      ],
+      "nice_keywords": [
+        "npi",
+        "dfm",
+        "dfa",
+        "lean",
+        "continuous improvement"
+      ]
     }
   },
   "company_include": [

@@ -373,6 +373,7 @@ def run_all_inboxes(
     companies_min_score: int = 50,
     company_filter: str | None = None,
     skip_recent_hours: int | None = None,
+    scraper_backend: str | None = None,
 ) -> dict:
     """
     Run unified scraper across ALL profiles with configured email inboxes.
@@ -390,6 +391,7 @@ def run_all_inboxes(
         companies_min_score: Minimum score for company jobs
         company_filter: Filter companies by notes
         skip_recent_hours: Skip recently-checked companies
+        scraper_backend: Career scraper backend (playwright/crawl4ai/firecrawl)
 
     Returns:
         Aggregated stats from all inboxes and shared sources
@@ -447,6 +449,7 @@ def run_all_inboxes(
             min_score=companies_min_score,
             company_filter=company_filter,
             skip_recent_hours=skip_recent_hours,
+            scraper_backend=scraper_backend,
         )
         aggregated_stats["companies"] = company_stats
 
@@ -547,6 +550,7 @@ def _scrape_shared_companies(
     min_score: int = 50,
     company_filter: str | None = None,
     skip_recent_hours: int | None = None,
+    scraper_backend: str | None = None,
 ) -> dict:
     """
     Scrape monitored companies ONCE (shared across all profiles).
@@ -560,7 +564,7 @@ def _scrape_shared_companies(
 
     try:
         # Use None profile since companies are shared
-        scraper = WeeklyUnifiedScraper(profile=None)
+        scraper = WeeklyUnifiedScraper(profile=None, scraper_backend=scraper_backend)
         company_stats = scraper._scrape_monitored_companies(
             min_score=min_score,
             company_filter=company_filter,
@@ -840,6 +844,7 @@ def main():
                 companies_min_score=args.companies_min_score,
                 company_filter=args.company_filter,
                 skip_recent_hours=args.skip_recent_hours,
+                scraper_backend=args.scraper_backend,
             )
         else:
             # Single profile mode
