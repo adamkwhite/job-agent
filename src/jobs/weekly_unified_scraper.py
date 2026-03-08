@@ -399,7 +399,7 @@ def run_all_inboxes(
         company_filter: Filter companies by notes
         skip_recent_hours: Skip recently-checked companies
         scraper_backend: Career scraper backend (playwright/crawl4ai/firecrawl)
-        llm_model: Override LLM model for extraction (e.g. 'google/gemini-flash-1.5')
+        llm_model: Override LLM model for extraction (e.g. 'google/gemini-2.5-flash')
 
     Returns:
         Aggregated stats from all inboxes and shared sources
@@ -830,7 +830,7 @@ def main():
         "--llm-model",
         type=str,
         default=None,
-        help="Override LLM model for extraction (e.g. 'google/gemini-flash-1.5')",
+        help="Override LLM model for extraction (e.g. 'google/gemini-2.5-flash')",
     )
 
     args = parser.parse_args()

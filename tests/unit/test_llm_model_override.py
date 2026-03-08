@@ -34,10 +34,10 @@ class TestLLMExtractorModelOverride:
     @patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"})
     def test_model_override(self, _db, _budget, mock_chat):
         """Should use override model instead of config model."""
-        extractor = LLMExtractor(model_override="google/gemini-flash-1.5")
-        assert extractor.model == "google/gemini-flash-1.5"
+        extractor = LLMExtractor(model_override="google/gemini-2.5-flash")
+        assert extractor.model == "google/gemini-2.5-flash"
         call_kwargs = mock_chat.call_args[1]
-        assert call_kwargs["model"] == "google/gemini-flash-1.5"
+        assert call_kwargs["model"] == "google/gemini-2.5-flash"
 
     @patch("src.extractors.llm_extractor.ChatOpenAI")
     @patch("src.extractors.llm_extractor.LLMBudgetService")
@@ -69,10 +69,10 @@ class TestModelPricing:
     @patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"})
     def test_gemini_flash_pricing(self, _db, _budget, _chat):
         """Gemini Flash should be much cheaper than Sonnet."""
-        extractor = LLMExtractor(model_override="google/gemini-flash-1.5")
+        extractor = LLMExtractor(model_override="google/gemini-2.5-flash")
         input_rate, output_rate = extractor._get_model_pricing()
-        assert input_rate == 0.075
-        assert output_rate == 0.30
+        assert input_rate == 0.30
+        assert output_rate == 2.50
 
     @patch("src.extractors.llm_extractor.ChatOpenAI")
     @patch("src.extractors.llm_extractor.LLMBudgetService")
@@ -112,12 +112,12 @@ class TestCompanyScraperLLMModel:
                 CompanyScraper, "_create_career_scraper", return_value=MagicMock()
             ) as mock_create,
         ):
-            CompanyScraper(llm_model="google/gemini-flash-1.5")
+            CompanyScraper(llm_model="google/gemini-2.5-flash")
             mock_create.assert_called_once_with(
                 "playwright",
                 False,
                 True,
-                llm_model="google/gemini-flash-1.5",
+                llm_model="google/gemini-2.5-flash",
             )
 
     def test_stores_llm_model_for_fallback(self):
@@ -143,7 +143,7 @@ class TestCompanyScraperLLMModel:
             patch("src.jobs.company_scraper.JobNotifier"),
             patch.object(CompanyScraper, "_create_career_scraper", return_value=MagicMock()),
         ):
-            scraper = CompanyScraper(llm_model="google/gemini-flash-1.5")
+            scraper = CompanyScraper(llm_model="google/gemini-2.5-flash")
             scraper.backend = "crawl4ai"
             scraper._fallback_scraper = None
 
@@ -158,7 +158,7 @@ class TestCompanyScraperLLMModel:
                 "firecrawl",
                 False,
                 True,
-                llm_model="google/gemini-flash-1.5",
+                llm_model="google/gemini-2.5-flash",
             )
 
 
@@ -178,7 +178,7 @@ class TestWeeklyUnifiedScraperLLMModel:
                     "weekly_unified_scraper.py",
                     "--companies-only",
                     "--llm-model",
-                    "google/gemini-flash-1.5",
+                    "google/gemini-2.5-flash",
                 ],
             ),
         ):
@@ -205,5 +205,5 @@ class TestWeeklyUnifiedScraperLLMModel:
             mock_cls.assert_called_once_with(
                 profile=None,
                 scraper_backend=None,
-                llm_model="google/gemini-flash-1.5",
+                llm_model="google/gemini-2.5-flash",
             )

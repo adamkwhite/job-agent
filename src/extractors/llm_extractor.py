@@ -22,12 +22,12 @@ logger = logging.getLogger(__name__)
 class LLMExtractor(object):  # noqa: UP004
     """Extract job postings from markdown using LLM via OpenRouter"""
 
-    # OpenRouter pricing per 1M tokens: {model_prefix: (input_cost, output_cost)}
+    # OpenRouter pricing per 1M tokens: {model_id: (input_cost, output_cost)}
     MODEL_PRICING: dict[str, tuple[float, float]] = {
         "anthropic/claude-3.5-sonnet": (3.00, 15.00),
         "anthropic/claude-3-haiku": (0.25, 1.25),
         "anthropic/claude-3.5-haiku": (0.80, 4.00),
-        "google/gemini-flash-1.5": (0.075, 0.30),
+        "google/gemini-2.5-flash": (0.30, 2.50),
         "google/gemini-2.0-flash-001": (0.10, 0.40),
         "meta-llama/llama-3.1-8b-instruct": (0.06, 0.06),
         "meta-llama/llama-3.3-70b-instruct": (0.30, 0.40),
@@ -44,7 +44,7 @@ class LLMExtractor(object):  # noqa: UP004
 
         Args:
             config_path: Path to LLM extraction configuration file
-            model_override: Override model from config (e.g. 'google/gemini-flash-1.5')
+            model_override: Override model from config (e.g. 'google/gemini-2.5-flash')
         """
         self.config = self._load_config(config_path)
         self.database = JobDatabase()
