@@ -76,11 +76,7 @@ class LLMExtractor(object):  # noqa: UP004
         )
 
         if model_override:
-            # Use self.model (already validated by ChatOpenAI init above)
-            logger.info(
-                "LLM model override active (config default: %s)",
-                self.config["llm_config"]["llm"]["model"],
-            )
+            logger.info("LLM model override active")
 
         self.timeout_seconds = self.config.get("timeout_seconds", 30)
 
