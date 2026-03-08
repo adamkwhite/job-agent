@@ -52,10 +52,14 @@ class CompanyScraper:
         self.company_service = CompanyService()
 
         # Select scraper backend: CLI arg > env var > default (playwright)
-        backend = scraper_backend or os.getenv("SCRAPER_BACKEND") or "playwright"
+        self.backend = scraper_backend or os.getenv("SCRAPER_BACKEND") or "playwright"
+        self.enable_llm_extraction = enable_llm_extraction
+        self.enable_pagination = enable_pagination
         self.career_scraper = self._create_career_scraper(
-            backend, enable_llm_extraction, enable_pagination
+            self.backend, enable_llm_extraction, enable_pagination
         )
+        # Lazy-init fallback scraper (Firecrawl) — only created on first use
+        self._fallback_scraper = None
         self.job_filter = JobFilter()
         self.filter_pipeline = JobFilterPipeline(profile_config) if profile_config else None
         self.scorer = (
@@ -102,6 +106,38 @@ class CompanyScraper:
         return PlaywrightCareerScraper(
             enable_llm_extraction=enable_llm_extraction,
             enable_pagination=enable_pagination,
+        )
+
+    def _get_fallback_scraper(self):
+        """Lazy-init Firecrawl fallback scraper. Only created on first use."""
+        if self._fallback_scraper is None and self.backend != "firecrawl":
+            try:
+                self._fallback_scraper = self._create_career_scraper(
+                    "firecrawl", self.enable_llm_extraction, self.enable_pagination
+                )
+            except Exception:
+                self._fallback_scraper = None
+        return self._fallback_scraper
+
+    def _record_extraction_metrics(
+        self,
+        company_name: str,
+        careers_url: str,
+        jobs: list,
+        backend: str,
+        fetch_success: bool = True,
+    ) -> None:
+        """Record per-company extraction metrics to database."""
+        regex_count = sum(1 for _, method in jobs if method == "regex")
+        llm_count = sum(1 for _, method in jobs if method == "llm")
+        self.database.store_extraction_metrics(
+            company_name=company_name,
+            regex_jobs_found=regex_count,
+            llm_jobs_found=llm_count,
+            total_jobs_found=len(jobs),
+            scraper_backend=backend,
+            careers_url=careers_url,
+            fetch_success=fetch_success,
         )
 
     def __del__(self) -> None:
@@ -247,20 +283,49 @@ class CompanyScraper:
             stats["companies_checked"] += 1
 
             try:
-                # Scrape jobs from career page using Firecrawl
+                # Scrape jobs from career page
                 jobs = self.career_scraper.scrape_jobs(
                     careers_url=company["careers_url"],
                     company_name=company["name"],
                 )
+                used_backend = self.backend
+
+                # Record metrics for primary scraper
+                self._record_extraction_metrics(
+                    company["name"],
+                    company["careers_url"],
+                    jobs,
+                    used_backend,
+                    fetch_success=bool(jobs),
+                )
+
+                # Fallback: try Firecrawl if primary returned 0 jobs
+                if not jobs and self.backend != "firecrawl":
+                    fallback = self._get_fallback_scraper()
+                    if fallback:
+                        print("  🔄 Trying Firecrawl fallback...")
+                        jobs = fallback.scrape_jobs(
+                            careers_url=company["careers_url"],
+                            company_name=company["name"],
+                        )
+                        used_backend = "firecrawl"
+                        self._record_extraction_metrics(
+                            company["name"],
+                            company["careers_url"],
+                            jobs,
+                            "firecrawl",
+                            fetch_success=bool(jobs),
+                        )
+                        if jobs:
+                            print(f"  ✓ Firecrawl fallback found {len(jobs)} jobs")
 
                 stats["jobs_scraped"] += len(jobs)
 
-                # Track companies where both regex AND LLM extraction failed
-                if not jobs and self.career_scraper.enable_llm_extraction:
+                # Track companies where all extraction methods failed
+                if not jobs:
                     stats["failed_extractions"].append(
                         {"name": company["name"], "url": company["careers_url"]}
                     )
-                    print("  ⚠ Both regex and LLM extraction returned 0 jobs - flagged for review")
 
                 # Process and store the jobs
                 if jobs:

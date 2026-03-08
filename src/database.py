@@ -159,9 +159,25 @@ class JobDatabase:
                 overlap_count INTEGER,
                 regex_unique INTEGER,
                 llm_unique INTEGER,
-                UNIQUE(company_name, scrape_date)
+                scraper_backend TEXT,
+                careers_url TEXT,
+                total_jobs_found INTEGER,
+                fetch_success INTEGER,
+                UNIQUE(company_name, scrape_date, scraper_backend)
             )
         """)
+
+        # Migrate existing tables missing new columns
+        cursor.execute("PRAGMA table_info(extraction_metrics)")
+        columns = [col[1] for col in cursor.fetchall()]
+        for col, col_type in [
+            ("scraper_backend", "TEXT"),
+            ("careers_url", "TEXT"),
+            ("total_jobs_found", "INTEGER"),
+            ("fetch_success", "INTEGER"),
+        ]:
+            if col not in columns:
+                cursor.execute(f"ALTER TABLE extraction_metrics ADD COLUMN {col} {col_type}")
 
         cursor.execute(
             "CREATE INDEX IF NOT EXISTS idx_extraction_metrics_company ON extraction_metrics(company_name)"
@@ -919,25 +935,33 @@ class JobDatabase:
     def store_extraction_metrics(
         self,
         company_name: str,
-        regex_jobs_found: int,
-        regex_leadership_jobs: int,
-        regex_with_location: int,
-        llm_jobs_found: int,
-        llm_leadership_jobs: int,
-        llm_with_location: int,
-        llm_api_cost: float,
-        overlap_count: int,
-        regex_unique: int,
-        llm_unique: int,
+        regex_jobs_found: int = 0,
+        llm_jobs_found: int = 0,
+        total_jobs_found: int = 0,
+        scraper_backend: str = "unknown",
+        careers_url: str = "",
+        fetch_success: bool = True,
+        regex_leadership_jobs: int = 0,
+        regex_with_location: int = 0,
+        llm_leadership_jobs: int = 0,
+        llm_with_location: int = 0,
+        llm_api_cost: float = 0.0,
+        overlap_count: int = 0,
+        regex_unique: int = 0,
+        llm_unique: int = 0,
     ) -> int:
-        """Store extraction comparison metrics
+        """Store extraction comparison metrics for a single company scrape.
 
         Args:
             company_name: Name of the company
             regex_jobs_found: Total jobs found by regex
+            llm_jobs_found: Total jobs found by LLM
+            total_jobs_found: Final deduplicated job count
+            scraper_backend: Backend used (playwright/crawl4ai/firecrawl)
+            careers_url: URL that was scraped
+            fetch_success: Whether the page fetch succeeded
             regex_leadership_jobs: Leadership jobs found by regex
             regex_with_location: Regex jobs with valid location
-            llm_jobs_found: Total jobs found by LLM
             llm_leadership_jobs: Leadership jobs found by LLM
             llm_with_location: LLM jobs with valid location
             llm_api_cost: Cost of LLM API call in USD
@@ -958,8 +982,9 @@ class JobDatabase:
             INSERT OR REPLACE INTO extraction_metrics
             (company_name, scrape_date, regex_jobs_found, regex_leadership_jobs, regex_with_location,
              llm_jobs_found, llm_leadership_jobs, llm_with_location, llm_api_cost,
-             overlap_count, regex_unique, llm_unique)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             overlap_count, regex_unique, llm_unique,
+             scraper_backend, careers_url, total_jobs_found, fetch_success)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 company_name,
@@ -974,6 +999,10 @@ class JobDatabase:
                 overlap_count,
                 regex_unique,
                 llm_unique,
+                scraper_backend,
+                careers_url,
+                total_jobs_found,
+                1 if fetch_success else 0,
             ),
         )
 
