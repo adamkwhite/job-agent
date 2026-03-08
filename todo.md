@@ -10,10 +10,16 @@
 - Issue #180: Performance monitoring dashboard for company scraping costs
 
 ## In Progress
-- [ ] Crawl4AI career scraper backend (stashed on `feature/stealth-crawl4ai-backends`)
 - [ ] New profile: Person #2 (awaiting info)
 
-## Recently Completed (Mar 3, 2026)
+## Recently Completed (Mar 7, 2026)
+- [x] Firecrawl fallback when primary scraper returns 0 jobs (Issue #342)
+- [x] Populate extraction_metrics table with per-run scraping stats (Issue #343)
+- [x] Crawl4AI career scraper backend (PR #338)
+- [x] Fix missing role categories + wire scraper_backend in multi-inbox mode (PR #341)
+- [x] Skip no-commit-to-branch hook in CI (PR #340)
+
+## Previously Completed (Mar 3, 2026)
 - [x] Add PlaywrightCareerScraper as default scraping backend (PR #337)
 - [x] Extract BaseCareerScraper from FirecrawlCareerScraper (PR #336)
 - [x] New profile: Mark Biciunas — Director/VP eng leadership, SaaS/EdTech, B-grade digest
