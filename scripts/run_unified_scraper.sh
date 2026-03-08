@@ -41,11 +41,10 @@ fi
 # echo "Generating HTML report..." >> "$LOG_FILE"
 # python3 src/generate_jobs_html.py >> "$LOG_FILE" 2>&1
 
-# Send digests (optional - if you want automated digest sending)
-# Uncomment when ready to automate email sending:
-# echo "" >> "$LOG_FILE"
-# echo "Sending profile digests..." >> "$LOG_FILE"
-# python3 src/send_profile_digest.py --all >> "$LOG_FILE" 2>&1
+# Send digests to all profiles after scraping
+echo "" >> "$LOG_FILE"
+echo "Sending profile digests..." >> "$LOG_FILE"
+python3 src/send_profile_digest.py --all >> "$LOG_FILE" 2>&1
 
 echo "" >> "$LOG_FILE"
 echo "Completed: $(date) (exit code: $EXIT_CODE)" >> "$LOG_FILE"
