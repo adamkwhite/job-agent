@@ -10,9 +10,15 @@
 - Issue #180: Performance monitoring dashboard for company scraping costs
 
 ## In Progress
-- [ ] New profile: Person #2 (awaiting info)
+- [ ] LLM model comparison for cost reduction (Issue #345) — `--llm-model` CLI flag implemented
+- [ ] TUI onboarding wizard (Issue #349)
 
-## Recently Completed (Mar 7, 2026)
+## Recently Completed (Mar 8, 2026)
+- [x] Interactive profile onboarding script (Issue #346, PR #348)
+- [x] New profile: Mark Lennox — Sr. Director/VP, SaaS generalist, North Toronto
+- [x] Cron updated: Monday 6am + automated digest sending enabled (PR #347)
+
+## Previously Completed (Mar 7, 2026)
 - [x] Firecrawl fallback when primary scraper returns 0 jobs (Issue #342)
 - [x] Populate extraction_metrics table with per-run scraping stats (Issue #343)
 - [x] Crawl4AI career scraper backend (PR #338)

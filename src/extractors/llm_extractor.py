@@ -20,16 +20,37 @@ logger = logging.getLogger(__name__)
 
 
 class LLMExtractor:
-    """Extract job postings from markdown using LLM (Claude 3.5 Sonnet via OpenRouter)"""
+    """Extract job postings from markdown using LLM via OpenRouter"""
 
-    def __init__(self, config_path: str = "config/llm-extraction-settings.json"):
+    # OpenRouter pricing per 1M tokens: {model_prefix: (input_cost, output_cost)}
+    MODEL_PRICING: dict[str, tuple[float, float]] = {
+        "anthropic/claude-3.5-sonnet": (3.00, 15.00),
+        "anthropic/claude-3-haiku": (0.25, 1.25),
+        "anthropic/claude-3.5-haiku": (0.80, 4.00),
+        "google/gemini-flash-1.5": (0.075, 0.30),
+        "google/gemini-2.0-flash-001": (0.10, 0.40),
+        "meta-llama/llama-3.1-8b-instruct": (0.06, 0.06),
+        "meta-llama/llama-3.3-70b-instruct": (0.30, 0.40),
+        "mistralai/mistral-small-latest": (0.10, 0.30),
+        "qwen/qwen-2.5-72b-instruct": (0.30, 0.30),
+    }
+
+    def __init__(
+        self,
+        config_path: str = "config/llm-extraction-settings.json",
+        model_override: str | None = None,
+    ):
         """Initialize LLM extractor with configuration
 
         Args:
             config_path: Path to LLM extraction configuration file
+            model_override: Override model from config (e.g. 'google/gemini-flash-1.5')
         """
         self.config = self._load_config(config_path)
         self.database = JobDatabase()
+
+        # Determine model: CLI override > config file
+        self.model = model_override or self.config["llm_config"]["llm"]["model"]
 
         # Initialize budget tracking service
         self.budget_service = LLMBudgetService(
@@ -49,9 +70,14 @@ class LLMExtractor:
         self.llm = ChatOpenAI(
             api_key=api_key,
             base_url=self.config["llm_config"]["llm"]["base_url"],
-            model=self.config["llm_config"]["llm"]["model"],
+            model=self.model,
             temperature=self.config["llm_config"]["llm"]["temperature"],
         )
+
+        if model_override:
+            logger.info(
+                f"LLM model override: {model_override} (config: {self.config['llm_config']['llm']['model']})"
+            )
 
         self.timeout_seconds = self.config.get("timeout_seconds", 30)
 
@@ -74,6 +100,23 @@ class LLMExtractor:
 
         with path.open() as f:
             return json.load(f)
+
+    def _get_model_pricing(self) -> tuple[float, float]:
+        """Get (input_cost, output_cost) per 1M tokens for the current model.
+
+        Falls back to Sonnet pricing if model not in lookup table.
+        """
+        # Check exact match first, then prefix match
+        if self.model in self.MODEL_PRICING:
+            return self.MODEL_PRICING[self.model]
+
+        for prefix, pricing in self.MODEL_PRICING.items():
+            if self.model.startswith(prefix):
+                return pricing
+
+        # Default to Sonnet pricing as conservative estimate
+        logger.warning(f"No pricing found for model '{self.model}', using Sonnet defaults")
+        return (3.00, 15.00)
 
     def budget_available(self) -> bool:
         """Check if monthly budget has not been exceeded
@@ -176,12 +219,11 @@ Do not include any other text, explanations, or markdown formatting. Return ONLY
                 tokens_in = usage.get("input_tokens", 0)
                 tokens_out = usage.get("output_tokens", 0)
 
-            # Estimate cost if not provided
-            # OpenRouter Claude 3.5 Sonnet pricing (approximate):
-            # Input: $3.00 per 1M tokens, Output: $15.00 per 1M tokens
+            # Estimate cost using model-specific pricing
             if cost_usd < 0.01:  # Treat values < $0.01 as zero to avoid float comparison
-                input_cost = (tokens_in / 1_000_000) * 3.00
-                output_cost = (tokens_out / 1_000_000) * 15.00
+                input_rate, output_rate = self._get_model_pricing()
+                input_cost = (tokens_in / 1_000_000) * input_rate
+                output_cost = (tokens_out / 1_000_000) * output_rate
                 cost_usd = input_cost + output_cost
 
             # Record API call in budget service
@@ -191,7 +233,7 @@ Do not include any other text, explanations, or markdown formatting. Return ONLY
                     tokens_out=tokens_out,
                     cost_usd=cost_usd,
                     company_name=company_name,
-                    model=self.config["llm_config"]["llm"]["model"],
+                    model=self.model,
                 )
 
             return jobs

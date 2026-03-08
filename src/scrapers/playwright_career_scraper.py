@@ -31,6 +31,7 @@ class PlaywrightCareerScraper(BaseCareerScraper):
         cache_dir: str = "data/firecrawl_cache",
         cache_ttl_hours: int = 24,
         headless: bool = True,
+        llm_model: str | None = None,
     ) -> None:
         """
         Initialize Playwright-based scraper
@@ -42,6 +43,7 @@ class PlaywrightCareerScraper(BaseCareerScraper):
             cache_dir: Directory to store cached markdown files
             cache_ttl_hours: Cache time-to-live in hours
             headless: Run browser in headless mode (default: True)
+            llm_model: Override LLM model for extraction
         """
         super().__init__(
             requests_per_minute=requests_per_minute,
@@ -49,6 +51,7 @@ class PlaywrightCareerScraper(BaseCareerScraper):
             enable_pagination=enable_pagination,
             cache_dir=cache_dir,
             cache_ttl_hours=cache_ttl_hours,
+            llm_model=llm_model,
         )
         self.name = "playwright_career_scraper"
         self._headless = headless

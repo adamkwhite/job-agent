@@ -40,6 +40,7 @@ class FirecrawlCareerScraper(BaseCareerScraper):
         timeout_seconds: int = 60,
         cache_dir: str = "data/firecrawl_cache",
         cache_ttl_hours: int = 24,
+        llm_model: str | None = None,
     ):
         """
         Initialize Firecrawl-based scraper
@@ -51,6 +52,7 @@ class FirecrawlCareerScraper(BaseCareerScraper):
             timeout_seconds: Timeout for each scrape request (default: 60 seconds)
             cache_dir: Directory to store cached markdown files (default: data/firecrawl_cache)
             cache_ttl_hours: Cache time-to-live in hours (default: 24)
+            llm_model: Override LLM model for extraction
         """
         api_key = os.getenv("FIRECRAWL_API_KEY")
         if not api_key:
@@ -66,6 +68,7 @@ class FirecrawlCareerScraper(BaseCareerScraper):
             enable_pagination=enable_pagination,
             cache_dir=cache_dir,
             cache_ttl_hours=cache_ttl_hours,
+            llm_model=llm_model,
         )
         self.name = "firecrawl_career_scraper"
 
