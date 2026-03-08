@@ -44,7 +44,7 @@ class BaseCareerScraper(ABC):
             enable_pagination: Enable pagination support via sitemap discovery
             cache_dir: Directory to store cached markdown files
             cache_ttl_hours: Cache time-to-live in hours
-            llm_model: Override LLM model for extraction (e.g. 'google/gemini-flash-1.5')
+            llm_model: Override LLM model for extraction (e.g. 'google/gemini-2.5-flash')
         """
         self.name = "base_career_scraper"
 
