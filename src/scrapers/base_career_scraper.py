@@ -187,10 +187,14 @@ class BaseCareerScraper(ABC):
             if is_main_page:
                 print(f"  📝 Regex extraction: {len(regex_jobs)} job listings found")
 
-            jobs_with_method = self._process_extracted_jobs(regex_jobs, company_name, "regex")
+            jobs_with_method = self._process_extracted_jobs(
+                regex_jobs, company_name, "regex", base_url=url
+            )
 
             if is_main_page:
-                jobs_with_method.extend(self._run_llm_extraction(markdown, company_name))
+                jobs_with_method.extend(
+                    self._run_llm_extraction(markdown, company_name, base_url=url)
+                )
 
             return jobs_with_method
 
@@ -217,6 +221,7 @@ class BaseCareerScraper(ABC):
         self,
         markdown: str,
         company_name: str,
+        base_url: str | None = None,
     ) -> list[tuple[OpportunityData, str]]:
         """Run LLM extraction if enabled and budget available."""
         if not (self.enable_llm_extraction and self.llm_extractor):
@@ -231,7 +236,7 @@ class BaseCareerScraper(ABC):
             logger.info(f"Running LLM extraction for {company_name}")
             llm_jobs = self.llm_extractor.extract_jobs(markdown, company_name)
             print(f"  🤖 LLM extraction: {len(llm_jobs)} job listings found")
-            return self._process_extracted_jobs(llm_jobs, company_name, "llm")
+            return self._process_extracted_jobs(llm_jobs, company_name, "llm", base_url=base_url)
         except Exception as e:
             logger.error(f"LLM extraction failed for {company_name}: {e}")
             print(f"  ✗ LLM extraction failed: {e}")
@@ -367,18 +372,28 @@ class BaseCareerScraper(ABC):
         return jobs
 
     def _process_extracted_jobs(
-        self, jobs: list[OpportunityData], company_name: str, method: str
+        self,
+        jobs: list[OpportunityData],
+        company_name: str,
+        method: str,
+        base_url: str | None = None,
     ) -> list[tuple[OpportunityData, str]]:
         """Validate job URLs and tag with extraction method"""
-        validated_jobs = self._validate_job_urls(jobs, company_name)
+        validated_jobs = self._validate_job_urls(jobs, company_name, base_url=base_url)
         return [(job, method) for job in validated_jobs]
 
     # ==================== Validation ====================
 
     def _validate_job_urls(
-        self, jobs: list[OpportunityData], company_name: str
+        self,
+        jobs: list[OpportunityData],
+        company_name: str,
+        base_url: str | None = None,
     ) -> list[OpportunityData]:
-        """Validate job URLs and mark invalid ones as stale"""
+        """Validate job URLs and mark invalid ones as stale.
+
+        Resolves relative URLs against base_url before validation.
+        """
         validated_jobs = []
 
         for job in jobs:
@@ -386,7 +401,13 @@ class BaseCareerScraper(ABC):
                 validated_jobs.append(job)
                 continue
 
-            is_valid, reason = validate_job_url(job.link)
+            # Resolve relative URLs (e.g. "/jobs/123" → "https://company.com/jobs/123")
+            link = job.link
+            if base_url and link.startswith("/"):
+                link = urljoin(base_url, link)
+                job = job.model_copy(update={"link": link})
+
+            is_valid, reason = validate_job_url(link)
 
             job_dict = job.__dict__.copy()
             job_dict["url_validated"] = is_valid
