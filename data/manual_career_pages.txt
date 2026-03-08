@@ -188,3 +188,63 @@ Investors: Frazier Life Sciences, Venrock Healthcare Capital Partners
 
 Guessed website: https://angitiabiopharmaceuticals.com
 Career page URL (fill this in): ____________________________
+
+======================================================================
+Company: Avisi Technologies
+Location: Redwood City, US
+Funding: Series A - $10.7m
+Industries: Hardware, Health/Medical
+Investors: Quaker Capital Investments, Life Sciences Greenhouse Investments
+
+Guessed website: https://avisitechnologies.com
+Career page URL (fill this in): ____________________________
+
+======================================================================
+Company: MedScout
+Location: Austin, US
+Funding: Series A - $25m
+Industries: Commercial, Health/Medical
+Investors: Fulcrum Equity Partners, Stage 2 Capital
+
+Guessed website: https://medscout.com
+Career page URL (fill this in): ____________________________
+
+======================================================================
+Company: Salma Health
+Location: San Mateo, US
+Funding: Series A - $80m
+Industries: Behavioral Health, Consultation
+Investors: Mubadala Capital, ARCH Venture Partners
+
+Guessed website: https://salmahealth.com
+Career page URL (fill this in): ____________________________
+
+======================================================================
+Company: Ease Health
+Location: New York City, US
+Funding: Series A - $41m
+Industries: Behavioral Health, EHR
+Investors: Andreessen Horowitz
+
+Guessed website: https://easehealth.com
+Career page URL (fill this in): ____________________________
+
+======================================================================
+Company: Candid Therapeutics
+Location: San Diego, US
+Funding: Series B - $505m
+Industries: Biotech, Biotech R&D
+Investors: Venrock Healthcare Capital Partners, RA Capital Management
+
+Guessed website: https://candidtherapeutics.com
+Career page URL (fill this in): ____________________________
+
+======================================================================
+Company: Lumentum
+Location: San Jose, US
+Funding: Series C - $2b
+Industries: Hardware, Photonics
+Investors: NVIDIA
+
+Guessed website: https://lumentum.com
+Career page URL (fill this in): ____________________________

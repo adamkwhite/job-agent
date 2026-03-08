@@ -33,6 +33,7 @@ class BaseCareerScraper(ABC):
         enable_pagination: bool = True,
         cache_dir: str = "data/firecrawl_cache",
         cache_ttl_hours: int = 24,
+        llm_model: str | None = None,
     ) -> None:
         """
         Initialize scraper with rate limiting and caching
@@ -43,6 +44,7 @@ class BaseCareerScraper(ABC):
             enable_pagination: Enable pagination support via sitemap discovery
             cache_dir: Directory to store cached markdown files
             cache_ttl_hours: Cache time-to-live in hours
+            llm_model: Override LLM model for extraction (e.g. 'google/gemini-flash-1.5')
         """
         self.name = "base_career_scraper"
 
@@ -64,7 +66,7 @@ class BaseCareerScraper(ABC):
             try:
                 from extractors.llm_extractor import LLMExtractor
 
-                self.llm_extractor = LLMExtractor()
+                self.llm_extractor = LLMExtractor(model_override=llm_model)
                 logger.info("LLM extraction enabled for %s", type(self).__name__)
             except Exception as e:
                 logger.warning(

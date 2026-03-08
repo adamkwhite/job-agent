@@ -39,6 +39,7 @@ class CompanyScraper:
         enable_llm_extraction: bool = False,
         enable_pagination: bool = True,
         scraper_backend: str | None = None,
+        llm_model: str | None = None,
     ):
         # Store profile for multi-profile support
         self.profile = profile
@@ -55,8 +56,9 @@ class CompanyScraper:
         self.backend = scraper_backend or os.getenv("SCRAPER_BACKEND") or "playwright"
         self.enable_llm_extraction = enable_llm_extraction
         self.enable_pagination = enable_pagination
+        self.llm_model = llm_model
         self.career_scraper = self._create_career_scraper(
-            self.backend, enable_llm_extraction, enable_pagination
+            self.backend, enable_llm_extraction, enable_pagination, llm_model=llm_model
         )
         # Lazy-init fallback scraper (Firecrawl) — only created on first use
         self._fallback_scraper = None
@@ -80,40 +82,41 @@ class CompanyScraper:
         backend: str,
         enable_llm_extraction: bool,
         enable_pagination: bool,
+        llm_model: str | None = None,
     ):  # type: ignore[return]  # returns BaseCareerScraper subclass
         """Create career scraper instance based on backend selection."""
+        llm_kwargs = {
+            "enable_llm_extraction": enable_llm_extraction,
+            "enable_pagination": enable_pagination,
+            "llm_model": llm_model,
+        }
+
         if backend == "firecrawl":
             from scrapers.firecrawl_career_scraper import FirecrawlCareerScraper
 
-            return FirecrawlCareerScraper(
-                enable_llm_extraction=enable_llm_extraction,
-                enable_pagination=enable_pagination,
-            )
+            return FirecrawlCareerScraper(**llm_kwargs)
 
         if backend == "crawl4ai":
             from scrapers.crawl4ai_career_scraper import Crawl4AICareerScraper
 
-            return Crawl4AICareerScraper(
-                enable_llm_extraction=enable_llm_extraction,
-                enable_pagination=enable_pagination,
-            )
+            return Crawl4AICareerScraper(**llm_kwargs)
 
         from scrapers.playwright_career_scraper import PlaywrightCareerScraper
 
         if backend != "playwright":
             print(f"  ⚠ Unknown backend '{backend}', defaulting to playwright")
 
-        return PlaywrightCareerScraper(
-            enable_llm_extraction=enable_llm_extraction,
-            enable_pagination=enable_pagination,
-        )
+        return PlaywrightCareerScraper(**llm_kwargs)
 
     def _get_fallback_scraper(self):
         """Lazy-init Firecrawl fallback scraper. Only created on first use."""
         if self._fallback_scraper is None and self.backend != "firecrawl":
             try:
                 self._fallback_scraper = self._create_career_scraper(
-                    "firecrawl", self.enable_llm_extraction, self.enable_pagination
+                    "firecrawl",
+                    self.enable_llm_extraction,
+                    self.enable_pagination,
+                    llm_model=self.llm_model,
                 )
             except Exception:
                 self._fallback_scraper = None

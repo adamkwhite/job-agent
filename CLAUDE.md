@@ -402,6 +402,9 @@ The job agent supports multiple user profiles with separate email accounts, scor
 - **Wes** (`profiles/wes.json`) - VP/Director roles in Robotics/Hardware
 - **Adam** (`profiles/adam.json`) - Senior/Staff roles in Software/Product
 - **Eli** (`profiles/eli.json`) - Director/VP/CTO roles in Fintech/Healthtech/PropTech
+- **Mario** (`profiles/mario.json`) - Senior/Staff roles in QA/Systems Engineering
+- **Mark B** (`profiles/mark.json`) - Director/VP roles in SaaS/EdTech eng management
+- **Mark Lennox** (`profiles/marklennox.json`) - Sr. Director/VP roles in SaaS generalist eng management
 
 **Key Features (Issue #184 - Decoupled Architecture)**:
 - **Scraping**: Profile flag determines which email inbox to connect to
@@ -415,7 +418,13 @@ The job agent supports multiple user profiles with separate email accounts, scor
 
 **📖 For multi-profile system architecture, see: [`docs/development/MULTI_PROFILE_GUIDE.md`](docs/development/MULTI_PROFILE_GUIDE.md)**
 
-Quick summary:
+**Interactive Onboarding (PR #348)**:
+```bash
+PYTHONPATH=$PWD job-agent-venv/bin/python scripts/onboard_profile.py
+```
+Walks through all steps: gather info → save JSON → validate → backfill scores → dry-run digest → generate onboarding message.
+
+Quick manual summary:
 1. Create `profiles/yourname.json` with scoring criteria
 2. (Optional) Set up `yourname.jobalerts@gmail.com` with app password and add to `.env`
 3. Test with `--profile yourname` flag

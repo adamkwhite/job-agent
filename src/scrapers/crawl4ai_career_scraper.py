@@ -30,6 +30,7 @@ class Crawl4AICareerScraper(BaseCareerScraper):
         enable_pagination: bool = True,
         cache_dir: str = "data/firecrawl_cache",
         cache_ttl_hours: int = 24,
+        llm_model: str | None = None,
     ) -> None:
         super().__init__(
             requests_per_minute=requests_per_minute,
@@ -37,6 +38,7 @@ class Crawl4AICareerScraper(BaseCareerScraper):
             enable_pagination=enable_pagination,
             cache_dir=cache_dir,
             cache_ttl_hours=cache_ttl_hours,
+            llm_model=llm_model,
         )
         self.name = "crawl4ai_career_scraper"
 

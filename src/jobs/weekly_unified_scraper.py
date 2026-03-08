@@ -33,7 +33,12 @@ class WeeklyUnifiedScraper:
     3. Ministry of Testing (QA/testing job board)
     """
 
-    def __init__(self, profile: str | None = None, scraper_backend: str | None = None):
+    def __init__(
+        self,
+        profile: str | None = None,
+        scraper_backend: str | None = None,
+        llm_model: str | None = None,
+    ):
         # Store profile for logging and sub-components
         self.profile = profile
 
@@ -56,6 +61,7 @@ class WeeklyUnifiedScraper:
             enable_llm_extraction=llm_enabled,
             enable_pagination=True,
             scraper_backend=scraper_backend,
+            llm_model=llm_model,
         )
 
         # Ministry of Testing scraper
@@ -374,6 +380,7 @@ def run_all_inboxes(
     company_filter: str | None = None,
     skip_recent_hours: int | None = None,
     scraper_backend: str | None = None,
+    llm_model: str | None = None,
 ) -> dict:
     """
     Run unified scraper across ALL profiles with configured email inboxes.
@@ -392,6 +399,7 @@ def run_all_inboxes(
         company_filter: Filter companies by notes
         skip_recent_hours: Skip recently-checked companies
         scraper_backend: Career scraper backend (playwright/crawl4ai/firecrawl)
+        llm_model: Override LLM model for extraction (e.g. 'google/gemini-flash-1.5')
 
     Returns:
         Aggregated stats from all inboxes and shared sources
@@ -450,6 +458,7 @@ def run_all_inboxes(
             company_filter=company_filter,
             skip_recent_hours=skip_recent_hours,
             scraper_backend=scraper_backend,
+            llm_model=llm_model,
         )
         aggregated_stats["companies"] = company_stats
 
@@ -551,6 +560,7 @@ def _scrape_shared_companies(
     company_filter: str | None = None,
     skip_recent_hours: int | None = None,
     scraper_backend: str | None = None,
+    llm_model: str | None = None,
 ) -> dict:
     """
     Scrape monitored companies ONCE (shared across all profiles).
@@ -564,7 +574,9 @@ def _scrape_shared_companies(
 
     try:
         # Use None profile since companies are shared
-        scraper = WeeklyUnifiedScraper(profile=None, scraper_backend=scraper_backend)
+        scraper = WeeklyUnifiedScraper(
+            profile=None, scraper_backend=scraper_backend, llm_model=llm_model
+        )
         company_stats = scraper._scrape_monitored_companies(
             min_score=min_score,
             company_filter=company_filter,
@@ -814,6 +826,12 @@ def main():
         default=None,
         help="Career page scraper backend (default: playwright, env: SCRAPER_BACKEND)",
     )
+    parser.add_argument(
+        "--llm-model",
+        type=str,
+        default=None,
+        help="Override LLM model for extraction (e.g. 'google/gemini-flash-1.5')",
+    )
 
     args = parser.parse_args()
 
@@ -845,11 +863,14 @@ def main():
                 company_filter=args.company_filter,
                 skip_recent_hours=args.skip_recent_hours,
                 scraper_backend=args.scraper_backend,
+                llm_model=args.llm_model,
             )
         else:
             # Single profile mode
             scraper = WeeklyUnifiedScraper(
-                profile=args.profile, scraper_backend=args.scraper_backend
+                profile=args.profile,
+                scraper_backend=args.scraper_backend,
+                llm_model=args.llm_model,
             )
             stats = scraper.run_all(
                 fetch_emails=run_emails,
