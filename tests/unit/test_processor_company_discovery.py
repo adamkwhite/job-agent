@@ -39,7 +39,19 @@ def processor_method(mock_company_service):
         company_name: str, source: str = "email", job_link: str | None = None
     ) -> None:
         """Standalone version of the _check_and_add_company method"""
-        if not company_name or company_name == "Unknown Company":
+        if not company_name or len(company_name.strip()) < 3:
+            return
+
+        # Skip generic/junk names that aren't real companies
+        junk_names = {
+            "unknown",
+            "unknown company",
+            "technology",
+            "platform",
+            "studios",
+            "company",
+        }
+        if company_name.strip().lower() in junk_names:
             return
 
         if mock_company_service.company_exists(company_name):
@@ -227,5 +239,25 @@ def test_discover_company_empty_name(processor_method, mock_company_service):
     processor_method(company_name="", source="email", job_link="https://example.com/jobs/123")
 
     # Assert - should not check or add company
+    mock_company_service.company_exists.assert_not_called()
+    mock_company_service.add_discovered_company.assert_not_called()
+
+
+def test_discover_company_junk_names_skipped(processor_method, mock_company_service):
+    """Test auto-discovery skips generic/junk company names"""
+    junk_names = ["Technology", "Platform", "Studios", "Unknown", "Company"]
+
+    for name in junk_names:
+        processor_method(company_name=name, source="email", job_link="https://example.com/jobs/1")
+
+    # None of these should trigger a company_exists check
+    mock_company_service.company_exists.assert_not_called()
+    mock_company_service.add_discovered_company.assert_not_called()
+
+
+def test_discover_company_short_name_skipped(processor_method, mock_company_service):
+    """Test auto-discovery skips names shorter than 3 characters"""
+    processor_method(company_name="AI", source="email", job_link="https://example.com/jobs/1")
+
     mock_company_service.company_exists.assert_not_called()
     mock_company_service.add_discovered_company.assert_not_called()
