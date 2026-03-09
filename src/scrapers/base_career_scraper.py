@@ -273,10 +273,14 @@ class BaseCareerScraper(ABC):
         self, markdown: str, careers_url: str, company_name: str
     ) -> list[OpportunityData]:
         """Extract job listings from markdown content"""
-        # Try pattern 1 (linked jobs with locations)
+        # Try pattern 1 (linked jobs with locations on separate lines)
         jobs = self._extract_jobs_from_pattern1(markdown, company_name)
 
-        # If no jobs found with pattern 1, try pattern 2 (headers)
+        # Try inline links: [Title • Location • Type](url) — common on Ashby boards
+        if not jobs:
+            jobs = self._extract_jobs_from_inline_links(markdown, company_name)
+
+        # Fallback: header-based extraction (## Job Title)
         if not jobs:
             jobs = self._extract_jobs_from_pattern2(markdown, careers_url, company_name)
 
@@ -317,6 +321,84 @@ class BaseCareerScraper(ABC):
 
         return jobs
 
+    def _extract_jobs_from_inline_links(
+        self, markdown: str, company_name: str
+    ) -> list[OpportunityData]:
+        """Extract jobs from inline markdown links: [Title • Location • Type](url)
+
+        Handles Ashby-style job boards where jobs appear as:
+        ### [Engineering ManagerTechnology • Remote (US | CA) • Full time](url)
+
+        Multiple jobs may be concatenated on one line separated by ###.
+        """
+        jobs: list[OpportunityData] = []
+
+        # Match [text](url) where text is 10+ chars (filters nav links)
+        link_pattern = re.compile(r"\[([^\[\]]{10,})\]\(([^\)]+)\)")
+
+        matches = list(link_pattern.finditer(markdown))
+        if not matches:
+            return jobs
+
+        # Extract department names from ## headers for title cleanup
+        dept_names = self._extract_department_names(markdown)
+
+        for match in matches:
+            text = match.group(1).strip()
+            link = match.group(2).strip()
+
+            title, location = self._parse_inline_link_text(text, dept_names)
+
+            if title and self._is_likely_job_title(title):
+                jobs.append(
+                    OpportunityData(
+                        type="direct_job",
+                        title=title,
+                        company=company_name,
+                        location=location,
+                        link=link,
+                        source="company_monitoring",
+                    )
+                )
+
+        return jobs
+
+    @staticmethod
+    def _extract_department_names(markdown: str) -> list[str]:
+        """Extract department names from ## headers for title cleanup"""
+        dept_pattern = re.compile(r"^##\s+([^\n#]+)$", re.MULTILINE)
+        return [d.strip() for d in dept_pattern.findall(markdown) if len(d.strip()) > 1]
+
+    @staticmethod
+    def _parse_inline_link_text(text: str, dept_names: list[str]) -> tuple[str, str]:
+        """Parse title and location from inline link text.
+
+        Input:  'Engineering Manager, API PlatformTechnology • Remote (US) • Full time'
+        Output: ('Engineering Manager, API Platform', 'Remote (US)')
+        """
+        if "•" not in text:
+            return text, ""
+
+        parts = [p.strip() for p in text.split("•")]
+        raw_title = parts[0]
+
+        # Strip department suffix (e.g., "API PlatformTechnology" → "API Platform")
+        title = raw_title
+        for dept in sorted(dept_names, key=len, reverse=True):
+            if raw_title.endswith(dept) and len(raw_title) > len(dept):
+                title = raw_title[: -len(dept)].strip()
+                break
+
+        # Find location from remaining parts
+        location = ""
+        for part in parts[1:]:
+            part_lower = part.lower()
+            if any(kw in part_lower for kw in ["remote", "on-site", "hybrid", ","]):
+                location = part
+                break
+
+        return title, location
+
     def _extract_jobs_from_pattern2(
         self, markdown: str, careers_url: str, company_name: str
     ) -> list[OpportunityData]:
@@ -347,7 +429,8 @@ class BaseCareerScraper(ABC):
         for header in headers:
             header = header.strip()
 
-            if self._is_likely_job_title(header) and len(header) > 10:
+            # Guard: skip headers that are suspiciously long (concatenated entries)
+            if self._is_likely_job_title(header) and 10 < len(header) < 200:
                 header_idx = markdown.find(header)
                 start_search = header_idx + len(header)
                 context = markdown[start_search : start_search + 100]
