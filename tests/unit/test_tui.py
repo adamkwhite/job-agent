@@ -90,3 +90,52 @@ class TestHandleSecondaryAction:
 
         result = _handle_secondary_action("scrape")
         assert result is None
+
+
+class TestFormatLlmFailureReason:
+    """Test _format_llm_failure_reason extracts HTTP codes from error details."""
+
+    def test_402_payment_required(self):
+        from src.tui import _format_llm_failure_reason
+
+        result = _format_llm_failure_reason(
+            "APIStatusError",
+            "Error code: 402 - {'error': {'message': 'credits exhausted'}}",
+        )
+        assert result == "402 Payment Required"
+
+    def test_429_rate_limited(self):
+        from src.tui import _format_llm_failure_reason
+
+        result = _format_llm_failure_reason(
+            "APIStatusError",
+            "Error code: 429 - rate limit exceeded",
+        )
+        assert result == "429 Rate Limited"
+
+    def test_unknown_status_code(self):
+        from src.tui import _format_llm_failure_reason
+
+        result = _format_llm_failure_reason(
+            "APIStatusError",
+            "Error code: 503 - service unavailable",
+        )
+        assert result == "503 API Error"
+
+    def test_non_api_error_unchanged(self):
+        from src.tui import _format_llm_failure_reason
+
+        result = _format_llm_failure_reason("Timeout", None)
+        assert result == "Timeout"
+
+    def test_long_reason_truncated(self):
+        from src.tui import _format_llm_failure_reason
+
+        result = _format_llm_failure_reason("VeryLongErrorReasonString", None)
+        assert result == "VeryLongErrorReas..."
+
+    def test_api_error_without_code_in_details(self):
+        from src.tui import _format_llm_failure_reason
+
+        result = _format_llm_failure_reason("APIStatusError", "some other error text")
+        assert result == "APIStatusError"
