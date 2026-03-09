@@ -526,6 +526,46 @@ def test_company_exists_nonexistent(temp_db):
     assert temp_db.company_exists("Nonexistent Co") is False
 
 
+def test_company_exists_substring_match(temp_db):
+    """Test company_exists catches substring matches like NDI vs NDI (Northern Digital)"""
+    temp_db.add_company("NDI (Northern Digital)", "https://ndi.com/careers")
+
+    # Short name should match longer existing name
+    assert temp_db.company_exists("NDI") is True
+
+
+def test_company_exists_reverse_substring_match(temp_db):
+    """Test company_exists catches when existing name is substring of incoming"""
+    temp_db.add_company("CoLab", "https://colabsoftware.com/careers")
+
+    # Longer incoming name should match shorter existing name
+    assert temp_db.company_exists("CoLab Software") is True
+
+
+def test_company_exists_no_false_positive_short_names(temp_db):
+    """Names shorter than 3 chars should not fuzzy match"""
+    temp_db.add_company("AI Corp", "https://aicorp.com/careers")
+
+    # "AI" is too short for substring matching
+    assert temp_db.company_exists("AI") is False
+
+
+def test_find_similar_company_returns_existing_name(temp_db):
+    """find_similar_company returns the existing company name"""
+    temp_db.add_company("NDI (Northern Digital)", "https://ndi.com/careers")
+
+    result = temp_db.find_similar_company("NDI")
+    assert result == "NDI (Northern Digital)"
+
+
+def test_find_similar_company_returns_none_for_no_match(temp_db):
+    """find_similar_company returns None when no match"""
+    temp_db.add_company("Boston Dynamics", "https://bd.com/careers")
+
+    result = temp_db.find_similar_company("Agility Robotics")
+    assert result is None
+
+
 def test_add_discovered_company_success(temp_db):
     """Test successfully adding a discovered company"""
     result = temp_db.add_discovered_company(

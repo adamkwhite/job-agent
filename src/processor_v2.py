@@ -286,7 +286,12 @@ class JobProcessorV2:
             source: Source of discovery (e.g., "email", "linkedin")
             job_link: Optional job posting URL to extract career page URL from
         """
-        if not company_name or company_name == "Unknown Company":
+        if not company_name or len(company_name.strip()) < 3:
+            return
+
+        # Skip generic/junk names that aren't real companies
+        junk_names = {"unknown", "unknown company", "technology", "platform", "studios", "company"}
+        if company_name.strip().lower() in junk_names:
             return
 
         # Check if company already exists

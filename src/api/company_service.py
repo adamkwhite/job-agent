@@ -95,23 +95,60 @@ class CompanyService:
 
     def company_exists(self, name: str) -> bool:
         """
-        Check if a company exists in the database by name (case-insensitive)
+        Check if a company exists in the database by name.
+
+        Uses both exact match and substring matching to catch variants like
+        "NDI" matching "NDI (Northern Digital)" or "CoLab" matching "CoLab Software".
 
         Args:
             name: Company name to check
 
         Returns:
-            True if company exists, False otherwise
+            True if company exists (exact or fuzzy match), False otherwise
+        """
+        return self.find_similar_company(name) is not None
+
+    def find_similar_company(self, name: str) -> str | None:
+        """
+        Find an existing company that matches the given name.
+
+        Checks: exact match, incoming name contained in existing name,
+        existing name contained in incoming name.
+
+        Args:
+            name: Company name to search for
+
+        Returns:
+            Existing company name if found, None otherwise
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
-        cursor.execute("SELECT COUNT(*) FROM companies WHERE LOWER(name) = LOWER(?)", (name,))
+        # 1. Exact match (case-insensitive)
+        cursor.execute("SELECT name FROM companies WHERE LOWER(name) = LOWER(?)", (name,))
+        row = cursor.fetchone()
+        if row:
+            conn.close()
+            return row[0]
 
-        count = cursor.fetchone()[0]
+        # 2. Incoming name is a substring of existing name (e.g., "NDI" in "NDI (Northern Digital)")
+        # 3. Existing name is a substring of incoming name (e.g., "CoLab" in "CoLab Software")
+        # Only match if the shorter name is at least 3 chars to avoid false positives
+        if len(name.strip()) >= 3:
+            cursor.execute(
+                """SELECT name FROM companies
+                   WHERE LOWER(name) LIKE '%' || LOWER(?) || '%'
+                      OR LOWER(?) LIKE '%' || LOWER(name) || '%'
+                   LIMIT 1""",
+                (name, name),
+            )
+            row = cursor.fetchone()
+            if row:
+                conn.close()
+                return row[0]
+
         conn.close()
-
-        return count > 0
+        return None
 
     def add_discovered_company(
         self,
