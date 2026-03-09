@@ -6,14 +6,23 @@
 
 ## Open Backlog (Low Priority)
 - Issue #79: Enhanced statistics tracking for scraper observability
-- Issue #118: TUI metrics dashboard (LLM vs Regex extraction)
 - Issue #180: Performance monitoring dashboard for company scraping costs
 
 ## In Progress
-- [ ] LLM model comparison for cost reduction (Issue #345) — `--llm-model` CLI flag implemented
 - [ ] TUI onboarding wizard (Issue #349)
 
 ## Recently Completed (Mar 8, 2026)
+- [x] Switch default LLM to Gemini 2.5 Flash, $5/mo budget (Issue #345, PR #353)
+- [x] TUI extraction metrics dashboard (Issue #118, PR #354)
+- [x] Unified company review — merged discovered + failures flows (PR #358)
+- [x] Company dedup with fuzzy name matching + junk name filter (PR #359)
+- [x] Human-readable LLM failure reasons in TUI (PR #360)
+- [x] Show careers URL in company review table (PR #361)
+- [x] Inline company actions — a#/d#/r# from list view (PR #362)
+- [x] Fixed pytest collection errors in tests/exploration/ (PR #358)
+- [x] Multiple TUI bug fixes: column name, source email, failure details (PRs #355-357)
+
+## Previously Completed (Mar 7-8, 2026)
 - [x] Interactive profile onboarding script (Issue #346, PR #348)
 - [x] New profile: Mark Lennox — Sr. Director/VP, SaaS generalist, North Toronto
 - [x] Cron updated: Monday 6am + automated digest sending enabled (PR #347)
