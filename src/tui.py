@@ -1516,10 +1516,9 @@ def manage_companies():  # pragma: no cover
     # Build summary table
     table = Table(box=box.ROUNDED, show_header=True, header_style=TABLE_HEADER_STYLE)
     table.add_column("#", style="cyan", width=5)
-    table.add_column("Company Name", style="white", width=28)
+    table.add_column("Company Name", style="white", width=25)
     table.add_column("Status", style="white", width=16)
-    table.add_column("Failures", style="yellow", width=10, justify="center")
-    table.add_column("Last Error", style="dim", width=25)
+    table.add_column("Careers URL", style="dim", width=45)
 
     # Tag auto-discovered companies for unified list
     for c in auto_discovered:
@@ -1534,27 +1533,22 @@ def manage_companies():  # pragma: no cover
 
         if review_type == "discovered":
             status = "[cyan]Pending Review[/cyan]"
-            failure_display = "[dim]-[/dim]"
-            error_display = "[dim]-[/dim]"
         elif failures >= 5 or company.get("auto_disabled_at"):
-            status = "[red]Disabled[/red]"
-            failure_display = f"[red]{failures}/5[/red]"
-            error_msg = company.get("last_failure_reason") or "Unknown"
-            error_display = error_msg[:22] + "..." if len(error_msg) > 25 else error_msg
+            status = f"[red]Disabled ({failures}/5)[/red]"
         elif failures >= 3:
-            status = "[yellow]At Risk[/yellow]"
-            failure_display = f"[yellow]{failures}/5[/yellow]"
-            error_msg = company.get("last_failure_reason") or "Unknown"
-            error_display = error_msg[:22] + "..." if len(error_msg) > 25 else error_msg
+            status = f"[yellow]At Risk ({failures}/5)[/yellow]"
         else:
-            status = "[dim]Active[/dim]"
-            failure_display = f"[dim]{failures}/5[/dim]"
-            error_msg = company.get("last_failure_reason") or "Unknown"
-            error_display = error_msg[:22] + "..." if len(error_msg) > 25 else error_msg
+            status = f"[dim]Active ({failures}/5)[/dim]"
 
-        table.add_row(
-            str(i), company.get("name", "Unknown"), status, failure_display, error_display
-        )
+        url = company.get("careers_url") or ""
+        if url == "https://placeholder.com/careers":
+            url_display = "[dim]needs URL[/dim]"
+        elif len(url) > 45:
+            url_display = url[:42] + "..."
+        else:
+            url_display = url
+
+        table.add_row(str(i), company.get("name", "Unknown"), status, url_display)
 
     console.print(table)
 
