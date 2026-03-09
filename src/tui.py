@@ -938,10 +938,8 @@ def review_llm_failures():  # pragma: no cover
 
         for idx, failure in enumerate(failures[:20], 1):  # Show first 20
             occurred = failure["occurred_at"][:10] if failure["occurred_at"] else "Unknown"
-            reason = (
-                (failure["failure_reason"][:17] + "...")
-                if len(failure["failure_reason"]) > 20
-                else failure["failure_reason"]
+            reason = _format_llm_failure_reason(
+                failure["failure_reason"], failure.get("error_details")
             )
             url = failure.get("careers_url") or ""
             if len(url) > 35:
@@ -1081,6 +1079,30 @@ def _view_markdown(failure):
         console.print(Panel(preview, title=f"[cyan]{md_file.name}[/cyan]", border_style="cyan"))
     except Exception as e:
         console.print(f"\n[red]❌ Error reading markdown: {e}[/red]")
+
+
+def _format_llm_failure_reason(failure_reason: str, error_details: str | None) -> str:
+    """Format failure reason with HTTP status code from error details if available.
+
+    Extracts 'Error code: 402' from details like:
+    "Error code: 402 - {'error': {'message': '...'}}"
+    """
+    import re
+
+    if error_details and failure_reason == "APIStatusError":
+        match = re.search(r"Error code: (\d+)", error_details)
+        if match:
+            code = match.group(1)
+            labels = {
+                "402": "402 Payment Required",
+                "429": "429 Rate Limited",
+                "500": "500 Server Error",
+            }
+            return labels.get(code, f"{code} API Error")
+
+    if len(failure_reason) > 20:
+        return failure_reason[:17] + "..."
+    return failure_reason
 
 
 def _retry_all_failures(db, failures):  # pragma: no cover
