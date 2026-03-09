@@ -234,7 +234,7 @@ class BaseCareerScraper(ABC):
 
         try:
             logger.info(f"Running LLM extraction for {company_name}")
-            llm_jobs = self.llm_extractor.extract_jobs(markdown, company_name)
+            llm_jobs = self.llm_extractor.extract_jobs(markdown, company_name, careers_url=base_url)
             print(f"  🤖 LLM extraction: {len(llm_jobs)} job listings found")
             return self._process_extracted_jobs(llm_jobs, company_name, "llm", base_url=base_url)
         except Exception as e:
