@@ -31,6 +31,18 @@ class TestExtractDepartmentNames:
     def test_empty_markdown(self):
         assert BaseCareerScraper._extract_department_names("") == []
 
+    def test_extracts_sub_departments_from_prefix(self):
+        """When one header is a prefix of another, extract the remainder"""
+        markdown = (
+            "## Data & Engineering\n"
+            "## Data & EngineeringInfrastructure\n"
+            "## Data & EngineeringPlatform Engineering\n"
+        )
+        result = BaseCareerScraper._extract_department_names(markdown)
+        assert "Infrastructure" in result
+        assert "Platform Engineering" in result
+        assert "Data & Engineering" in result
+
 
 class TestParseInlineLinkText:
     """Test parsing title and location from inline link text"""
@@ -79,6 +91,30 @@ class TestParseInlineLinkText:
         title, location = BaseCareerScraper._parse_inline_link_text(text, ["GTM"])
         assert title == "Director of Sales"
         assert location == "Toronto, ON"
+
+    def test_camelcase_boundary_fallback(self):
+        """When no dept match, detect concatenation via camelCase boundary"""
+        text = "Portfolio ManagementProduct Management • Remote • Full time"
+        title, location = BaseCareerScraper._parse_inline_link_text(text, [])
+        assert title == "Portfolio Management"
+
+    def test_camelcase_fallback_multiple_boundaries(self):
+        """Uses the LAST boundary (dept is appended at end)"""
+        text = "AI & Agentic WorkflowsSales Strategy • Remote • Full time"
+        title, location = BaseCareerScraper._parse_inline_link_text(text, [])
+        assert title == "AI & Agentic Workflows"
+
+    def test_camelcase_no_false_positive_on_clean_title(self):
+        """Clean titles with normal capitalization should not be split"""
+        text = "Senior Director, Financial Reporting • Remote • Full time"
+        title, location = BaseCareerScraper._parse_inline_link_text(text, [])
+        assert title == "Senior Director, Financial Reporting"
+
+    def test_dept_match_takes_priority_over_camelcase(self):
+        """Department matching should fire before camelCase fallback"""
+        text = "Developer, BackendTechnology • Remote • Full time"
+        title, _ = BaseCareerScraper._parse_inline_link_text(text, ["Technology"])
+        assert title == "Developer, Backend"
 
     def test_department_same_as_title_not_stripped(self):
         """Don't strip dept if it would leave empty title"""
