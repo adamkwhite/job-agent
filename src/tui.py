@@ -1617,13 +1617,35 @@ def _review_companies_interactive(companies: list[dict], company_service: Compan
         console.print(SEPARATOR_FULL)
         console.print(f"[bold cyan]Company {i} of {total}[/bold cyan]\n")
 
+        # Look up source email from jobs table
+        import sqlite3
+
+        company_name = company.get("name", "Unknown")
+        source_info = ""
+        try:
+            conn = sqlite3.connect(company_service.db_path)
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT DISTINCT source, source_email FROM jobs WHERE company = ? LIMIT 3",
+                (company_name,),
+            )
+            sources = cursor.fetchall()
+            conn.close()
+            if sources:
+                source_lines = [f"{s[0]}" + (f" ({s[1]})" if s[1] else "") for s in sources]
+                source_info = "\n\n[yellow]Discovered From:[/yellow]\n  " + "\n  ".join(
+                    source_lines
+                )
+        except Exception:
+            pass
+
         # Display company details
-        panel_content = f"""[bold green]{company.get("name", "Unknown")}[/bold green]
+        panel_content = f"""[bold green]{company_name}[/bold green]
 
 [yellow]Details:[/yellow]
   ID: {company.get("id")}
   Created: {company.get("created_at", "Unknown")}
-  Current URL: {company.get("careers_url", "None")}
+  Current URL: {company.get("careers_url", "None")}{source_info}
 
 [yellow]Notes:[/yellow]
   {company.get("notes", "None")}"""
