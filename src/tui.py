@@ -113,6 +113,9 @@ def _handle_secondary_action(action: str | None) -> bool | None:
     elif action == "failures":
         review_llm_failures()
         return True
+    elif action == "metrics":
+        show_extraction_metrics()
+        return True
     elif action == "health":
         show_system_health()
         return True
@@ -639,13 +642,162 @@ def show_system_health():  # pragma: no cover
         review_company_failures()
 
 
+def show_extraction_metrics():  # pragma: no cover
+    """Display LLM vs Regex extraction comparison dashboard."""
+    import json
+    from collections import defaultdict
+    from datetime import datetime
+    from pathlib import Path
+
+    from database import JobDatabase
+
+    clear_screen()
+    show_header()
+
+    console.print(SEPARATOR_TOP)
+    console.print("[bold cyan]         📊 EXTRACTION METRICS DASHBOARD          [/bold cyan]")
+    console.print(SEPARATOR_BOTTOM)
+
+    days = 30
+
+    while True:
+        db = JobDatabase()
+        metrics = db.get_extraction_metrics(days=days)
+
+        if not metrics:
+            console.print(f"[yellow]No extraction metrics found for last {days} days[/yellow]")
+            press_enter_to_continue()
+            return
+
+        # Aggregate by company (latest scrape per company)
+        latest_by_company: dict[str, dict] = {}
+        for m in metrics:
+            name = m["company_name"]
+            if name not in latest_by_company:
+                latest_by_company[name] = m
+
+        # Calculate summary stats
+        total_regex = sum(m["regex_jobs_found"] for m in latest_by_company.values())
+        total_llm = sum(m["llm_jobs_found"] for m in latest_by_company.values())
+        total_jobs = sum(m["total_jobs_found"] for m in latest_by_company.values())
+        companies_with_llm = sum(1 for m in latest_by_company.values() if m["llm_jobs_found"] > 0)
+        companies_total = len(latest_by_company)
+        fetch_failures = sum(
+            1 for m in latest_by_company.values() if not m.get("fetch_success", True)
+        )
+
+        # Cost data from budget file
+        current_month = datetime.now().strftime("%Y-%m")
+        budget_file = Path(f"logs/llm-budget-{current_month}.json")
+        monthly_cost = 0.0
+        model_costs: dict[str, float] = defaultdict(float)
+        model_calls: dict[str, int] = defaultdict(int)
+        if budget_file.exists():
+            try:
+                with open(budget_file) as f:
+                    budget_data = json.load(f)
+                monthly_cost = budget_data.get("total_cost", 0)
+                for record in budget_data.get("records", []):
+                    model = record.get("model", "unknown")
+                    model_costs[model] += record.get("cost_usd", 0)
+                    model_calls[model] += 1
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        # Summary stats table
+        summary = Table(box=box.ROUNDED, show_header=True, header_style=TABLE_HEADER_STYLE)
+        summary.add_column("Metric", style="bold cyan", width=28)
+        summary.add_column("Value", style="white", width=20)
+
+        summary.add_row("Period", f"Last {days} days")
+        summary.add_row("Companies Scraped", str(companies_total))
+        summary.add_row(
+            "Fetch Failures", f"[{'red' if fetch_failures > 5 else 'dim'}]{fetch_failures}[/]"
+        )
+        summary.add_row("", "")
+        summary.add_row("Regex Jobs Found", str(total_regex))
+        summary.add_row("LLM Jobs Found", str(total_llm))
+        summary.add_row("Total Jobs", f"[bold]{total_jobs}[/bold]")
+        summary.add_row("LLM Coverage", f"{companies_with_llm}/{companies_total} companies")
+        summary.add_row("", "")
+        summary.add_row("Monthly LLM Cost", f"[green]${monthly_cost:.2f}[/green]")
+        if total_llm > 0 and monthly_cost > 0:
+            cost_per_llm_job = monthly_cost / total_llm
+            summary.add_row("Cost per LLM Job", f"${cost_per_llm_job:.4f}")
+
+        # Model breakdown
+        for model, cost in sorted(model_costs.items()):
+            calls = model_calls[model]
+            model_short = model.split("/")[-1] if "/" in model else model
+            summary.add_row(f"  {model_short}", f"${cost:.4f} ({calls} calls)")
+
+        console.print(summary)
+
+        # Per-company comparison table
+        console.print(f"\n[bold]Per-Company Breakdown[/bold] (last {days} days):\n")
+
+        company_table = Table(box=box.ROUNDED, show_header=True, header_style=TABLE_HEADER_STYLE)
+        company_table.add_column("Company", style="white", width=30)
+        company_table.add_column("Regex", style="cyan", justify="right", width=7)
+        company_table.add_column("LLM", style="yellow", justify="right", width=7)
+        company_table.add_column("Total", style="bold", justify="right", width=7)
+        company_table.add_column("LLM %", justify="right", width=8)
+        company_table.add_column("Backend", style="dim", width=12)
+        company_table.add_column("Date", style="dim", width=10)
+
+        # Sort by total jobs descending
+        sorted_companies = sorted(
+            latest_by_company.items(), key=lambda x: x[1]["total_jobs_found"], reverse=True
+        )
+
+        for name, m in sorted_companies:
+            regex = m["regex_jobs_found"]
+            llm = m["llm_jobs_found"]
+            total = m["total_jobs_found"]
+            backend = m.get("scraper_backend", "")
+
+            if total > 0 and llm > 0:
+                llm_pct = f"{llm / total * 100:.0f}%"
+                # Color: green if LLM found jobs regex missed
+                llm_color = "green" if llm > regex else "yellow" if llm == regex else "dim"
+                llm_str = f"[{llm_color}]{llm}[/{llm_color}]"
+            elif total == 0:
+                llm_pct = "[dim]-[/dim]"
+                llm_str = "[dim]0[/dim]"
+            else:
+                llm_pct = "[dim]0%[/dim]"
+                llm_str = "[dim]0[/dim]"
+
+            company_table.add_row(
+                name[:30], str(regex), llm_str, str(total), llm_pct, backend, m["scrape_date"]
+            )
+
+        console.print(company_table)
+
+        console.print(
+            f"\n[dim]Showing {len(sorted_companies)} companies | "
+            f"Actions: \\[7] 7 days | \\[30] 30 days | \\[90] 90 days | \\[b] Back[/dim]"
+        )
+        choice = Prompt.ask("\n[bold]Action[/bold]", choices=["7", "30", "90", "b"], default="b")
+
+        if choice == "b":
+            return
+
+        days = int(choice)
+        clear_screen()
+        show_header()
+        console.print(SEPARATOR_TOP)
+        console.print("[bold cyan]         📊 EXTRACTION METRICS DASHBOARD          [/bold cyan]")
+        console.print(SEPARATOR_BOTTOM)
+
+
 def _display_llm_budget() -> None:  # pragma: no cover
     """Display LLM budget status section."""
     import json
     from datetime import datetime
     from pathlib import Path
 
-    console.print("[bold yellow]🤖 LLM Extraction (Claude 3.5 Sonnet)[/bold yellow]\n")
+    console.print("[bold yellow]🤖 LLM Extraction (Gemini 2.5 Flash)[/bold yellow]\n")
 
     current_month = datetime.now().strftime("%Y-%m")
     llm_budget_file = Path(f"logs/llm-budget-{current_month}.json")
@@ -1099,6 +1251,7 @@ def select_action() -> str | None:
     table.add_row("3", "Scrape + Digest", "Run scraper then send digest email")
     table.add_row("c", "View Criteria", "Show scoring criteria and grading scale")
     table.add_row("f", "LLM Failures", "Review and retry failed LLM extractions")
+    table.add_row("m", "LLM Metrics", "View regex vs LLM extraction comparison")
     table.add_row("h", "System Health", "View system health and error dashboard")
     table.add_row("b", "Back", "Return to profile selection")
     table.add_row("q", "Quit", "Exit application")
@@ -1107,7 +1260,7 @@ def select_action() -> str | None:
 
     choice = Prompt.ask(
         SELECT_ACTION_PROMPT,
-        choices=["1", "2", "3", "c", "f", "h", "b", "q"],
+        choices=["1", "2", "3", "c", "f", "m", "h", "b", "q"],
         default="3",
     )
 
@@ -1117,6 +1270,7 @@ def select_action() -> str | None:
         "b": "back",
         "c": "criteria",
         "f": "failures",
+        "m": "metrics",
         "h": "health",
         "1": "scrape",
         "2": "digest",
