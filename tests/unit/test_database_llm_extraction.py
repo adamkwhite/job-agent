@@ -296,3 +296,12 @@ class TestJobsExtractionColumns:
 
         assert job_id is not None
         assert job_id > 0
+
+        # Verify extraction_method was actually persisted
+        conn = sqlite3.connect(db.db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT extraction_method FROM jobs WHERE id = ?", (job_id,))
+        row = cursor.fetchone()
+        conn.close()
+        assert row is not None
+        assert row[0] == "llm"

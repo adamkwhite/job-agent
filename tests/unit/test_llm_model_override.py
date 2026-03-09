@@ -23,10 +23,10 @@ class TestLLMExtractorModelOverride:
     def test_default_model_from_config(self, _db, _budget, mock_chat):
         """Should use model from config when no override given."""
         extractor = LLMExtractor()
-        assert extractor.model == "anthropic/claude-3.5-sonnet"
+        assert extractor.model == "google/gemini-2.5-flash"
         mock_chat.assert_called_once()
         call_kwargs = mock_chat.call_args[1]
-        assert call_kwargs["model"] == "anthropic/claude-3.5-sonnet"
+        assert call_kwargs["model"] == "google/gemini-2.5-flash"
 
     @patch("src.extractors.llm_extractor.ChatOpenAI")
     @patch("src.extractors.llm_extractor.LLMBudgetService")
@@ -46,7 +46,7 @@ class TestLLMExtractorModelOverride:
     def test_none_override_uses_config(self, _db, _budget, _chat):
         """Should use config model when override is None."""
         extractor = LLMExtractor(model_override=None)
-        assert extractor.model == "anthropic/claude-3.5-sonnet"
+        assert extractor.model == "google/gemini-2.5-flash"
 
 
 class TestModelPricing:
@@ -56,9 +56,20 @@ class TestModelPricing:
     @patch("src.extractors.llm_extractor.LLMBudgetService")
     @patch("src.extractors.llm_extractor.JobDatabase")
     @patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"})
+    def test_default_gemini_pricing(self, _db, _budget, _chat):
+        """Default model (Gemini Flash) should return $0.30/$2.50 per 1M tokens."""
+        extractor = LLMExtractor()
+        input_rate, output_rate = extractor._get_model_pricing()
+        assert input_rate == 0.30
+        assert output_rate == 2.50
+
+    @patch("src.extractors.llm_extractor.ChatOpenAI")
+    @patch("src.extractors.llm_extractor.LLMBudgetService")
+    @patch("src.extractors.llm_extractor.JobDatabase")
+    @patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"})
     def test_sonnet_pricing(self, _db, _budget, _chat):
         """Sonnet should return $3/$15 per 1M tokens."""
-        extractor = LLMExtractor()
+        extractor = LLMExtractor(model_override="anthropic/claude-3.5-sonnet")
         input_rate, output_rate = extractor._get_model_pricing()
         assert input_rate == 3.00
         assert output_rate == 15.00

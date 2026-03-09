@@ -17,7 +17,7 @@ This includes mandatory workflows for safe refactoring and prevents common issue
 - **Email processors**: LinkedIn, Supra, F6S, Artemis, Built In, Ministry of Testing
 - **Company monitoring**: Firecrawl-based scraping of robotics/deeptech companies
 - **Scoring**: 100-point system with multi-profile scoring and per-profile filtering (Issue #258 fix)
-- **LLM extraction**: Dual regex+LLM via Claude 3.5 Sonnet ($15/month budget)
+- **LLM extraction**: Dual regex+LLM via Google Gemini 2.5 Flash ($5/month budget)
 - **Database**: SQLite with multi-profile scoring and deduplication
 - **Notifications**: A/B grade jobs (70+) only
 - **Automation**: Weekly cron jobs
@@ -205,7 +205,7 @@ PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --a
 - Sends notifications for A/B grade jobs (70+)
 
 ### 7. LLM Extraction Pipeline (PRODUCTION)
-Dual regex+LLM extraction via Claude 3.5 Sonnet. Finds jobs regex misses (e.g., non-standard formats). $15/month budget, 30s timeout. Config: `config/llm-extraction-settings.json`. Toggle with `"enabled": true/false`.
+Dual regex+LLM extraction via Google Gemini 2.5 Flash (switched from Sonnet in Issue #345 — 20x cheaper, same quality). $5/month budget, 30s timeout. Config: `config/llm-extraction-settings.json`. Toggle with `"enabled": true/false`. Use `--llm-model` CLI flag to override (e.g., `--llm-model anthropic/claude-3.5-sonnet`).
 
 ### 8. Independent Re-scoring Utility (`src/utils/rescore_jobs.py`) **Issue #184 Phase 4**
 Re-score existing jobs without re-scraping. Useful for:
