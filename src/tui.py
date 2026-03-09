@@ -931,21 +931,26 @@ def review_llm_failures():  # pragma: no cover
         # Display failures table
         table = Table(box=box.ROUNDED, show_header=True, header_style=TABLE_HEADER_STYLE)
         table.add_column("#", style="cyan", width=4)
-        table.add_column("Company", style="white", width=25)
-        table.add_column("Failure Reason", style="yellow", width=30)
-        table.add_column("Occurred", style="dim", width=12)
+        table.add_column("Company", style="white", width=20)
+        table.add_column("Failure Reason", style="yellow", width=20)
+        table.add_column("Careers URL", style="dim", width=35)
+        table.add_column("Occurred", style="dim", width=10)
 
         for idx, failure in enumerate(failures[:20], 1):  # Show first 20
             occurred = failure["occurred_at"][:10] if failure["occurred_at"] else "Unknown"
             reason = (
-                (failure["failure_reason"][:27] + "...")
-                if len(failure["failure_reason"]) > 30
+                (failure["failure_reason"][:17] + "...")
+                if len(failure["failure_reason"]) > 20
                 else failure["failure_reason"]
             )
+            url = failure.get("careers_url") or ""
+            if len(url) > 35:
+                url = url[:32] + "..."
             table.add_row(
                 str(idx),
                 failure["company_name"],
                 reason,
+                url,
                 occurred,
             )
 
@@ -1006,8 +1011,11 @@ def _review_single_failure(db, failures):  # pragma: no cover
     detail_table.add_column("Value", style="white")
 
     detail_table.add_row("Company", failure["company_name"])
+    detail_table.add_row("Careers URL", failure.get("careers_url") or "N/A")
     detail_table.add_row("Occurred At", failure["occurred_at"] or "Unknown")
     detail_table.add_row("Failure Reason", failure["failure_reason"])
+    if failure.get("error_details"):
+        detail_table.add_row("Error Details", failure["error_details"][:200])
     detail_table.add_row("Markdown Path", failure["markdown_path"] or "N/A")
 
     console.print(detail_table)

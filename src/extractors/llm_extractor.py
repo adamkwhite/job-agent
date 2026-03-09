@@ -175,12 +175,18 @@ class LLMExtractor(object):  # noqa: UP004
                 model=self.model,
             )
 
-    def extract_jobs(self, markdown: str, company_name: str) -> list[OpportunityData]:
+    def extract_jobs(
+        self,
+        markdown: str,
+        company_name: str,
+        careers_url: str | None = None,
+    ) -> list[OpportunityData]:
         """Extract leadership jobs from markdown using LLM
 
         Args:
             markdown: Career page markdown content
             company_name: Company name for context
+            careers_url: URL of the careers page (for failure tracking)
 
         Returns:
             List of extracted job opportunities
@@ -195,7 +201,7 @@ class LLMExtractor(object):  # noqa: UP004
             return []
 
         try:
-            jobs = self._run_llm_extraction(markdown, company_name)
+            jobs = self._run_llm_extraction(markdown, company_name, careers_url=careers_url)
             return jobs
 
         except TimeoutError:
@@ -206,18 +212,25 @@ class LLMExtractor(object):  # noqa: UP004
             # Store failure in database
             self.database.store_llm_failure(
                 company_name=company_name,
+                careers_url=careers_url,
                 failure_reason=type(e).__name__,
                 error_details=str(e),
             )
 
             return []
 
-    def _run_llm_extraction(self, markdown: str, company_name: str) -> list[OpportunityData]:
+    def _run_llm_extraction(
+        self,
+        markdown: str,
+        company_name: str,
+        careers_url: str | None = None,
+    ) -> list[OpportunityData]:
         """Execute LLM extraction call and process response.
 
         Args:
             markdown: Career page markdown content
             company_name: Company name for context
+            careers_url: URL of the careers page (for failure tracking)
 
         Returns:
             List of extracted job opportunities
@@ -262,6 +275,7 @@ Do not include any other text, explanations, or markdown formatting. Return ONLY
             logger.error(f"{error_msg} for {company_name}")
             self.database.store_llm_failure(
                 company_name=company_name,
+                careers_url=careers_url,
                 failure_reason="Timeout",
                 error_details=error_msg,
             )
