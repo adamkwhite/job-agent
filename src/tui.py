@@ -1123,126 +1123,13 @@ def _skip_all_failures(db, failures):  # pragma: no cover
         input(PRESS_ENTER_PROMPT)
 
 
-def _format_failure_row(  # pragma: no cover
-    name: str,
-    failures_count: int,
-    error: str | None,
-    checked: str | None,
-    disabled_at: str | None,
-) -> tuple[str, str, str, str, str]:
-    """Format a single company failure row for the table."""
-    if failures_count >= 5 or disabled_at:
-        status = "[red]Disabled[/red]"
-    elif failures_count >= 3:
-        status = "[yellow]At Risk[/yellow]"
-    else:
-        status = "[dim]Active[/dim]"
-
-    error_msg = error if error else "Unknown"
-    if len(error_msg) > 32:
-        error_msg = error_msg[:29] + "..."
-
-    checked_display = checked[:10] if checked else "Never"
-
-    if failures_count >= 5:
-        failure_display = f"[red]{failures_count}/5[/red]"
-    elif failures_count >= 3:
-        failure_display = f"[yellow]{failures_count}/5[/yellow]"
-    else:
-        failure_display = f"[dim]{failures_count}/5[/dim]"
-
-    return (name, failure_display, status, error_msg, checked_display)
-
-
-def _print_failure_action_suggestions(auto_disabled: int, at_risk: int) -> None:  # pragma: no cover
-    """Print recommended actions for company failures."""
-    console.print("\n[bold yellow]💡 Recommended Actions:[/bold yellow]")
-    if auto_disabled > 0:
-        console.print(
-            "  • [red]Auto-disabled companies:[/red] Review career page URLs, re-enable with SQL, or remove from monitoring"
-        )
-    if at_risk > 0:
-        console.print(
-            "  • [yellow]At-risk companies:[/yellow] Check logs/scraper_failures.log for patterns"
-        )
-    console.print("  • [dim]View logs:[/dim] tail -50 logs/scraper_failures.log")
-    console.print(
-        "  • [dim]Re-enable company:[/dim] UPDATE companies SET active=1, consecutive_failures=0 WHERE name='CompanyName'"
-    )
-
-
 def review_company_failures():  # pragma: no cover
-    """Display detailed view of company scraper failures
+    """Redirect to unified company management flow.
 
-    Note: TUI functions are excluded from coverage requirements as they will be
-    replaced with Textual framework (Issue #119). Manual testing confirms functionality.
+    Previously a separate list-only view; now routes to manage_companies()
+    which handles both auto-discovered and failing companies interactively.
     """
-    import sqlite3
-
-    from database import JobDatabase
-
-    db = JobDatabase()
-    conn = sqlite3.connect(db.db_path)
-    cursor = conn.cursor()
-
-    console.clear()
-    console.print(MAGENTA_SEPARATOR_TOP)
-    console.print("[bold magenta]         COMPANY SCRAPER FAILURES REVIEW         [/bold magenta]")
-    console.print(MAGENTA_SEPARATOR_BOTTOM)
-
-    # Get companies with failures
-    cursor.execute("""
-        SELECT
-            name,
-            consecutive_failures,
-            last_failure_reason,
-            last_checked,
-            active,
-            auto_disabled_at
-        FROM companies
-        WHERE consecutive_failures > 0
-        ORDER BY consecutive_failures DESC, name ASC
-    """)
-    failures = cursor.fetchall()
-    conn.close()
-
-    if not failures:
-        console.print("[green]✅ No company scraper failures! All companies healthy.[/green]\n")
-        press_enter_to_continue()
-        return
-
-    # Summary stats
-    at_risk = sum(1 for f in failures if 3 <= f[1] < 5 and f[4] == 1)
-    auto_disabled = sum(1 for f in failures if f[1] >= 5 or f[5] is not None)
-    active_failures = sum(1 for f in failures if f[4] == 1)
-
-    console.print(
-        f"[bold yellow]📊 Summary:[/bold yellow] {len(failures)} companies with failures\n"
-    )
-    console.print(f"  • [yellow]At Risk (3-4 failures):[/yellow] {at_risk} companies")
-    console.print(f"  • [red]Auto-Disabled (5+ failures):[/red] {auto_disabled} companies")
-    console.print(f"  • [dim]Active with failures:[/dim] {active_failures} companies\n")
-
-    # Display failures table
-    table = Table(box=box.ROUNDED, show_header=True, header_style=TABLE_HEADER_STYLE)
-    table.add_column("Company", style="white", width=25)
-    table.add_column("Failures", style="yellow", width=10, justify="center")
-    table.add_column("Status", style="white", width=12)
-    table.add_column("Last Error", style="dim", width=35)
-    table.add_column("Last Checked", style="dim", width=12)
-
-    for name, failures_count, error, checked, _active, disabled_at in failures[:30]:
-        row = _format_failure_row(name, failures_count, error, checked, disabled_at)
-        table.add_row(*row)
-
-    console.print(table)
-
-    if len(failures) > 30:
-        console.print(f"\n[dim]Showing 30 of {len(failures)} companies with failures...[/dim]")
-
-    _print_failure_action_suggestions(auto_disabled, at_risk)
-
-    press_enter_to_continue()
+    manage_companies()
 
 
 def select_action() -> str | None:
@@ -1533,48 +1420,121 @@ def send_digest(
         return success_count > 0
 
 
-def manage_companies():
-    """Review and manage auto-discovered companies"""
+def manage_companies():  # pragma: no cover
+    """Review and manage auto-discovered companies and companies with failures"""
+    import sqlite3
+
     console.print(SEPARATOR_TOP)
-    console.print("[bold cyan]Company Management - Auto-Discovered Companies[/bold cyan]")
+    console.print("[bold cyan]Company Management[/bold cyan]")
     console.print(SEPARATOR_BOTTOM)
 
-    # Get all inactive companies with auto-discovery notes
     company_service = CompanyService()
     all_companies = company_service.get_all_companies(active_only=False)
 
+    # Auto-discovered (inactive, pending review)
     auto_discovered = [
         c for c in all_companies if c.get("active") == 0 and "Auto-discovered" in c.get("notes", "")
     ]
 
-    if not auto_discovered:
-        console.print("\n[green]✓ No auto-discovered companies pending review![/green]")
-        console.print(
-            "\n[dim]Companies are auto-discovered when jobs are scraped from emails.[/dim]"
-        )
+    # Companies with failures (active or auto-disabled)
+    conn = sqlite3.connect(company_service.db_path)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, name, careers_url, consecutive_failures, last_failure_reason,
+               last_checked, active, auto_disabled_at, notes, created_at, updated_at
+        FROM companies
+        WHERE consecutive_failures > 0
+        ORDER BY consecutive_failures DESC, name ASC
+    """)
+    failure_rows = cursor.fetchall()
+    conn.close()
+
+    failing_companies = [
+        {
+            "id": r[0],
+            "name": r[1],
+            "careers_url": r[2],
+            "consecutive_failures": r[3],
+            "last_failure_reason": r[4],
+            "last_checked": r[5],
+            "active": r[6],
+            "auto_disabled_at": r[7],
+            "notes": r[8],
+            "created_at": r[9],
+            "updated_at": r[10],
+            "_review_type": "failure",
+        }
+        for r in failure_rows
+    ]
+
+    if not auto_discovered and not failing_companies:
+        console.print("[green]✓ No companies pending review and no failures![/green]")
         press_enter_to_continue()
         return
 
-    console.print(
-        f"\n[yellow]Found {len(auto_discovered)} auto-discovered companies pending review[/yellow]\n"
-    )
+    # Show summary
+    if auto_discovered:
+        console.print(
+            f"  [yellow]📋 Auto-discovered (pending review):[/yellow] {len(auto_discovered)}"
+        )
+    if failing_companies:
+        at_risk = sum(
+            1 for c in failing_companies if 3 <= c["consecutive_failures"] < 5 and c["active"] == 1
+        )
+        disabled = sum(
+            1 for c in failing_companies if c["consecutive_failures"] >= 5 or c["auto_disabled_at"]
+        )
+        console.print(f"  [red]⚠ Companies with failures:[/red] {len(failing_companies)}")
+        if at_risk:
+            console.print(f"    [yellow]At risk (3-4 failures):[/yellow] {at_risk}")
+        if disabled:
+            console.print(f"    [red]Auto-disabled (5+):[/red] {disabled}")
+    console.print()
 
-    # Display summary table
+    # Build summary table
     table = Table(box=box.ROUNDED, show_header=True, header_style=TABLE_HEADER_STYLE)
     table.add_column("#", style="cyan", width=5)
-    table.add_column("Company Name", style="green", width=30)
-    table.add_column("Discovered", style="blue", width=20)
-    table.add_column("Source", style="yellow", width=20)
+    table.add_column("Company Name", style="white", width=28)
+    table.add_column("Status", style="white", width=16)
+    table.add_column("Failures", style="yellow", width=10, justify="center")
+    table.add_column("Last Error", style="dim", width=25)
 
-    for i, company in enumerate(auto_discovered, 1):
-        created_at = company.get("created_at", "")[:10]  # Just the date
-        source = "Email" if "email" in company.get("notes", "").lower() else "Unknown"
-        table.add_row(str(i), company.get("name", "Unknown"), created_at, source)
+    # Tag auto-discovered companies for unified list
+    for c in auto_discovered:
+        c["_review_type"] = "discovered"
+        c["consecutive_failures"] = 0
+        c["last_failure_reason"] = None
+
+    combined = auto_discovered + failing_companies
+    for i, company in enumerate(combined, 1):
+        review_type = company.get("_review_type", "")
+        failures = company.get("consecutive_failures", 0)
+
+        if review_type == "discovered":
+            status = "[cyan]Pending Review[/cyan]"
+            failure_display = "[dim]-[/dim]"
+            error_display = "[dim]-[/dim]"
+        elif failures >= 5 or company.get("auto_disabled_at"):
+            status = "[red]Disabled[/red]"
+            failure_display = f"[red]{failures}/5[/red]"
+            error_msg = company.get("last_failure_reason") or "Unknown"
+            error_display = error_msg[:22] + "..." if len(error_msg) > 25 else error_msg
+        elif failures >= 3:
+            status = "[yellow]At Risk[/yellow]"
+            failure_display = f"[yellow]{failures}/5[/yellow]"
+            error_msg = company.get("last_failure_reason") or "Unknown"
+            error_display = error_msg[:22] + "..." if len(error_msg) > 25 else error_msg
+        else:
+            status = "[dim]Active[/dim]"
+            failure_display = f"[dim]{failures}/5[/dim]"
+            error_msg = company.get("last_failure_reason") or "Unknown"
+            error_display = error_msg[:22] + "..." if len(error_msg) > 25 else error_msg
+
+        table.add_row(
+            str(i), company.get("name", "Unknown"), status, failure_display, error_display
+        )
 
     console.print(table)
-    console.print(
-        "\n[dim]These companies were automatically discovered from job postings but need manual review.[/dim]"
-    )
 
     # Review options
     console.print("\n[bold]Actions:[/bold]")
@@ -1587,13 +1547,13 @@ def manage_companies():
     if choice == "b":
         return
     elif choice == "l":
-        _list_companies_detailed(auto_discovered)
+        _list_companies_detailed(combined)
         press_enter_to_continue()
     elif choice == "r":
-        _review_companies_interactive(auto_discovered, company_service)
+        _review_companies_interactive(combined, company_service)
 
 
-def _list_companies_detailed(companies: list[dict]):
+def _list_companies_detailed(companies: list[dict]):  # pragma: no cover
     """Display detailed list of companies"""
     console.print(SEPARATOR_FULL)
     console.print("[bold cyan]Detailed Company List[/bold cyan]\n")
@@ -1602,25 +1562,36 @@ def _list_companies_detailed(companies: list[dict]):
         console.print(f"\n[bold cyan]{i}. {company.get('name', 'Unknown')}[/bold cyan]")
         console.print(f"   ID: {company.get('id')}")
         console.print(f"   Created: {company.get('created_at', 'Unknown')}")
-        console.print(f"   Placeholder URL: {company.get('careers_url', 'None')}")
+        console.print(f"   URL: {company.get('careers_url', 'None')}")
         console.print(f"   Notes: {company.get('notes', 'None')}")
+        failures = company.get("consecutive_failures", 0)
+        if failures > 0:
+            console.print(f"   [yellow]Failures: {failures}/5[/yellow]")
+            console.print(f"   Last Error: {company.get('last_failure_reason', 'Unknown')}")
+            console.print(f"   Last Checked: {company.get('last_checked', 'Never')}")
 
 
 def _review_companies_interactive(companies: list[dict], company_service: CompanyService):
-    """Review companies one by one interactively"""
+    """Review companies one by one interactively (discovered + failing)"""  # pragma: no cover
+    import sqlite3
+
     total = len(companies)
     activated = 0
     skipped = 0
     deleted = 0
+    reset = 0
+    reviewed = 0
 
     for i, company in enumerate(companies, 1):
+        reviewed = i
         console.print(SEPARATOR_FULL)
         console.print(f"[bold cyan]Company {i} of {total}[/bold cyan]\n")
 
-        # Look up source email from jobs table
-        import sqlite3
-
         company_name = company.get("name", "Unknown")
+        is_failure = company.get("_review_type") == "failure"
+        failures = company.get("consecutive_failures", 0)
+
+        # Look up source email from jobs table
         source_info = ""
         try:
             conn = sqlite3.connect(company_service.db_path)
@@ -1639,29 +1610,55 @@ def _review_companies_interactive(companies: list[dict], company_service: Compan
         except Exception:
             pass
 
-        # Display company details
+        # Build panel content based on review type
+        failure_info = ""
+        if is_failure:
+            status_label = (
+                "[red]Disabled[/red]"
+                if failures >= 5 or company.get("auto_disabled_at")
+                else ("[yellow]At Risk[/yellow]" if failures >= 3 else "[dim]Active[/dim]")
+            )
+            failure_info = f"""
+
+[red]Failure Info:[/red]
+  Status: {status_label}
+  Consecutive Failures: {failures}/5
+  Last Error: {company.get("last_failure_reason", "Unknown")}
+  Last Checked: {company.get("last_checked", "Never")}"""
+            if company.get("auto_disabled_at"):
+                failure_info += f"\n  Auto-Disabled: {company.get('auto_disabled_at')}"
+
         panel_content = f"""[bold green]{company_name}[/bold green]
 
 [yellow]Details:[/yellow]
   ID: {company.get("id")}
   Created: {company.get("created_at", "Unknown")}
-  Current URL: {company.get("careers_url", "None")}{source_info}
+  Current URL: {company.get("careers_url", "None")}{source_info}{failure_info}
 
 [yellow]Notes:[/yellow]
   {company.get("notes", "None")}"""
 
-        console.print(Panel(panel_content, title="Company Information", border_style="cyan"))
+        border = "red" if is_failure and failures >= 5 else "yellow" if is_failure else "cyan"
+        title = "Company with Failures" if is_failure else "Auto-Discovered Company"
+        console.print(Panel(panel_content, title=title, border_style=border))
 
-        # Action options
+        # Action options - different for discovered vs failing
         console.print("\n[bold]Actions:[/bold]")
-        console.print("  [green]a[/green] - Activate (requires careers URL)")
-        console.print("  [yellow]s[/yellow] - Skip for now")
-        console.print("  [red]d[/red] - Delete (not relevant)")
-        console.print("  [cyan]q[/cyan] - Quit review")
+        if is_failure:
+            console.print("  [green]r[/green] - Reset failures (re-enable scraping)")
+            console.print("  [cyan]u[/cyan] - Update careers URL")
+            console.print("  [yellow]s[/yellow] - Skip for now")
+            console.print("  [red]d[/red] - Disable permanently")
+            console.print("  [cyan]q[/cyan] - Quit review")
+            choices = ["r", "u", "s", "d", "q"]
+        else:
+            console.print("  [green]a[/green] - Activate (requires careers URL)")
+            console.print("  [yellow]s[/yellow] - Skip for now")
+            console.print("  [red]d[/red] - Delete (not relevant)")
+            console.print("  [cyan]q[/cyan] - Quit review")
+            choices = ["a", "s", "d", "q"]
 
-        action = Prompt.ask(
-            "\n[bold]Choose action[/bold]", choices=["a", "s", "d", "q"], default="s"
-        )
+        action = Prompt.ask("\n[bold]Choose action[/bold]", choices=choices, default="s")
 
         if action == "q":
             break
@@ -1669,69 +1666,147 @@ def _review_companies_interactive(companies: list[dict], company_service: Compan
             skipped += 1
             console.print("[yellow]⊘ Skipped[/yellow]")
         elif action == "d":
-            if Confirm.ask(f"\n[red]Delete '{company.get('name')}'?[/red]", default=False):
-                # Delete company from database
-                import sqlite3
-
-                conn = sqlite3.connect(company_service.db_path)
-                cursor = conn.cursor()
-                cursor.execute("DELETE FROM companies WHERE id = ?", (company.get("id"),))
-                conn.commit()
-                conn.close()
-                deleted += 1
-                console.print("[red]✓ Deleted[/red]")
+            _handle_delete_company(company, company_service, is_failure)
+            deleted += 1
+        elif action == "r" and is_failure:
+            _handle_reset_failures(company, company_service)
+            reset += 1
+        elif action == "u" and is_failure:
+            result = _handle_update_url(company, company_service)
+            if result:
+                reset += 1
             else:
-                console.print("[yellow]⊘ Skipped deletion[/yellow]")
                 skipped += 1
-        elif action == "a":
-            # Activate company
-            console.print("\n[bold yellow]Activating company...[/bold yellow]")
-            careers_url = Prompt.ask(
-                "\n[bold]Enter careers page URL[/bold]",
-                default=company.get("careers_url", ""),
-            )
-
-            if careers_url and careers_url != "https://placeholder.com/careers":
-                # Update company
-                import sqlite3
-                from datetime import datetime
-
-                conn = sqlite3.connect(company_service.db_path)
-                cursor = conn.cursor()
-
-                now = datetime.now().isoformat()
-                cursor.execute(
-                    """
-                    UPDATE companies
-                    SET careers_url = ?, active = 1, notes = ?, updated_at = ?
-                    WHERE id = ?
-                """,
-                    (
-                        careers_url,
-                        f"Activated from TUI on {now}. Originally: {company.get('notes', '')}",
-                        now,
-                        company.get("id"),
-                    ),
-                )
-                conn.commit()
-                conn.close()
-
+        elif action == "a" and not is_failure:
+            result = _handle_activate_company(company, company_service)
+            if result:
                 activated += 1
-                console.print(f"[green]✓ Activated: {company.get('name')}[/green]")
-                console.print(f"[dim]   URL: {careers_url}[/dim]")
             else:
-                console.print("[yellow]⊘ Activation cancelled (invalid URL)[/yellow]")
                 skipped += 1
 
     # Summary
     console.print(SEPARATOR_FULL)
     console.print("[bold green]Review Summary[/bold green]\n")
-    console.print(f"  Companies reviewed: {i}/{total}")
+    console.print(f"  Companies reviewed: {reviewed}/{total}")
     console.print(f"  [green]Activated:[/green] {activated}")
+    if reset > 0:
+        console.print(f"  [green]Reset/Updated:[/green] {reset}")
     console.print(f"  [yellow]Skipped:[/yellow] {skipped}")
-    console.print(f"  [red]Deleted:[/red] {deleted}")
+    console.print(f"  [red]Deleted/Disabled:[/red] {deleted}")
 
     press_enter_to_continue()
+
+
+def _handle_delete_company(  # pragma: no cover
+    company: dict, company_service: CompanyService, is_failure: bool
+) -> None:
+    """Handle delete/disable action for a company."""
+    import sqlite3
+
+    label = "Disable" if is_failure else "Delete"
+    if Confirm.ask(f"\n[red]{label} '{company.get('name')}'?[/red]", default=False):
+        conn = sqlite3.connect(company_service.db_path)
+        cursor = conn.cursor()
+        if is_failure:
+            cursor.execute(
+                "UPDATE companies SET active = 0, notes = ? WHERE id = ?",
+                (f"Manually disabled from TUI. {company.get('notes', '')}", company.get("id")),
+            )
+        else:
+            cursor.execute("DELETE FROM companies WHERE id = ?", (company.get("id"),))
+        conn.commit()
+        conn.close()
+        console.print(f"[red]✓ {label}d[/red]")
+    else:
+        console.print(f"[yellow]⊘ {label} cancelled[/yellow]")
+
+
+def _handle_reset_failures(
+    company: dict, company_service: CompanyService
+) -> None:  # pragma: no cover
+    """Reset consecutive failures and re-enable a company."""
+    import sqlite3
+    from datetime import datetime
+
+    conn = sqlite3.connect(company_service.db_path)
+    cursor = conn.cursor()
+    now = datetime.now().isoformat()
+    cursor.execute(
+        """UPDATE companies
+           SET consecutive_failures = 0, active = 1, auto_disabled_at = NULL, updated_at = ?
+           WHERE id = ?""",
+        (now, company.get("id")),
+    )
+    conn.commit()
+    conn.close()
+    console.print(f"[green]✓ Reset failures for {company.get('name')} — re-enabled[/green]")
+
+
+def _handle_update_url(company: dict, company_service: CompanyService) -> bool:  # pragma: no cover
+    """Update careers URL and reset failures. Returns True if updated."""
+    import sqlite3
+    from datetime import datetime
+
+    careers_url = Prompt.ask(
+        "\n[bold]Enter new careers page URL[/bold]",
+        default=company.get("careers_url", ""),
+    )
+    if not careers_url or careers_url == company.get("careers_url"):
+        console.print("[yellow]⊘ URL unchanged[/yellow]")
+        return False
+
+    conn = sqlite3.connect(company_service.db_path)
+    cursor = conn.cursor()
+    now = datetime.now().isoformat()
+    cursor.execute(
+        """UPDATE companies
+           SET careers_url = ?, consecutive_failures = 0, active = 1,
+               auto_disabled_at = NULL, updated_at = ?
+           WHERE id = ?""",
+        (careers_url, now, company.get("id")),
+    )
+    conn.commit()
+    conn.close()
+    console.print(f"[green]✓ Updated URL and reset failures for {company.get('name')}[/green]")
+    console.print(f"[dim]   New URL: {careers_url}[/dim]")
+    return True
+
+
+def _handle_activate_company(  # pragma: no cover
+    company: dict, company_service: CompanyService
+) -> bool:
+    """Activate an auto-discovered company. Returns True if activated."""
+    import sqlite3
+    from datetime import datetime
+
+    careers_url = Prompt.ask(
+        "\n[bold]Enter careers page URL[/bold]",
+        default=company.get("careers_url", ""),
+    )
+
+    if careers_url and careers_url != "https://placeholder.com/careers":
+        conn = sqlite3.connect(company_service.db_path)
+        cursor = conn.cursor()
+        now = datetime.now().isoformat()
+        cursor.execute(
+            """UPDATE companies
+               SET careers_url = ?, active = 1, notes = ?, updated_at = ?
+               WHERE id = ?""",
+            (
+                careers_url,
+                f"Activated from TUI on {now}. Originally: {company.get('notes', '')}",
+                now,
+                company.get("id"),
+            ),
+        )
+        conn.commit()
+        conn.close()
+        console.print(f"[green]✓ Activated: {company.get('name')}[/green]")
+        console.print(f"[dim]   URL: {careers_url}[/dim]")
+        return True
+
+    console.print("[yellow]⊘ Activation cancelled (invalid URL)[/yellow]")
+    return False
 
 
 def main():  # pragma: no cover
