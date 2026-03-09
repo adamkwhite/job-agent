@@ -365,9 +365,27 @@ class BaseCareerScraper(ABC):
 
     @staticmethod
     def _extract_department_names(markdown: str) -> list[str]:
-        """Extract department names from ## headers for title cleanup"""
+        """Extract department names from ## headers for title cleanup.
+
+        Also extracts sub-departments when one header is a prefix of another:
+        '## Data & Engineering' + '## Data & EngineeringInfrastructure'
+        → extracts 'Infrastructure' as a sub-department.
+        """
         dept_pattern = re.compile(r"^##\s+([^\n#]+)$", re.MULTILINE)
-        return [d.strip() for d in dept_pattern.findall(markdown) if len(d.strip()) > 1]
+        raw_depts = [d.strip() for d in dept_pattern.findall(markdown) if len(d.strip()) > 1]
+
+        all_depts = set(raw_depts)
+
+        # Extract sub-departments: if one header is a prefix of another,
+        # the remainder is a sub-department worth trying as a suffix
+        for dept in raw_depts:
+            for other in raw_depts:
+                if other != dept and dept.startswith(other) and len(dept) > len(other):
+                    sub_dept = dept[len(other) :].strip()
+                    if len(sub_dept) > 1:
+                        all_depts.add(sub_dept)
+
+        return list(all_depts)
 
     @staticmethod
     def _parse_inline_link_text(text: str, dept_names: list[str]) -> tuple[str, str]:
@@ -388,6 +406,18 @@ class BaseCareerScraper(ABC):
             if raw_title.endswith(dept) and len(raw_title) > len(dept):
                 title = raw_title[: -len(dept)].strip()
                 break
+
+        # Fallback: detect concatenation boundary where lowercase meets uppercase
+        # without a space (e.g., "WorkflowsSales" → split at s|S boundary).
+        # Uses the LAST such boundary since the department is appended at the end.
+        if title == raw_title:
+            boundaries = list(re.finditer(r"[a-z][A-Z]", raw_title))
+            if boundaries:
+                split_pos = boundaries[-1].start() + 1
+                candidate = raw_title[:split_pos]
+                remainder = raw_title[split_pos:]
+                if len(candidate) >= 5 and len(remainder) >= 3:
+                    title = candidate.strip()
 
         # Find location from remaining parts
         location = ""
