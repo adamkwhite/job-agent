@@ -1,30 +1,22 @@
 """
 Pytest configuration for exploration tests.
 
-These are experimental/research tests that may have optional dependencies
-not included in requirements.txt. Tests will be skipped if dependencies
-are missing.
+These are experimental/research scripts that may have optional dependencies
+or require local cache files (data/firecrawl_cache/) not present in CI.
+Scripts that run code at module level are excluded from collection entirely.
 """
 
-import pytest
+from pathlib import Path
 
+# Exclude scripts that execute code at module level and require local files.
+# These are research scripts, not proper pytest test cases.
+collect_ignore = [
+    "run_claude_test.py",
+    "test_claude_extraction.py",
+    "test_scrapegraph_extraction.py",
+]
 
-def pytest_configure(config):
-    """Register custom markers for exploration tests."""
-    config.addinivalue_line(
-        "markers",
-        "requires_scrapegraphai: mark test as requiring scrapegraphai package (may be skipped)",
-    )
-
-
-def pytest_collection_modifyitems(config, items):  # noqa: ARG001
-    """Skip exploration tests with missing dependencies."""
-    skip_scrapegraphai = pytest.mark.skip(reason="scrapegraphai not available or incompatible")
-
-    for item in items:
-        # Skip test_llm_extraction.py if scrapegraphai import fails
-        if "test_llm_extraction" in str(item.fspath):
-            try:
-                from scrapegraphai.graphs import SmartScraperGraph  # noqa: F401
-            except ImportError:
-                item.add_marker(skip_scrapegraphai)
+# Also skip test_llm_extraction.py if the cache file is missing
+_cache_file = Path("data/firecrawl_cache/boston_dynamics_20251130.md")
+if not _cache_file.exists():
+    collect_ignore.append("test_llm_extraction.py")
