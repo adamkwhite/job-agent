@@ -1552,21 +1552,60 @@ def manage_companies():  # pragma: no cover
 
     console.print(table)
 
-    # Review options
+    # Inline action loop
     console.print("\n[bold]Actions:[/bold]")
-    console.print("  [cyan]r[/cyan] - Review companies one by one")
-    console.print("  [cyan]l[/cyan] - List all with details")
-    console.print("  [cyan]b[/cyan] - Back to main menu")
+    console.print("  [green]a#[/green]  - Activate company # (e.g. a5)")
+    console.print("  [red]d#[/red]  - Delete/disable company # (e.g. d3)")
+    console.print("  [cyan]r#[/cyan]  - Reset failures for company # (e.g. r7)")
+    console.print("  [cyan]r[/cyan]   - Review all one by one")
+    console.print("  [cyan]b[/cyan]   - Back to main menu")
 
-    choice = Prompt.ask(SELECT_ACTION_PROMPT, choices=["r", "l", "b"], default="r")
+    _inline_company_actions(combined, company_service)
 
-    if choice == "b":
-        return
-    elif choice == "l":
-        _list_companies_detailed(combined)
-        press_enter_to_continue()
-    elif choice == "r":
-        _review_companies_interactive(combined, company_service)
+
+def _inline_company_actions(  # pragma: no cover
+    companies: list[dict], company_service: CompanyService
+) -> None:
+    """Process inline actions like a5 (activate #5), d3 (delete #3), r7 (reset #7)."""
+    import re
+
+    while True:
+        choice = Prompt.ask("\n[bold]Action[/bold]", default="b")
+        choice = choice.strip().lower()
+
+        if choice == "b":
+            return
+        if choice == "r":
+            _review_companies_interactive(companies, company_service)
+            return
+
+        # Parse action + number (e.g., "a5", "d12", "r3")
+        match = re.match(r"^([adr])(\d+)$", choice)
+        if not match:
+            console.print("[red]Invalid action. Use a#, d#, r#, r, or b[/red]")
+            continue
+
+        action, num = match.group(1), int(match.group(2))
+        if num < 1 or num > len(companies):
+            console.print(f"[red]Invalid number. Choose 1-{len(companies)}[/red]")
+            continue
+
+        company = companies[num - 1]
+        name = company.get("name", "Unknown")
+        is_failure = company.get("_review_type") == "failure"
+
+        if action == "a":
+            if _handle_activate_company(company, company_service):
+                console.print(f"[green]#{num} {name} activated[/green]")
+            else:
+                console.print(f"[yellow]#{num} {name} not activated[/yellow]")
+        elif action == "d":
+            _handle_delete_company(company, company_service, is_failure)
+        elif action == "r":
+            if is_failure:
+                _handle_reset_failures(company, company_service)
+            else:
+                console.print(f"[yellow]#{num} {name} has no failures to reset[/yellow]")
 
 
 def _list_companies_detailed(companies: list[dict]):  # pragma: no cover
