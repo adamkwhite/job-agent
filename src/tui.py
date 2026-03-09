@@ -1195,7 +1195,7 @@ def review_company_failures():  # pragma: no cover
         SELECT
             name,
             consecutive_failures,
-            last_error,
+            last_failure_reason,
             last_checked,
             active,
             auto_disabled_at
