@@ -1,6 +1,7 @@
 #!/bin/bash
-# Unified weekly scraper runner - Multi-Inbox Mode
-# This script is called by cron
+# Unified daily scraper runner - Multi-Inbox Mode
+# This script is called by cron (daily at 6am)
+# Sends daily digests every run, weekly digests on Mondays only
 
 # Get project root (one level up from scripts/)
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -13,7 +14,7 @@ source job-agent-venv/bin/activate
 export PYTHONPATH="$PROJECT_ROOT"
 
 # Log file
-LOG_FILE="$PROJECT_ROOT/logs/unified_weekly_scraper.log"
+LOG_FILE="$PROJECT_ROOT/logs/unified_scraper.log"
 
 # Timestamp
 echo "========================================" >> "$LOG_FILE"
@@ -36,15 +37,18 @@ if [ $EXIT_CODE -ne 0 ]; then
     echo "SCRAPER FAILED with exit code $EXIT_CODE at $(date)" >> "$LOG_FILE"
 fi
 
-# Generate HTML report (optional - if you use this)
-# echo "" >> "$LOG_FILE"
-# echo "Generating HTML report..." >> "$LOG_FILE"
-# python3 src/generate_jobs_html.py >> "$LOG_FILE" 2>&1
-
-# Send digests to all profiles after scraping
+# Send daily digests (profiles with send_frequency="daily")
 echo "" >> "$LOG_FILE"
-echo "Sending profile digests..." >> "$LOG_FILE"
-python3 src/send_profile_digest.py --all >> "$LOG_FILE" 2>&1
+echo "Sending daily digests..." >> "$LOG_FILE"
+python3 src/send_profile_digest.py --all --frequency daily >> "$LOG_FILE" 2>&1
+
+# On Mondays, also send weekly digests
+DAY_OF_WEEK=$(date +%u)  # 1=Monday
+if [ "$DAY_OF_WEEK" -eq 1 ]; then
+    echo "" >> "$LOG_FILE"
+    echo "Monday - sending weekly digests..." >> "$LOG_FILE"
+    python3 src/send_profile_digest.py --all --frequency weekly >> "$LOG_FILE" 2>&1
+fi
 
 echo "" >> "$LOG_FILE"
 echo "Completed: $(date) (exit code: $EXIT_CODE)" >> "$LOG_FILE"

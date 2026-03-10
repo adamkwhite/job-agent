@@ -20,7 +20,7 @@ This includes mandatory workflows for safe refactoring and prevents common issue
 - **LLM extraction**: Dual regex+LLM via Google Gemini 2.5 Flash ($5/month budget)
 - **Database**: SQLite with multi-profile scoring and deduplication
 - **Notifications**: A/B grade jobs (70+) only
-- **Automation**: Weekly cron jobs
+- **Automation**: Daily cron jobs (full scrape + frequency-aware digests)
 
 ### Project Structure
 - `src/` - Python application source code
@@ -148,9 +148,11 @@ Each scored job includes classification metadata:
 
 ### 3. Email Digest System (`src/send_profile_digest.py`)
 - Generates HTML email with top-scoring jobs
-- Attaches interactive jobs.html file (56KB)
+- **Per-profile digest frequency**: `daily` or `weekly` (set via `digest.send_frequency` in profile JSON)
+- Daily profiles use 2-day lookback, weekly profiles use 7-day lookback
+- `--frequency` CLI flag filters which profiles receive digests
 - Location-based filtering buttons (Remote/Hybrid/Ontario)
-- Sent to wesvanooyen@gmail.com with scoring breakdowns
+- Sent to each profile's email with scoring breakdowns
 
 ### 4. LinkedIn Connections Matching (Issue #134)
 Shows "👥 You have X connections" in digests. Upload CSV via `scripts/upload_connections.py --profile <name> ~/Downloads/Connections.csv`. Automatically included in digests/HTML reports. Files gitignored for privacy.
@@ -191,7 +193,7 @@ PYTHONPATH=$PWD job-agent-venv/bin/python src/jobs/weekly_unified_scraper.py --a
 - Multi-inbox support for simplified automation
 - Configurable thresholds per source
 - Comprehensive stats and logging
-- Cron-friendly for weekly automation
+- Cron-friendly for daily automation
 
 **Scoring thresholds**:
 - Emails: All passing filter
@@ -326,11 +328,13 @@ PYTHONPATH=$PWD job-agent-venv/bin/python src/utils/rescore_jobs.py --mode backf
 ```bash
 PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile <name>
 # Add --dry-run for testing, --all for all profiles
+# Frequency-aware: --all --frequency daily (or weekly)
+# max_age_days auto-set: daily=2, weekly=7 (override with --max-age-days N)
 ```
 
 **Cron Setup**:
 ```bash
-./scripts/setup_unified_weekly_scraper.sh  # Monday 9am automation
+./scripts/setup_unified_weekly_scraper.sh  # Daily 6am automation
 ./scripts/setup_backup_cron.sh             # Daily 3am database backups
 ```
 
