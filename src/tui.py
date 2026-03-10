@@ -1941,6 +1941,9 @@ def _validate_and_setup_profile(profile_id: str, kit) -> None:
 
 def onboard_new_profile():  # pragma: no cover
     """Interactive wizard for creating a new profile via TUI."""
+    scripts_dir = str(Path(__file__).parent.parent / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
 
     from onboard_profile import gather_profile_info, print_onboarding_message
 
