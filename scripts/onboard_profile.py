@@ -12,6 +12,8 @@ Usage:
 import json
 import subprocess
 import sys
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -20,64 +22,89 @@ PROFILES_DIR = PROJECT_ROOT / "profiles"
 VENV_PYTHON = PROJECT_ROOT / "job-agent-venv" / "bin" / "python"
 
 
-def prompt(label: str, default: str = "") -> str:
-    """Prompt user for input with optional default."""
+# ── Prompt abstraction ─────────────────────────────────────────────
+
+
+def _cli_prompt(label: str, default: str = "") -> str:
+    """CLI prompt using input()."""
     suffix = f" [{default}]" if default else ""
     value = input(f"  {label}{suffix}: ").strip()
     return value or default
 
 
-def prompt_list(label: str, default: str = "") -> list[str]:
-    """Prompt for comma-separated list."""
-    raw = prompt(label, default)
+def _cli_prompt_list(label: str, default: str = "") -> list[str]:
+    """CLI prompt for comma-separated list."""
+    raw = _cli_prompt(label, default)
     if not raw:
         return []
     return [item.strip().lower() for item in raw.split(",") if item.strip()]
 
 
-def prompt_yes_no(label: str, default: bool = False) -> bool:
-    """Prompt for yes/no."""
+def _cli_prompt_yes_no(label: str, default: bool = False) -> bool:
+    """CLI yes/no prompt."""
     default_str = "Y/n" if default else "y/N"
-    raw = prompt(f"{label} ({default_str})")
+    raw = _cli_prompt(f"{label} ({default_str})")
     if not raw:
         return default
     return raw.lower().startswith("y")
 
 
-def _gather_scoring_info() -> dict[str, Any]:
+@dataclass
+class PromptKit:
+    """Injectable prompt functions for CLI or TUI use."""
+
+    prompt: Callable[..., str] = field(default_factory=lambda: _cli_prompt)
+    prompt_list: Callable[..., list] = field(default_factory=lambda: _cli_prompt_list)
+    prompt_yes_no: Callable[..., bool] = field(default_factory=lambda: _cli_prompt_yes_no)
+    print_fn: Callable[..., None] = field(default_factory=lambda: print)
+
+
+# Keep backward-compatible module-level aliases
+prompt = _cli_prompt
+prompt_list = _cli_prompt_list
+prompt_yes_no = _cli_prompt_yes_no
+
+
+# ── Data gathering ─────────────────────────────────────────────────
+
+
+def _gather_scoring_info(kit: PromptKit | None = None) -> dict[str, Any]:
     """Gather scoring-related profile fields via prompts."""
-    print("\n--- TARGET ROLES ---")
-    print("  Options: intern, junior, mid-level, senior, staff, lead, principal,")
-    print("           director, senior director, vp, head of, cto, chief")
-    target_seniority = prompt_list("Target seniority (comma-separated)")
+    if kit is None:
+        kit = PromptKit()
 
-    print("\n--- DOMAINS ---")
-    print("  Examples: saas, cloud, ai, robotics, fintech, healthtech, enterprise")
-    domain_keywords = prompt_list("Domain keywords (comma-separated)")
-    exclude_domains = prompt_list("Domains to EXCLUDE (comma-separated)")
+    kit.print_fn("\n--- TARGET ROLES ---")
+    kit.print_fn("  Options: intern, junior, mid-level, senior, staff, lead, principal,")
+    kit.print_fn("           director, senior director, vp, head of, cto, chief")
+    target_seniority = kit.prompt_list("Target seniority (comma-separated)")
 
-    print("\n--- ROLE TYPES ---")
-    print("  Examples: engineering, engineering manager, vp engineering, r&d, cto")
-    eng_roles = prompt_list(
+    kit.print_fn("\n--- DOMAINS ---")
+    kit.print_fn("  Examples: saas, cloud, ai, robotics, fintech, healthtech, enterprise")
+    domain_keywords = kit.prompt_list("Domain keywords (comma-separated)")
+    exclude_domains = kit.prompt_list("Domains to EXCLUDE (comma-separated)")
+
+    kit.print_fn("\n--- ROLE TYPES ---")
+    kit.print_fn("  Examples: engineering, engineering manager, vp engineering, r&d, cto")
+    eng_roles = kit.prompt_list(
         "Engineering leadership roles (comma-separated)",
         "engineering, engineering manager, director engineering, vp engineering, head of engineering",
     )
 
-    print("\n--- COMPANY PREFERENCES ---")
-    print("  Options: startup, seed, series a/b/c/d, growth, private, scale-up, public")
-    company_stage = prompt_list(
+    kit.print_fn("\n--- COMPANY PREFERENCES ---")
+    kit.print_fn("  Options: startup, seed, series a/b/c/d, growth, private, scale-up, public")
+    company_stage = kit.prompt_list(
         "Preferred company stages (comma-separated)", "growth, series b, series c, scale-up"
     )
 
-    print("\n--- LOCATION ---")
-    preferred_cities = prompt_list("Preferred cities (comma-separated)")
-    preferred_regions = prompt_list("Preferred regions (comma-separated)", "ontario, canada")
+    kit.print_fn("\n--- LOCATION ---")
+    preferred_cities = kit.prompt_list("Preferred cities (comma-separated)")
+    preferred_regions = kit.prompt_list("Preferred regions (comma-separated)", "ontario, canada")
 
-    print("\n--- FILTERING ---")
-    print("  conservative: Only filter explicit 'software engineer' IC titles")
-    print("  moderate: Filter engineering roles at software companies")
-    print("  aggressive: Filter any engineering role without hardware keywords")
-    aggression = prompt("Filtering aggression", "conservative")
+    kit.print_fn("\n--- FILTERING ---")
+    kit.print_fn("  conservative: Only filter explicit 'software engineer' IC titles")
+    kit.print_fn("  moderate: Filter engineering roles at software companies")
+    kit.print_fn("  aggressive: Filter any engineering role without hardware keywords")
+    aggression = kit.prompt("Filtering aggression", "conservative")
 
     avoid_keywords = ["junior", "associate", "intern", "coordinator"]
     avoid_keywords.extend(exclude_domains)
@@ -109,13 +136,18 @@ def _gather_scoring_info() -> dict[str, Any]:
     }
 
 
-def _gather_digest_info() -> tuple[dict[str, Any], dict[str, Any]]:
+def _gather_digest_info(kit: PromptKit | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
     """Gather digest and notification settings via prompts."""
-    print("\n--- DIGEST ---")
-    print("  A (85+), B (70+), C (55+), D (40+)")
-    min_grade = prompt("Minimum digest grade", "B").upper()
+    if kit is None:
+        kit = PromptKit()
+
+    kit.print_fn("\n--- DIGEST ---")
+    kit.print_fn("  A (85+), B (70+), C (55+), D (40+)")
+    min_grade = kit.prompt("Minimum digest grade", "B").upper()
     grade_scores = {"A": 85, "B": 70, "C": 55, "D": 40, "F": 0}
-    min_score = int(prompt("Minimum digest score", str(grade_scores.get(min_grade, 70))))
+    min_score = int(kit.prompt("Minimum digest score", str(grade_scores.get(min_grade, 70))))
+
+    frequency = kit.prompt("Digest frequency (daily/weekly)", "daily")
 
     grade_order = ["A", "B", "C", "D", "F"]
     min_idx = grade_order.index(min_grade) if min_grade in grade_order else 1
@@ -125,7 +157,7 @@ def _gather_digest_info() -> tuple[dict[str, Any], dict[str, Any]]:
         "min_grade": min_grade,
         "min_score": min_score,
         "include_grades": include_grades,
-        "send_frequency": "weekly",
+        "send_frequency": frequency,
     }
     notifications = {
         "enabled": False,
@@ -135,23 +167,26 @@ def _gather_digest_info() -> tuple[dict[str, Any], dict[str, Any]]:
     return digest, notifications
 
 
-def gather_profile_info() -> dict[str, Any]:
+def gather_profile_info(kit: PromptKit | None = None) -> dict[str, Any]:
     """Interactively gather profile information."""
-    print("\n--- BASIC INFO ---")
-    name = prompt("Full name")
-    profile_id = prompt(
+    if kit is None:
+        kit = PromptKit()
+
+    kit.print_fn("\n--- BASIC INFO ---")
+    name = kit.prompt("Full name")
+    profile_id = kit.prompt(
         "Profile ID (lowercase, for filename)", name.split()[0].lower() if name else ""
     )
-    email = prompt("Email (where digests are sent)")
+    email = kit.prompt("Email (where digests are sent)")
 
-    scoring = _gather_scoring_info()
-    digest, notifications = _gather_digest_info()
+    scoring = _gather_scoring_info(kit)
+    digest, notifications = _gather_digest_info(kit)
 
-    has_inbox = prompt_yes_no("Does this person have their own job alerts email inbox?", False)
+    has_inbox = kit.prompt_yes_no("Does this person have their own job alerts email inbox?", False)
     inbox_config = {}
     if has_inbox:
-        inbox_username = prompt("Gmail inbox address (e.g. name.jobalerts@gmail.com)")
-        password_env = prompt(
+        inbox_username = kit.prompt("Gmail inbox address (e.g. name.jobalerts@gmail.com)")
+        password_env = kit.prompt(
             "App password env var name", f"{profile_id.upper()}_GMAIL_APP_PASSWORD"
         )
         inbox_config = {"username": inbox_username, "app_password_env": password_env}
@@ -172,20 +207,29 @@ def gather_profile_info() -> dict[str, Any]:
     return profile
 
 
-def save_profile(profile: dict[str, Any]) -> Path:
-    """Save profile JSON to profiles directory."""
+# ── Profile persistence ────────────────────────────────────────────
+
+
+def save_profile(profile: dict[str, Any], kit: PromptKit | None = None) -> Path | None:
+    """Save profile JSON to profiles directory.
+
+    Returns the saved path, or None if the user aborted.
+    """
+    if kit is None:
+        kit = PromptKit()
+
     profile_id = profile["id"]
     json_path = PROFILES_DIR / f"{profile_id}.json"
 
-    if json_path.exists() and not prompt_yes_no(f"  {json_path.name} already exists. Overwrite?"):
-        print("  Aborted.")
-        sys.exit(0)
+    if json_path.exists() and not kit.prompt_yes_no(f"{json_path.name} already exists. Overwrite?"):
+        kit.print_fn("  Aborted.")
+        return None
 
     with open(json_path, "w") as f:
         json.dump(profile, f, indent=2)
         f.write("\n")
 
-    print(f"  Saved: {json_path}")
+    kit.print_fn(f"  Saved: {json_path}")
     return json_path
 
 
@@ -290,10 +334,13 @@ def print_onboarding_message(profile: dict[str, Any]) -> None:
     )
     min_grade = profile["digest"]["min_grade"]
     min_score = profile["digest"]["min_score"]
+    frequency = profile["digest"].get("send_frequency", "daily")
 
     exclude_line = ""
     if excluded:
         exclude_line = f"\n- **Excluded domains:** {', '.join(d.title() for d in excluded)}"
+
+    schedule = "Daily" if frequency == "daily" else "Weekly (Mondays)"
 
     msg = f"""
 --- ONBOARDING MESSAGE (copy/paste) ---
@@ -306,9 +353,8 @@ Hey {name}, you're all set up in the job agent! Here's what to expect:
 - **Location:** Remote, or {cities} + {regions}
 
 **Digest:**
-- Weekly email to {profile["email"]} every Monday
+- {schedule} email to {profile["email"]}
 - Only {min_grade}+ grade jobs (score {min_score}+)
-- First digest should arrive this Monday
 
 Let me know if you want to tweak anything (domains, cities, seniority level, digest frequency).
 
@@ -335,7 +381,9 @@ def main() -> None:
 
     # Step 3: Save
     print("\n--- SAVING PROFILE ---")
-    save_profile(profile)
+    result = save_profile(profile)
+    if result is None:
+        sys.exit(0)
 
     # Step 4: Validate
     print("\n--- VALIDATING ---")
@@ -359,7 +407,7 @@ def main() -> None:
     print("\n--- ONBOARDING MESSAGE ---")
     print_onboarding_message(profile)
 
-    print("Done! Profile is ready for the next Monday cron run.")
+    print("Done! Profile is ready for the next daily cron run.")
 
 
 if __name__ == "__main__":
