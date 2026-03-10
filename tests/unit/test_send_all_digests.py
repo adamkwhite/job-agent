@@ -9,6 +9,7 @@ bypass in send_digest_to_profile.
 from unittest.mock import MagicMock, patch
 
 from src.send_profile_digest import (
+    _max_age_for_frequency,
     _prevalidate_jobs_for_all_profiles,
     _simplify_flagged_status,
     _simplify_invalid_status,
@@ -47,7 +48,7 @@ def _make_job(
     return job
 
 
-def _make_profile(profile_id="wes", name="Wes", enabled=True):
+def _make_profile(profile_id="wes", name="Wes", enabled=True, digest_frequency="weekly"):
     """Helper to build a mock Profile."""
     p = MagicMock()
     p.id = profile_id
@@ -58,6 +59,7 @@ def _make_profile(profile_id="wes", name="Wes", enabled=True):
     p.email_app_password = "fake-password"
     p.digest_min_grade = "C"
     p.digest_min_location_score = 0
+    p.digest_frequency = digest_frequency
     p.scoring = {}
     p.get_target_seniority.return_value = ["senior"]
     p.get_domain_keywords.return_value = ["robotics"]
@@ -401,3 +403,203 @@ class TestSendAllDigestsIntegration:
 
         mock_send.assert_called_once()
         assert mock_send.call_args.kwargs["pre_validated_jobs"] is None
+
+
+# ── _max_age_for_frequency ─────────────────────────────────────────
+
+
+class TestMaxAgeForFrequency:
+    def test_daily_returns_2(self):
+        assert _max_age_for_frequency("daily") == 2
+
+    def test_weekly_returns_7(self):
+        assert _max_age_for_frequency("weekly") == 7
+
+    def test_unknown_defaults_to_7(self):
+        assert _max_age_for_frequency("biweekly") == 7
+
+
+# ── send_all_digests frequency filtering ───────────────────────────
+
+
+class TestSendAllDigestsFrequencyFilter:
+    @patch("src.send_profile_digest.send_digest_to_profile")
+    @patch("src.send_profile_digest._prevalidate_jobs_for_all_profiles")
+    @patch("src.send_profile_digest.JobDatabase")
+    @patch("src.send_profile_digest.get_profile_manager")
+    def test_frequency_filter_daily_only_sends_to_daily_profiles(
+        self, mock_manager, mock_db_cls, mock_prevalidate, mock_send
+    ):
+        """--frequency daily should only send to profiles with daily frequency."""
+        daily_profile = _make_profile("mario", "Mario", digest_frequency="daily")
+        weekly_profile = _make_profile("wes", "Wes", digest_frequency="weekly")
+        mock_manager.return_value.get_enabled_profiles.return_value = [
+            daily_profile,
+            weekly_profile,
+        ]
+        mock_prevalidate.return_value = {"mario": []}
+        mock_send.return_value = True
+
+        results = send_all_digests(frequency_filter="daily")
+
+        # Only mario should be sent to
+        assert mock_send.call_count == 1
+        assert mock_send.call_args_list[0].args[0] == "mario"
+        assert "mario" in results
+        assert "wes" not in results
+
+    @patch("src.send_profile_digest.send_digest_to_profile")
+    @patch("src.send_profile_digest._prevalidate_jobs_for_all_profiles")
+    @patch("src.send_profile_digest.JobDatabase")
+    @patch("src.send_profile_digest.get_profile_manager")
+    def test_frequency_filter_weekly_only_sends_to_weekly_profiles(
+        self, mock_manager, mock_db_cls, mock_prevalidate, mock_send
+    ):
+        daily_profile = _make_profile("mario", "Mario", digest_frequency="daily")
+        weekly_profile = _make_profile("wes", "Wes", digest_frequency="weekly")
+        mock_manager.return_value.get_enabled_profiles.return_value = [
+            daily_profile,
+            weekly_profile,
+        ]
+        mock_prevalidate.return_value = {"wes": []}
+        mock_send.return_value = True
+
+        send_all_digests(frequency_filter="weekly")
+
+        assert mock_send.call_count == 1
+        assert mock_send.call_args_list[0].args[0] == "wes"
+
+    @patch("src.send_profile_digest.send_digest_to_profile")
+    @patch("src.send_profile_digest._prevalidate_jobs_for_all_profiles")
+    @patch("src.send_profile_digest.JobDatabase")
+    @patch("src.send_profile_digest.get_profile_manager")
+    def test_no_frequency_filter_sends_to_all(
+        self, mock_manager, mock_db_cls, mock_prevalidate, mock_send
+    ):
+        """No filter should send to all profiles (backward compatible)."""
+        daily_profile = _make_profile("mario", "Mario", digest_frequency="daily")
+        weekly_profile = _make_profile("wes", "Wes", digest_frequency="weekly")
+        mock_manager.return_value.get_enabled_profiles.return_value = [
+            daily_profile,
+            weekly_profile,
+        ]
+        mock_prevalidate.return_value = {"mario": [], "wes": []}
+        mock_send.return_value = True
+
+        results = send_all_digests()
+
+        assert mock_send.call_count == 2
+        assert "mario" in results
+        assert "wes" in results
+
+    @patch("src.send_profile_digest.send_digest_to_profile")
+    @patch("src.send_profile_digest._prevalidate_jobs_for_all_profiles")
+    @patch("src.send_profile_digest.JobDatabase")
+    @patch("src.send_profile_digest.get_profile_manager")
+    def test_frequency_filter_no_matching_profiles_returns_empty(
+        self, mock_manager, mock_db_cls, mock_prevalidate, mock_send
+    ):
+        weekly_profile = _make_profile("wes", "Wes", digest_frequency="weekly")
+        mock_manager.return_value.get_enabled_profiles.return_value = [weekly_profile]
+
+        results = send_all_digests(frequency_filter="daily")
+
+        assert results == {}
+        mock_send.assert_not_called()
+        mock_prevalidate.assert_not_called()
+
+    @patch("src.send_profile_digest.send_digest_to_profile")
+    @patch("src.send_profile_digest._prevalidate_jobs_for_all_profiles")
+    @patch("src.send_profile_digest.JobDatabase")
+    @patch("src.send_profile_digest.get_profile_manager")
+    def test_daily_profile_gets_max_age_2(
+        self, mock_manager, mock_db_cls, mock_prevalidate, mock_send
+    ):
+        """Daily profiles should use max_age_days=2."""
+        daily_profile = _make_profile("mario", "Mario", digest_frequency="daily")
+        mock_manager.return_value.get_enabled_profiles.return_value = [daily_profile]
+        mock_prevalidate.return_value = {"mario": []}
+        mock_send.return_value = True
+
+        send_all_digests(frequency_filter="daily")
+
+        # Check send_digest_to_profile was called with max_age_days=2
+        assert mock_send.call_args.kwargs["max_age_days"] == 2
+
+    @patch("src.send_profile_digest.send_digest_to_profile")
+    @patch("src.send_profile_digest._prevalidate_jobs_for_all_profiles")
+    @patch("src.send_profile_digest.JobDatabase")
+    @patch("src.send_profile_digest.get_profile_manager")
+    def test_weekly_profile_gets_max_age_7(
+        self, mock_manager, mock_db_cls, mock_prevalidate, mock_send
+    ):
+        """Weekly profiles should use max_age_days=7."""
+        weekly_profile = _make_profile("wes", "Wes", digest_frequency="weekly")
+        mock_manager.return_value.get_enabled_profiles.return_value = [weekly_profile]
+        mock_prevalidate.return_value = {"wes": []}
+        mock_send.return_value = True
+
+        send_all_digests(frequency_filter="weekly")
+
+        assert mock_send.call_args.kwargs["max_age_days"] == 7
+
+    @patch("src.send_profile_digest.send_digest_to_profile")
+    @patch("src.send_profile_digest._prevalidate_jobs_for_all_profiles")
+    @patch("src.send_profile_digest.JobDatabase")
+    @patch("src.send_profile_digest.get_profile_manager")
+    def test_explicit_max_age_days_overrides_frequency(
+        self, mock_manager, mock_db_cls, mock_prevalidate, mock_send
+    ):
+        """Explicit --max-age-days should override frequency-based defaults."""
+        daily_profile = _make_profile("mario", "Mario", digest_frequency="daily")
+        mock_manager.return_value.get_enabled_profiles.return_value = [daily_profile]
+        mock_prevalidate.return_value = {"mario": []}
+        mock_send.return_value = True
+
+        send_all_digests(max_age_days=14)
+
+        assert mock_send.call_args.kwargs["max_age_days"] == 14
+
+
+# ── _prevalidate per-profile max_age_days ──────────────────────────
+
+
+class TestPrevalidatePerProfileMaxAge:
+    def test_per_profile_age_used_in_db_query(self):
+        """Each profile should use its own max_age_days for the DB query."""
+        db = MagicMock()
+        db.get_jobs_for_profile_digest.return_value = []
+
+        daily_profile = _make_profile("mario", "Mario", digest_frequency="daily")
+        weekly_profile = _make_profile("wes", "Wes", digest_frequency="weekly")
+        profiles = [daily_profile, weekly_profile]
+
+        with patch("src.send_profile_digest._validate_and_filter_jobs") as mock_vf:
+            mock_vf.return_value = []
+            _prevalidate_jobs_for_all_profiles(
+                profiles,
+                db,
+                max_age_days_per_profile={"mario": 2, "wes": 7},
+            )
+
+        calls = db.get_jobs_for_profile_digest.call_args_list
+        # Mario should get max_age_days=2
+        mario_call = [c for c in calls if c.kwargs["profile_id"] == "mario"][0]
+        assert mario_call.kwargs["max_age_days"] == 2
+        # Wes should get max_age_days=7
+        wes_call = [c for c in calls if c.kwargs["profile_id"] == "wes"][0]
+        assert wes_call.kwargs["max_age_days"] == 7
+
+    def test_falls_back_to_default_when_no_per_profile_map(self):
+        """Without per-profile map, all profiles use the default max_age_days."""
+        db = MagicMock()
+        db.get_jobs_for_profile_digest.return_value = []
+
+        profiles = [_make_profile("wes")]
+
+        with patch("src.send_profile_digest._validate_and_filter_jobs") as mock_vf:
+            mock_vf.return_value = []
+            _prevalidate_jobs_for_all_profiles(profiles, db, max_age_days=14)
+
+        call = db.get_jobs_for_profile_digest.call_args
+        assert call.kwargs["max_age_days"] == 14

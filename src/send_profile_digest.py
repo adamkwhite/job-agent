@@ -20,6 +20,8 @@ Usage:
     python src/send_profile_digest.py --profile wes
     python src/send_profile_digest.py --profile adam
     python src/send_profile_digest.py --all  # Send to all enabled profiles
+    python src/send_profile_digest.py --all --frequency daily   # Daily profiles only
+    python src/send_profile_digest.py --all --frequency weekly  # Weekly profiles only
 """
 
 import json
@@ -694,6 +696,7 @@ def _prevalidate_jobs_for_all_profiles(
     db: JobDatabase,
     force_resend: bool = False,
     max_age_days: int = 7,
+    max_age_days_per_profile: dict[str, int] | None = None,
 ) -> dict[str, list[dict]]:
     """
     Validate all unique job URLs once, then return per-profile validated lists.
@@ -705,7 +708,8 @@ def _prevalidate_jobs_for_all_profiles(
         profiles: Enabled Profile objects
         db: Database handle
         force_resend: Include previously sent jobs
-        max_age_days: Include jobs from last N days
+        max_age_days: Default max age (used when max_age_days_per_profile is None)
+        max_age_days_per_profile: Per-profile age windows (overrides max_age_days)
 
     Returns:
         Dict mapping profile_id -> validated job list (shallow copies)
@@ -715,13 +719,18 @@ def _prevalidate_jobs_for_all_profiles(
 
     # Fetch jobs for each profile
     for profile in profiles:
+        age = (
+            max_age_days_per_profile.get(profile.id, max_age_days)
+            if max_age_days_per_profile
+            else max_age_days
+        )
         if force_resend:
             jobs = db.get_jobs_for_profile_digest(
                 profile_id=profile.id,
                 min_grade="F",
                 min_location_score=0,
                 limit=100,
-                max_age_days=max_age_days,
+                max_age_days=age,
             )
         else:
             jobs = db.get_jobs_for_profile_digest(
@@ -729,7 +738,7 @@ def _prevalidate_jobs_for_all_profiles(
                 min_grade=profile.digest_min_grade,
                 min_location_score=profile.digest_min_location_score,
                 limit=100,
-                max_age_days=max_age_days,
+                max_age_days=age,
             )
         per_profile_raw[profile.id] = jobs
 
@@ -837,6 +846,16 @@ def _apply_hard_filters_and_dedup(jobs: list[dict], profile: Profile) -> list[di
     return result
 
 
+def _max_age_for_frequency(frequency: str) -> int:
+    """Return max_age_days based on digest frequency.
+
+    Daily uses 2 days (buffer for late-night scrapes), weekly uses 7.
+    """
+    if frequency == "daily":
+        return 2
+    return 7
+
+
 def _build_subject_line(high_count: int, good_count: int) -> str:
     """Build email subject line based on job grade counts."""
     if high_count > 0:
@@ -844,7 +863,7 @@ def _build_subject_line(high_count: int, good_count: int) -> str:
     elif good_count > 0:
         subject = f"✨ {good_count} Good Job Match{'es' if good_count > 1 else ''} Found"
     else:
-        subject = "📋 Job Digest - No Top Matches This Week"
+        subject = "📋 Job Digest - No Top Matches Recently"
     subject += f" - {datetime.now().strftime('%Y-%m-%d')}"
     return subject
 
@@ -1017,28 +1036,59 @@ def send_digest_to_profile(
     return _send_email(profile, profile_id, jobs, high_scoring, good_scoring, force_resend, db)
 
 
-def send_all_digests(force_resend: bool = False, dry_run: bool = False, max_age_days: int = 7):
+def send_all_digests(
+    force_resend: bool = False,
+    dry_run: bool = False,
+    max_age_days: int | None = None,
+    frequency_filter: str | None = None,
+):
     """Send digests to all enabled profiles
 
     Pre-validates all unique URLs once, then passes cached results to each
     per-profile call so HTTP requests are never duplicated.
+
+    Args:
+        force_resend: Include previously sent jobs
+        dry_run: Don't actually send, just show what would be sent
+        max_age_days: Override max age for all profiles (None = use per-profile defaults)
+        frequency_filter: Only send to profiles with this digest_frequency
+            (e.g., "daily" or "weekly"). None sends to all.
     """
     manager = get_profile_manager()
     profiles = manager.get_enabled_profiles()
+
+    # Filter by frequency if specified
+    if frequency_filter:
+        profiles = [p for p in profiles if p.digest_frequency == frequency_filter]
+        if not profiles:
+            print(f"No enabled profiles with frequency '{frequency_filter}'")
+            return {}
+        print(f"📅 Sending {frequency_filter} digests to {len(profiles)} profile(s)")
+
     results = {}
+
+    # Build per-profile max_age_days based on frequency (unless overridden)
+    max_age_map: dict[str, int] | None = None
+    if max_age_days is None:
+        max_age_map = {p.id: _max_age_for_frequency(p.digest_frequency) for p in profiles}
 
     # Pre-validate all URLs once across all profiles
     db = JobDatabase()
     pre_validated = _prevalidate_jobs_for_all_profiles(
-        profiles, db, force_resend=force_resend, max_age_days=max_age_days
+        profiles,
+        db,
+        force_resend=force_resend,
+        max_age_days=max_age_days or 7,
+        max_age_days_per_profile=max_age_map,
     )
 
     for profile in profiles:
+        age = max_age_days or _max_age_for_frequency(profile.digest_frequency)
         success = send_digest_to_profile(
             profile.id,
             force_resend=force_resend,
             dry_run=dry_run,
-            max_age_days=max_age_days,
+            max_age_days=age,
             pre_validated_jobs=pre_validated.get(profile.id),
         )
         results[profile.id] = success
@@ -1082,22 +1132,36 @@ def main():
     parser.add_argument(
         "--max-age-days",
         type=int,
-        default=7,
-        help="Include jobs from last N days (default: 7)",
+        default=None,
+        help="Include jobs from last N days (default: auto based on frequency)",
+    )
+    parser.add_argument(
+        "--frequency",
+        type=str,
+        choices=["daily", "weekly"],
+        help="Only send to profiles with this digest frequency",
     )
 
     args = parser.parse_args()
 
     if args.all:
         send_all_digests(
-            force_resend=args.force_resend, dry_run=args.dry_run, max_age_days=args.max_age_days
+            force_resend=args.force_resend,
+            dry_run=args.dry_run,
+            max_age_days=args.max_age_days,
+            frequency_filter=args.frequency,
         )
     elif args.profile:
+        age = args.max_age_days
+        if age is None:
+            manager = get_profile_manager()
+            profile = manager.get_profile(args.profile)
+            age = _max_age_for_frequency(profile.digest_frequency) if profile else 7
         send_digest_to_profile(
             args.profile,
             force_resend=args.force_resend,
             dry_run=args.dry_run,
-            max_age_days=args.max_age_days,
+            max_age_days=age,
         )
     else:
         # Show available profiles

@@ -1,9 +1,7 @@
 # TODO
 
 ## Open Features
-- [ ] Daily digest option (Issue #3)
 - [ ] Company Location Management in TUI (Issue #193)
-
 ## Open Backlog (Low Priority)
 - Issue #79: Enhanced statistics tracking for scraper observability
 - Issue #180: Performance monitoring dashboard for company scraping costs
@@ -11,7 +9,16 @@
 ## In Progress
 - [ ] TUI onboarding wizard (Issue #349)
 
-## Recently Completed (Mar 8, 2026)
+## Recently Completed (Mar 9, 2026)
+- [x] Daily scraping + frequency-aware digests (Issue #3)
+  - Cron: daily 6am full scrape, daily digests always, weekly digests on Mondays
+  - `--frequency daily|weekly` CLI flag, per-profile max_age_days (daily=2, weekly=7)
+- [x] Remove job aggregator sites from company monitoring — S.i. Systems deleted (Issue #363)
+- [x] Fix inline link extraction for Ashby-hosted career pages (PR #364)
+  - 1Password, Harvey, Wealthsimple, Boston Dynamics, Trexo Robotics affected
+  - Cleaned up 16 bad DB entries; resent corrected digests to Mark B + Mark Lennox
+
+## Previously Completed (Mar 8, 2026)
 - [x] Switch default LLM to Gemini 2.5 Flash, $5/mo budget (Issue #345, PR #353)
 - [x] TUI extraction metrics dashboard (Issue #118, PR #354)
 - [x] Unified company review — merged discovered + failures flows (PR #358)
