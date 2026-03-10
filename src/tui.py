@@ -78,6 +78,9 @@ def _handle_utility_action(sources: list[str]) -> bool | None:
     if not sources:  # User quit
         console.print("\n[yellow]Goodbye![/yellow]\n")
         return False
+    elif sources == ["utility:onboard"]:
+        onboard_new_profile()
+        return True
     elif sources == ["utility:credits"]:
         check_api_credits()
         return True
@@ -249,6 +252,7 @@ def select_sources() -> tuple[list[str], str | None]:
     table.add_row("2", "Email Processing")
     table.add_row("a", "Select All Sources")
     table.add_row("", "")  # Blank row separator
+    table.add_row("n", "New Profile (Onboarding Wizard)")
     table.add_row("api", "API Credits (Check LLM/Firecrawl status)")
     table.add_row("c", "Companies (Review auto-discovered)")
     table.add_row("h", "System Health")
@@ -268,6 +272,7 @@ def select_sources() -> tuple[list[str], str | None]:
     # Handle utility actions
     utility_map = {
         "q": ([], None),
+        "n": (["utility:onboard"], None),
         "api": (["utility:credits"], None),
         "c": (["utility:companies"], None),
         "h": (["utility:health"], None),
@@ -1862,6 +1867,106 @@ def _handle_activate_company(  # pragma: no cover
 
     console.print("[yellow]⊘ Activation cancelled (invalid URL)[/yellow]")
     return False
+
+
+def _make_rich_prompt_kit():
+    """Create a PromptKit that uses Rich prompts instead of plain input()."""
+    scripts_dir = str(Path(__file__).parent.parent / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from onboard_profile import PromptKit
+
+    def rich_prompt(label: str, default: str = "") -> str:
+        return Prompt.ask(f"  {label}", default=default or "")
+
+    def rich_prompt_list(label: str, default: str = "") -> list[str]:
+        raw = Prompt.ask(f"  {label}", default=default or "")
+        if not raw:
+            return []
+        return [item.strip().lower() for item in raw.split(",") if item.strip()]
+
+    def rich_prompt_yes_no(label: str, default: bool = False) -> bool:
+        return Confirm.ask(f"  {label}", default=default)
+
+    return PromptKit(
+        prompt=rich_prompt,
+        prompt_list=rich_prompt_list,
+        prompt_yes_no=rich_prompt_yes_no,
+        print_fn=console.print,
+    )
+
+
+def _review_and_save_profile(profile: dict, kit) -> bool:
+    """Review profile JSON, confirm, and save. Returns True if saved."""
+    import json
+
+    console.print("\n[bold yellow]Review Profile:[/bold yellow]")
+    console.print(Panel(json.dumps(profile, indent=2), title="Profile JSON", expand=False))
+
+    if not kit.prompt_yes_no("Looks good? Save profile?", default=True):
+        console.print("[yellow]Aborted.[/yellow]")
+        return False
+
+    from onboard_profile import save_profile
+
+    result = save_profile(profile, kit)
+    return result is not None
+
+
+def _validate_and_setup_profile(profile_id: str, kit) -> None:
+    """Validate profile, optionally backfill scores and run dry-run digest."""
+    from onboard_profile import run_backfill, run_dry_digest, validate_profile
+
+    console.print("\n[bold yellow]Validating...[/bold yellow]")
+    if not validate_profile(profile_id):
+        console.print("[red]Profile validation failed. Check JSON and retry.[/red]")
+        return
+
+    console.print("[green]✓ Profile loaded successfully![/green]")
+
+    # Reload so new profile appears in TUI menus immediately
+    pm = get_profile_manager()
+    pm.reload_profiles()
+    console.print(f"[green]✓ Profile '{profile_id}' now available in TUI[/green]")
+
+    if kit.prompt_yes_no("Run backfill (score existing jobs)?", default=True):
+        max_jobs = int(kit.prompt("Max jobs to backfill", "500"))
+        console.print("\n[bold yellow]Backfilling scores...[/bold yellow]")
+        run_backfill(profile_id, max_jobs)
+
+    if kit.prompt_yes_no("Run dry-run digest (preview email)?", default=True):
+        console.print("\n[bold yellow]Running dry-run digest...[/bold yellow]")
+        run_dry_digest(profile_id)
+
+
+def onboard_new_profile():  # pragma: no cover
+    """Interactive wizard for creating a new profile via TUI."""
+
+    from onboard_profile import gather_profile_info, print_onboarding_message
+
+    clear_screen()
+    console.print(MAGENTA_SEPARATOR_TOP)
+    console.print("[bold magenta]           NEW PROFILE ONBOARDING              [/bold magenta]")
+    console.print(MAGENTA_SEPARATOR_BOTTOM)
+
+    kit = _make_rich_prompt_kit()
+
+    # Step 1: Gather info
+    profile = gather_profile_info(kit)
+
+    # Step 2: Review & Save
+    if not _review_and_save_profile(profile, kit):
+        press_enter_to_continue()
+        return
+
+    # Step 3: Validate, backfill, dry-run
+    _validate_and_setup_profile(profile["id"], kit)
+
+    # Step 4: Onboarding message
+    console.print("\n[bold yellow]Onboarding Message:[/bold yellow]")
+    print_onboarding_message(profile)
+
+    press_enter_to_continue()
 
 
 def main():  # pragma: no cover
