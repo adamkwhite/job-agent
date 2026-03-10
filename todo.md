@@ -6,10 +6,8 @@
 - Issue #79: Enhanced statistics tracking for scraper observability
 - Issue #180: Performance monitoring dashboard for company scraping costs
 
-## In Progress
-- [ ] TUI onboarding wizard (Issue #349)
-
 ## Recently Completed (Mar 9, 2026)
+- [x] TUI onboarding wizard with PromptKit DI (Issue #349, PR #368)
 - [x] Daily scraping + frequency-aware digests (Issue #3)
   - Cron: daily 6am full scrape, daily digests always, weekly digests on Mondays
   - `--frequency daily|weekly` CLI flag, per-profile max_age_days (daily=2, weekly=7)
