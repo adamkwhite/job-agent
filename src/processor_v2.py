@@ -25,6 +25,7 @@ from notifier import JobNotifier
 from parsers.artemis_parser import ArtemisParser
 from parsers.builtin_parser import BuiltInParser
 from parsers.f6s_parser import F6SParser
+from parsers.getro_wrapper import GetroParser
 from parsers.indeed_parser import IndeedParser
 from parsers.jobbank_wrapper import JobBankParser
 from parsers.linkedin_parser import LinkedInParser
@@ -33,7 +34,6 @@ from parsers.recruiter_wrapper import RecruiterParser
 from parsers.supra_parser import SupraParser
 from parsers.welcometothejungle_parser import WelcomeToTheJungleParser
 from parsers.wellfound_parser import WellfoundParser
-from parsers.workintech_wrapper import WorkInTechParser
 from utils.career_url_parser import CareerURLParser
 from utils.job_validator import JobValidator
 from utils.multi_scorer import get_multi_scorer
@@ -107,7 +107,7 @@ class JobProcessorV2:
         self.parser_registry.register(BuiltInParser())
         self.parser_registry.register(JobBankParser())
         self.parser_registry.register(RecruiterParser())
-        self.parser_registry.register(WorkInTechParser())
+        self.parser_registry.register(GetroParser())
         self.parser_registry.register(WelcomeToTheJungleParser())
         self.parser_registry.register(WellfoundParser())
         self.parser_registry.register(IndeedParser())

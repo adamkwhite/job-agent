@@ -1,18 +1,20 @@
 """
-Unit tests for Work In Tech (getro.com) email parser
+Unit tests for Getro job board email parser.
+Handles all Getro-powered boards: Work In Tech, MaRS, U of T Entrepreneurship,
+General Catalyst, Insight Partners, Khosla Ventures, etc.
 """
 
-from src.parsers.workintech_parser import can_parse, parse_workintech_email
+from src.parsers.getro_parser import can_parse, parse_getro_email
 
 
-class TestWorkInTechParser:
-    """Test Work In Tech email parser functionality"""
+class TestGetroParser:
+    """Test Getro email parser functionality"""
 
-    def test_can_parse_workintech_email(self):
-        """Test Work In Tech email detection"""
-        # Should parse Work In Tech emails
+    def test_can_parse_getro_email(self):
+        """Test Getro email detection"""
+        # Should parse Getro emails
         assert can_parse("notifications@getro.com", "New jobs in Work In Tech's job board")
-        assert can_parse("Work In Tech <hello@workintech.com>", "Job matches for you")
+        assert can_parse("Work In Tech <hello@getro.com>", "Job matches for you")
         assert can_parse("jobs@example.com", "Work in Tech - Your weekly job digest")
 
         # Job board pattern
@@ -23,8 +25,8 @@ class TestWorkInTechParser:
         assert not can_parse("linkedin@linkedin.com", "Your job alert")
         assert not can_parse("random@example.com", "Random newsletter")
 
-    def test_parse_workintech_email_with_jobs(self):
-        """Test parsing Work In Tech email with multiple jobs"""
+    def test_parse_getro_email_with_jobs(self):
+        """Test parsing Getro email with multiple jobs"""
         html_content = """
         <html>
             <body>
@@ -51,7 +53,7 @@ class TestWorkInTechParser:
         </html>
         """
 
-        jobs = parse_workintech_email(html_content)
+        jobs = parse_getro_email(html_content)
 
         assert len(jobs) == 2
 
@@ -67,7 +69,7 @@ class TestWorkInTechParser:
         assert jobs[1]["company"] == "AI Innovations"
         assert jobs[1]["location"] == "Remote"
 
-    def test_parse_workintech_email_without_styled_title(self):
+    def test_parse_getro_email_without_styled_title(self):
         """Test parsing jobs where title is in link text"""
         html_content = """
         <html>
@@ -84,14 +86,14 @@ class TestWorkInTechParser:
         </html>
         """
 
-        jobs = parse_workintech_email(html_content)
+        jobs = parse_getro_email(html_content)
 
         assert len(jobs) == 1
         assert jobs[0]["title"] == "Senior Hardware Engineer"
         assert jobs[0]["company"] == "Tech Company"
         assert jobs[0]["location"] == "Waterloo, ON"
 
-    def test_parse_workintech_skip_navigation_links(self):
+    def test_parse_getro_skip_navigation_links(self):
         """Test that parser skips navigation links"""
         html_content = """
         <html>
@@ -110,13 +112,13 @@ class TestWorkInTechParser:
         </html>
         """
 
-        jobs = parse_workintech_email(html_content)
+        jobs = parse_getro_email(html_content)
 
         # Should only get the real job, not navigation links
         assert len(jobs) == 1
         assert jobs[0]["title"] == "Real Job Title - Director"
 
-    def test_parse_workintech_deduplicate_jobs(self):
+    def test_parse_getro_deduplicate_jobs(self):
         """Test that duplicate jobs are filtered out"""
         html_content = """
         <html>
@@ -128,7 +130,7 @@ class TestWorkInTechParser:
         </html>
         """
 
-        jobs = parse_workintech_email(html_content)
+        jobs = parse_getro_email(html_content)
 
         # Should only return unique jobs
         assert len(jobs) == 2
@@ -136,7 +138,7 @@ class TestWorkInTechParser:
         assert "Engineering Manager" in titles
         assert "Product Director" in titles
 
-    def test_parse_workintech_with_missing_company(self):
+    def test_parse_getro_with_missing_company(self):
         """Test parsing job with missing company info"""
         html_content = """
         <html>
@@ -152,14 +154,14 @@ class TestWorkInTechParser:
         </html>
         """
 
-        jobs = parse_workintech_email(html_content)
+        jobs = parse_getro_email(html_content)
 
         assert len(jobs) == 1
         assert jobs[0]["title"] == "Head of Engineering"
         assert jobs[0]["company"] == "Unknown Company"
         assert jobs[0]["location"] == "Unknown Location"
 
-    def test_parse_workintech_make_new_search_link_text(self):
+    def test_parse_getro_make_new_search_link_text(self):
         """Test parsing when link text is 'make a new search' (Issue #39)"""
         html_content = """
         <html>
@@ -184,7 +186,7 @@ class TestWorkInTechParser:
         </html>
         """
 
-        jobs = parse_workintech_email(html_content)
+        jobs = parse_getro_email(html_content)
 
         assert len(jobs) == 2
 
@@ -196,7 +198,7 @@ class TestWorkInTechParser:
         assert jobs[1]["title"] == "Director, Commercial Operations"
         assert jobs[1]["location"] == "Toronto, ON"
 
-    def test_parse_workintech_three_part_middot_separator(self):
+    def test_parse_getro_three_part_middot_separator(self):
         """Test parsing middot-separated text with 3 parts: Title · Company · Location"""
         html_content = """
         <html>
@@ -213,14 +215,14 @@ class TestWorkInTechParser:
         </html>
         """
 
-        jobs = parse_workintech_email(html_content)
+        jobs = parse_getro_email(html_content)
 
         assert len(jobs) == 1
         assert jobs[0]["title"] == "Senior Software Engineer"
         assert jobs[0]["company"] == "TechCorp"
         assert jobs[0]["location"] == "Remote"
 
-    def test_parse_workintech_infer_ontario_location(self):
+    def test_parse_getro_infer_ontario_location(self):
         """Test that parser infers Ontario location from context"""
         html_content = """
         <html>
@@ -237,12 +239,12 @@ class TestWorkInTechParser:
         </html>
         """
 
-        jobs = parse_workintech_email(html_content)
+        jobs = parse_getro_email(html_content)
 
         assert len(jobs) == 1
         assert jobs[0]["location"] == "Ontario, Canada"
 
-    def test_parse_workintech_no_jobs(self):
+    def test_parse_getro_no_jobs(self):
         """Test parsing email with no job listings"""
         html_content = """
         <html>
@@ -253,10 +255,10 @@ class TestWorkInTechParser:
         </html>
         """
 
-        jobs = parse_workintech_email(html_content)
+        jobs = parse_getro_email(html_content)
         assert jobs == []
 
-    def test_parse_workintech_relative_urls(self):
+    def test_parse_getro_relative_urls(self):
         """Test handling of relative URLs"""
         html_content = """
         <html>
@@ -266,13 +268,13 @@ class TestWorkInTechParser:
         </html>
         """
 
-        jobs = parse_workintech_email(html_content)
+        jobs = parse_getro_email(html_content)
 
         assert len(jobs) == 1
         assert jobs[0]["link"].startswith("https://")
         assert "getro.com" in jobs[0]["link"]
 
-    def test_parse_workintech_table_based_structure(self):
+    def test_parse_getro_table_based_structure(self):
         """Test parsing new table-based email format with 3 rows (Issue #45)"""
         html_content = """
         <html>
@@ -319,7 +321,7 @@ class TestWorkInTechParser:
         </html>
         """
 
-        jobs = parse_workintech_email(html_content)
+        jobs = parse_getro_email(html_content)
 
         # Should extract both jobs from table structure
         assert len(jobs) == 2
@@ -337,7 +339,7 @@ class TestWorkInTechParser:
         assert "getro.com" in jobs[1]["link"]
 
 
-class TestWorkInTechParserEdgeCases:
+class TestGetroParserEdgeCases:
     """Test edge cases and error handling"""
 
     def test_parse_skips_very_short_titles(self):
@@ -350,7 +352,7 @@ class TestWorkInTechParserEdgeCases:
             </body>
         </html>
         """
-        jobs = parse_workintech_email(html_content)
+        jobs = parse_getro_email(html_content)
 
         # Should only get the longer title
         assert len(jobs) == 1
@@ -367,7 +369,7 @@ class TestWorkInTechParserEdgeCases:
             </body>
         </html>
         """
-        jobs = parse_workintech_email(html_content)
+        jobs = parse_getro_email(html_content)
 
         # Should only get the job, not navigation links
         assert len(jobs) == 1
@@ -384,7 +386,7 @@ class TestWorkInTechParserEdgeCases:
             </body>
         </html>
         """
-        jobs = parse_workintech_email(html_content)
+        jobs = parse_getro_email(html_content)
 
         # Should not crash, may return partial results or empty list
         assert isinstance(jobs, list)
@@ -419,6 +421,6 @@ class TestWorkInTechParserEdgeCases:
             return original_get(*args, **kwargs)
 
         with patch.object(links[0], "get", side_effect=mock_get):
-            jobs = parse_workintech_email(str(soup))
+            jobs = parse_getro_email(str(soup))
             # Should continue and get second job despite first failing
             assert isinstance(jobs, list)

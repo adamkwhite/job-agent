@@ -146,9 +146,7 @@ class TestMIMEEmailMessages:
         """Test decoding Base64 with Unicode from email message"""
         # Real Work In Tech encoding
         subject = "New jobs for you in Work In =?UTF-8?B?VGVjaOKAmXM=?= job board"
-        msg = self._create_mime_email(
-            subject, "<html><body>Test</body></html>", "jobs@workintech.io"
-        )
+        msg = self._create_mime_email(subject, "<html><body>Test</body></html>", "hello@getro.com")
 
         decoded = decode_email_subject(msg["Subject"])
 
