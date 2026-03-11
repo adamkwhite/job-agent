@@ -84,9 +84,6 @@ def _handle_utility_action(sources: list[str]) -> bool | None:
     elif sources == ["utility:credits"]:
         check_api_credits()
         return True
-    elif sources == ["utility:companies"]:
-        manage_companies()
-        return True
     elif sources == ["utility:health"]:
         show_system_health()
         return True
@@ -254,7 +251,6 @@ def select_sources() -> tuple[list[str], str | None]:
     table.add_row("", "")  # Blank row separator
     table.add_row("n", "New Profile (Onboarding Wizard)")
     table.add_row("api", "API Credits (Check LLM/Firecrawl status)")
-    table.add_row("c", "Companies (Review auto-discovered)")
     table.add_row("h", "System Health")
     table.add_row("q", "Quit")
 
@@ -274,7 +270,6 @@ def select_sources() -> tuple[list[str], str | None]:
         "q": ([], None),
         "n": (["utility:onboard"], None),
         "api": (["utility:credits"], None),
-        "c": (["utility:companies"], None),
         "h": (["utility:health"], None),
     }
     if choice in utility_map:
