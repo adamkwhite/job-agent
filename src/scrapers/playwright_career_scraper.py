@@ -102,9 +102,9 @@ class PlaywrightCareerScraper(BaseCareerScraper):
 
                 stealth_sync(page)
 
-                page.goto(url, wait_until="networkidle", timeout=60000)
+                page.goto(url, wait_until="networkidle", timeout=90000)
                 # Extra wait for JS-heavy career pages (React, Angular, etc.)
-                page.wait_for_timeout(2000)
+                page.wait_for_timeout(5000)
 
                 html = page.content()
             finally:

@@ -220,10 +220,10 @@ class TestFetchPageContent:
         mock_page.goto.assert_called_once_with(
             "https://example.com/careers",
             wait_until="networkidle",
-            timeout=60000,
+            timeout=90000,
         )
-        # Should also wait extra 2s for JS rendering
-        mock_page.wait_for_timeout.assert_called_once_with(2000)
+        # Should also wait extra 5s for JS rendering
+        mock_page.wait_for_timeout.assert_called_once_with(5000)
 
 
 class TestBrowserCleanup:
