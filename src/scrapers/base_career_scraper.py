@@ -436,7 +436,7 @@ class BaseCareerScraper(ABC):
         jobs: list[OpportunityData] = []
 
         pattern2 = re.compile(
-            r"^(?:##|###|####) ([^\n]+)$",
+            r"^(?:#{2,5}) ([^\n]+)$",
             re.MULTILINE,
         )
 
