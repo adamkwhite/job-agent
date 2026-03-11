@@ -43,10 +43,10 @@
       "description": "Direct recruiter outreach and LinkedIn saved jobs"
     },
     {
-      "name": "workintech",
+      "name": "getro",
       "enabled": true,
       "type": "job_alert",
-      "description": "Work In Tech job board notifications"
+      "description": "Getro-powered job board alerts (Work In Tech, MaRS, General Catalyst, etc.)"
     },
     {
       "name": "feedback",

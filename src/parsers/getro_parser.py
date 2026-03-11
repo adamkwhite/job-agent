@@ -1,6 +1,7 @@
 """
-Work In Tech job board email parser
-Handles job alerts from getro.com/Work In Tech platform
+Getro job board email parser
+Handles job alerts from all Getro-powered job boards (VC portfolios, accelerators,
+innovation hubs): Work In Tech, MaRS, U of T Entrepreneurship, General Catalyst, etc.
 """
 
 import re
@@ -10,19 +11,21 @@ from bs4 import BeautifulSoup
 # Constants
 UNKNOWN_COMPANY = "Unknown Company"
 UNKNOWN_LOCATION = "Unknown Location"
-WORK_IN_TECH = "work in tech"
 # Generic link text to skip
 SEE_MORE_JOBS = "see more jobs"
 THIS_LINK = "this link"
+# Known Getro board names (used for skip-list in title filtering)
+GETRO_BOARD_NAMES = {"work in tech", "mars discovery district", "getro"}
 
 
-def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
+def parse_getro_email(html_content: str) -> list[dict[str, str]]:
     """
-    Parse Work In Tech job board emails from getro.com
+    Parse Getro job board alert emails.
 
-    Email format:
-    - From: Work In Tech or getro.com
-    - Subject: New jobs for you in Work In Tech's job board
+    Email format (consistent across all Getro boards):
+    - From: {Board Name} via Getro <hello@getro.com>
+    - Subject: New jobs for you in {Board Name}'s job board
+    - Body: 3-row table per job: title (bold link), company (link), location (text)
     """
     soup = BeautifulSoup(html_content, "html.parser")
     jobs = []
@@ -40,7 +43,7 @@ def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
             if not url.startswith("http"):
                 url = f"https://{url}"
 
-            # STRATEGY: Work in Tech emails have two patterns:
+            # STRATEGY: Getro emails have two patterns:
             # 1. Link text contains actual job title (use link text)
             # 2. Link text is generic ("make a new search") - extract from nearby middot text
 
@@ -74,7 +77,7 @@ def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
                         # This is a company/location link in a 3-row table, skip it
                         continue
 
-            # STRATEGY 1: Table-based structure (newer format)
+            # STRATEGY 1: Table-based structure (current format)
             # Structure: <table><tr><td>Title</td></tr><tr><td>Company</td></tr><tr><td>Location</td></tr></table>
             # This is the primary pattern - if we find it, use it and skip other strategies
             extracted_from_table = False
@@ -197,9 +200,9 @@ def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
             if title.lower() in [
                 SEE_MORE_JOBS,
                 THIS_LINK,
-                WORK_IN_TECH,
                 "update your preferences",
                 "make a new search",
+                *GETRO_BOARD_NAMES,
             ]:
                 continue
             # Skip common navigation patterns
@@ -226,7 +229,7 @@ def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
             jobs.append({"title": title, "company": company, "location": location, "link": url})
 
         except Exception as e:
-            print(f"Error parsing Work In Tech job: {e}")
+            print(f"Error parsing Getro job: {e}")
             continue
 
     return jobs
@@ -234,16 +237,18 @@ def parse_workintech_email(html_content: str) -> list[dict[str, str]]:
 
 def can_parse(from_addr: str, subject: str) -> bool:
     """
-    Check if this parser can handle the email
+    Check if this parser can handle the email.
+    Matches all Getro-powered job board alert emails.
     """
     from_lower = from_addr.lower()
     subject_lower = subject.lower()
 
-    # Work In Tech/Getro emails
-    if "getro" in from_lower or WORK_IN_TECH in from_lower:
+    # All Getro board emails come from hello@getro.com or contain "getro" in From
+    if "getro" in from_lower:
         return True
 
-    if WORK_IN_TECH in subject_lower and "job" in subject_lower:
+    # Legacy: Work In Tech emails that may not mention Getro
+    if "work in tech" in from_lower or "work in tech" in subject_lower:
         return True
 
     # Pattern for getro job board emails
