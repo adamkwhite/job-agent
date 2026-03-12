@@ -340,12 +340,7 @@ PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile <
 
 ## Database Backups
 
-**Automated Tiered Backup System** (runs daily at 3:00 AM):
-
-**Retention Policy:**
-- **Daily backups**: Keep 7 days (detailed recent history)
-- **Weekly backups**: Keep 4 weeks (created Sundays)
-- **Monthly backups**: Keep 3 months (created 1st of month)
+**Daily Backup System** (runs daily at 3:00 AM, keeps 7 days):
 
 **Commands:**
 ```bash
@@ -362,10 +357,8 @@ ls -lah data/backups/
 tail -50 logs/database_backup.log
 
 # Restore from backup
-cp data/backups/jobs-backup-YYYYMMDD-TYPE.db data/jobs.db
+cp data/backups/jobs-backup-YYYYMMDD.db data/jobs.db
 ```
-
-**Storage:** Approximately 14MB for ~1MB database (7 daily + 4 weekly + 3 monthly)
 
 **Location:** `data/backups/` (gitignored, not committed)
 

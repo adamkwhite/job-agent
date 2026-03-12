@@ -163,15 +163,11 @@ ls -lah data/backups/
 tail -20 logs/database_backup.log
 ```
 
-**Tiered Retention Policy:**
-- 📅 Daily backups: Keep 7 days (detailed recent history)
-- 📅 Weekly backups: Keep 4 weeks (Sundays only)
-- 📅 Monthly backups: Keep 3 months (1st of month)
-- 💾 Total storage: ~14MB (for 1MB database)
+**Retention:** 7 daily backups. Older backups are automatically pruned.
 
 **Restore from backup:**
 ```bash
-cp data/backups/jobs-backup-YYYYMMDD-TYPE.db data/jobs.db
+cp data/backups/jobs-backup-YYYYMMDD.db data/jobs.db
 ```
 
 **Location:** `data/backups/` (gitignored, not committed)
