@@ -8,7 +8,7 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKUP_SCRIPT="$PROJECT_DIR/scripts/backup_database.sh"
 
 # Cron job entry (runs at 3 AM daily)
-CRON_JOB="0 3 * * * cd $PROJECT_DIR && $BACKUP_SCRIPT >> logs/database_backup.log 2>&1"
+CRON_JOB="0 3 * * * cd $PROJECT_DIR && $BACKUP_SCRIPT 2>&1"
 
 # Check if cron job already exists
 if crontab -l 2>/dev/null | grep -q "backup_database.sh"; then
