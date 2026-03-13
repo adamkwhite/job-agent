@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 
 from jobs.company_scraper import CompanyScraper
 from jobs.ministry_scraper import MinistryScraper
+from jobs.rls_scraper import RLSJobBoardScraper
 from jobs.testdevjobs_scraper import TestDevJobsWeeklyScraper
 from processor_v2 import JobProcessorV2
 
@@ -70,6 +71,9 @@ class WeeklyUnifiedScraper:
         # TestDevJobs scraper
         self.testdevjobs_scraper = TestDevJobsWeeklyScraper(profile=profile)
 
+        # RLS Job Board scraper
+        self.rls_scraper = RLSJobBoardScraper(profile=profile)
+
     def run_all(
         self,
         fetch_emails: bool = True,
@@ -83,6 +87,8 @@ class WeeklyUnifiedScraper:
         _ministry_min_score: int = 47,
         scrape_testdevjobs: bool = True,
         _testdevjobs_min_score: int = 47,
+        scrape_rls: bool = True,
+        _rls_min_score: int = 47,
     ) -> dict:
         """
         Run all job processing sources
@@ -99,6 +105,8 @@ class WeeklyUnifiedScraper:
             ministry_min_score: Minimum score for Ministry jobs (default: 47 for Mario)
             scrape_testdevjobs: Whether to scrape TestDevJobs
             testdevjobs_min_score: Minimum score for TestDevJobs jobs (default: 47 for Mario)
+            scrape_rls: Whether to scrape RLS Job Board
+            rls_min_score: Minimum score for RLS jobs (default: 47)
 
         Returns:
             Combined stats from all sources
@@ -111,6 +119,7 @@ class WeeklyUnifiedScraper:
         print(f"🏢 Company monitoring: {scrape_companies}")
         print(f"🧪 Ministry of Testing: {scrape_ministry}")
         print(f"🔬 TestDevJobs: {scrape_testdevjobs}")
+        print(f"🎯 RLS Job Board: {scrape_rls}")
         print("=" * 80 + "\n")
 
         all_stats = {
@@ -118,6 +127,7 @@ class WeeklyUnifiedScraper:
             "companies": {},
             "ministry": {},
             "testdevjobs": {},
+            "rls": {},
             "total_jobs_found": 0,
             "total_jobs_stored": 0,
             "total_notifications": 0,
@@ -208,9 +218,39 @@ class WeeklyUnifiedScraper:
                     "error": str(e),
                 }
 
+        # PART 5: RLS Job Board
+        if scrape_rls:
+            print("\n" + "=" * 80)
+            print("PART 5: RLS JOB BOARD (LEADERSHIP ROLES)")
+            print("=" * 80 + "\n")
+
+            try:
+                rls_stats = self.rls_scraper.scrape_rls_jobs(
+                    min_score=_rls_min_score,
+                )
+                all_stats["rls"] = rls_stats
+
+                all_stats["total_jobs_found"] += rls_stats.get("jobs_found", 0)
+                all_stats["total_jobs_stored"] += rls_stats.get("jobs_stored", 0)
+
+            except Exception as e:
+                print(f"✗ RLS Job Board error: {e}")
+                all_stats["rls"] = {
+                    "jobs_found": 0,
+                    "jobs_stored": 0,
+                    "jobs_scored": 0,
+                    "profile_scores": {},
+                    "error": str(e),
+                }
+
         # Final summary
         self._print_summary(
-            all_stats, fetch_emails, scrape_companies, scrape_ministry, scrape_testdevjobs
+            all_stats,
+            fetch_emails,
+            scrape_companies,
+            scrape_ministry,
+            scrape_testdevjobs,
+            scrape_rls,
         )
 
         return all_stats
@@ -246,6 +286,7 @@ class WeeklyUnifiedScraper:
         ran_companies: bool,
         ran_ministry: bool = False,
         ran_testdevjobs: bool = False,
+        ran_rls: bool = False,
     ) -> None:
         """Print final summary"""
         print("\n" + "=" * 80)
@@ -292,6 +333,13 @@ class WeeklyUnifiedScraper:
             print(f"  Jobs found: {testdevjobs_stats.get('jobs_found', 0)}")
             print(f"  Jobs stored: {testdevjobs_stats.get('jobs_stored', 0)}")
             print(f"  Jobs scored: {testdevjobs_stats.get('jobs_scored', 0)}")
+
+        if ran_rls:
+            rls_stats = all_stats["rls"]
+            print("\n🎯 RLS Job Board:")
+            print(f"  Jobs found: {rls_stats.get('jobs_found', 0)}")
+            print(f"  Jobs stored: {rls_stats.get('jobs_stored', 0)}")
+            print(f"  Jobs scored: {rls_stats.get('jobs_scored', 0)}")
 
         print("\n📊 TOTALS:")
         print(f"  Jobs found: {all_stats['total_jobs_found']}")
@@ -441,6 +489,7 @@ def run_all_inboxes(
         "companies": {},
         "ministry": {},
         "testdevjobs": {},
+        "rls": {},
         "grand_totals": {},
         "errors": [],
     }
@@ -469,6 +518,10 @@ def run_all_inboxes(
         # PART 4: Scrape TestDevJobs ONCE (shared resource)
         testdevjobs_stats = _scrape_shared_testdevjobs()
         aggregated_stats["testdevjobs"] = testdevjobs_stats
+
+        # PART 5: Scrape RLS Job Board ONCE (shared resource)
+        rls_stats = _scrape_shared_rls()
+        aggregated_stats["rls"] = rls_stats
 
     # Calculate grand totals
     aggregated_stats["grand_totals"] = _calculate_grand_totals(aggregated_stats)
@@ -505,6 +558,7 @@ def _process_all_inboxes(profiles: list, email_limit: int | None = None) -> dict
                 scrape_companies=False,
                 scrape_ministry=False,
                 scrape_testdevjobs=False,
+                scrape_rls=False,
             )
 
             results[profile.id] = {
@@ -637,6 +691,28 @@ def _scrape_shared_testdevjobs() -> dict:
         return {"jobs_found": 0, "jobs_stored": 0, "error": str(e)}
 
 
+def _scrape_shared_rls() -> dict:
+    """
+    Scrape RLS Job Board ONCE (shared across all profiles).
+
+    Returns:
+        RLS scraping stats (or error dict)
+    """
+    print("\n" + "=" * 80)
+    print("SHARED RESOURCE: RLS JOB BOARD (ALL PROFILES)")
+    print("=" * 80 + "\n")
+
+    try:
+        scraper = RLSJobBoardScraper(profile=None)
+        rls_stats = scraper.scrape_rls_jobs(min_score=47)
+        print("\n✓ RLS Job Board scraping completed")
+        return rls_stats
+
+    except Exception as e:
+        print(f"\n✗ RLS Job Board scraping error: {e}")
+        return {"jobs_found": 0, "jobs_stored": 0, "error": str(e)}
+
+
 def _calculate_grand_totals(aggregated_stats: dict) -> dict:
     """
     Calculate grand totals across all sources.
@@ -651,6 +727,7 @@ def _calculate_grand_totals(aggregated_stats: dict) -> dict:
     company_stats = aggregated_stats.get("companies", {})
     ministry_stats = aggregated_stats.get("ministry", {})
     testdevjobs_stats = aggregated_stats.get("testdevjobs", {})
+    rls_stats = aggregated_stats.get("rls", {})
 
     return {
         "total_jobs_found": (
@@ -658,12 +735,14 @@ def _calculate_grand_totals(aggregated_stats: dict) -> dict:
             + company_stats.get("jobs_scraped", 0)
             + ministry_stats.get("jobs_found", 0)
             + testdevjobs_stats.get("jobs_found", 0)
+            + rls_stats.get("jobs_found", 0)
         ),
         "total_jobs_stored": (
             email_totals.get("total_jobs_stored", 0)
             + company_stats.get("jobs_stored", 0)
             + ministry_stats.get("jobs_stored", 0)
             + testdevjobs_stats.get("jobs_stored", 0)
+            + rls_stats.get("jobs_stored", 0)
         ),
         "total_notifications": (
             email_totals.get("total_notifications", 0) + company_stats.get("notifications_sent", 0)
@@ -745,6 +824,15 @@ def _print_all_inboxes_summary(
             print(f"  Pages scraped: {testdevjobs_stats.get('pages_scraped', 0)}")
             print(f"  Jobs found: {testdevjobs_stats.get('jobs_found', 0)}")
             print(f"  Jobs stored: {testdevjobs_stats.get('jobs_stored', 0)}")
+
+        # RLS Job Board results
+        rls_stats = aggregated_stats.get("rls", {})
+        print("\n🎯 RLS JOB BOARD:")
+        if "error" in rls_stats:
+            print(f"  ✗ ERROR: {rls_stats['error']}")
+        else:
+            print(f"  Jobs found: {rls_stats.get('jobs_found', 0)}")
+            print(f"  Jobs stored: {rls_stats.get('jobs_stored', 0)}")
 
     # Grand totals
     grand_totals = aggregated_stats.get("grand_totals", {})
