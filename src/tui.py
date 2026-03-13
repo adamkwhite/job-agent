@@ -548,101 +548,111 @@ def show_system_health():  # pragma: no cover
     Note: TUI functions are excluded from coverage requirements as they will be
     tested through manual testing and integration tests
     """
-    clear_screen()
-    show_header()
-
     from database import JobDatabase
 
     db = JobDatabase()
-    health_checker = SystemHealthChecker(db)
-    health = health_checker.get_health_summary()
 
-    console.print(SEPARATOR_TOP)
-    console.print("[bold cyan]            🔍 SYSTEM HEALTH CHECK              [/bold cyan]")
-    console.print(SEPARATOR_BOTTOM)
+    while True:
+        clear_screen()
+        show_header()
 
-    health_table = Table(box=box.ROUNDED, show_header=False)
-    health_table.add_column("Metric", style="bold cyan", width=30)
-    health_table.add_column("Status", width=50)
+        health_checker = SystemHealthChecker(db)
+        health = health_checker.get_health_summary()
 
-    # LLM Failures
-    failures = health["llm_failures"]
-    failure_color = _threshold_color(-failures["total_pending"], green_above=0, yellow_above=-10)
-    health_table.add_row(
-        "LLM Failures (Pending)",
-        f"[{failure_color}]{failures['total_pending']}[/{failure_color}]",
-    )
-    health_table.add_row("LLM Failures (Last 24h)", f"[dim]{failures['last_24h']}[/dim]")
-    if failures["most_common_error"]:
-        health_table.add_row(
-            "Most Common Error",
-            f"[dim]{failures['most_common_error']} ({failures['most_common_count']} times)[/dim]",
+        console.print(SEPARATOR_TOP)
+        console.print("[bold cyan]            🔍 SYSTEM HEALTH CHECK              [/bold cyan]")
+        console.print(SEPARATOR_BOTTOM)
+
+        health_table = Table(box=box.ROUNDED, show_header=False)
+        health_table.add_column("Metric", style="bold cyan", width=30)
+        health_table.add_column("Status", width=50)
+
+        # LLM Failures
+        failures = health["llm_failures"]
+        failure_color = _threshold_color(
+            -failures["total_pending"], green_above=0, yellow_above=-10
         )
+        health_table.add_row(
+            "LLM Failures (Pending)",
+            f"[{failure_color}]{failures['total_pending']}[/{failure_color}]",
+        )
+        health_table.add_row("LLM Failures (Last 24h)", f"[dim]{failures['last_24h']}[/dim]")
+        if failures["most_common_error"]:
+            health_table.add_row(
+                "Most Common Error",
+                f"[dim]{failures['most_common_error']} ({failures['most_common_count']} times)[/dim]",
+            )
 
-    # Budget
-    health_table.add_row("", "")
-    budget = health["budget"]
-    budget_color = _threshold_color(100 - budget["percentage_used"], green_above=20, yellow_above=0)
-    health_table.add_row(
-        "Budget Usage",
-        f"[{budget_color}]${budget['total_spent']:.2f} / ${budget['monthly_limit']:.2f} ({budget['percentage_used']:.1f}%)[/{budget_color}]",
-    )
-    health_table.add_row("API Calls This Month", f"[dim]{budget['api_calls']}[/dim]")
-    health_table.add_row("Remaining Budget", f"[dim]${budget['remaining']:.2f}[/dim]")
+        # Budget
+        health_table.add_row("", "")
+        budget = health["budget"]
+        budget_color = _threshold_color(
+            100 - budget["percentage_used"], green_above=20, yellow_above=0
+        )
+        health_table.add_row(
+            "Budget Usage",
+            f"[{budget_color}]${budget['total_spent']:.2f} / ${budget['monthly_limit']:.2f} ({budget['percentage_used']:.1f}%)[/{budget_color}]",
+        )
+        health_table.add_row("API Calls This Month", f"[dim]{budget['api_calls']}[/dim]")
+        health_table.add_row("Remaining Budget", f"[dim]${budget['remaining']:.2f}[/dim]")
 
-    # Database Stats
-    health_table.add_row("", "")
-    db_stats = health["database"]
-    health_table.add_row("Total Jobs in DB", f"[green]{db_stats['total_jobs']:,}[/green]")
-    health_table.add_row("A/B Grade Jobs", f"[green]{db_stats['high_quality_jobs']:,}[/green]")
-    by_grade = db_stats.get("by_grade", {})
-    if by_grade:
-        grade_str = ", ".join([f"{grade}: {count}" for grade, count in sorted(by_grade.items())])
-        health_table.add_row("By Grade", f"[dim]{grade_str}[/dim]")
+        # Database Stats
+        health_table.add_row("", "")
+        db_stats = health["database"]
+        health_table.add_row("Total Jobs in DB", f"[green]{db_stats['total_jobs']:,}[/green]")
+        health_table.add_row("A/B Grade Jobs", f"[green]{db_stats['high_quality_jobs']:,}[/green]")
+        by_grade = db_stats.get("by_grade", {})
+        if by_grade:
+            grade_str = ", ".join(
+                [f"{grade}: {count}" for grade, count in sorted(by_grade.items())]
+            )
+            health_table.add_row("By Grade", f"[dim]{grade_str}[/dim]")
 
-    # Recent Activity
-    health_table.add_row("", "")
-    activity = health["recent_activity"]
-    if activity["last_run_time"]:
-        time_str = _format_time_ago(activity["last_run_time"])
-        health_table.add_row("Last Scraper Run", f"[green]{time_str}[/green]")
-        health_table.add_row("Jobs Found", f"[dim]{activity['jobs_found_last_run']}[/dim]")
-        if activity["last_run_source"]:
-            health_table.add_row("Source", f"[dim]{activity['last_run_source']}[/dim]")
-    else:
-        health_table.add_row("Last Scraper Run", "[yellow]No runs found[/yellow]")
+        # Recent Activity
+        health_table.add_row("", "")
+        activity = health["recent_activity"]
+        if activity["last_run_time"]:
+            time_str = _format_time_ago(activity["last_run_time"])
+            health_table.add_row("Last Scraper Run", f"[green]{time_str}[/green]")
+            health_table.add_row("Jobs Found", f"[dim]{activity['jobs_found_last_run']}[/dim]")
+            if activity["last_run_source"]:
+                health_table.add_row("Source", f"[dim]{activity['last_run_source']}[/dim]")
+        else:
+            health_table.add_row("Last Scraper Run", "[yellow]No runs found[/yellow]")
 
-    # Company Scraper
-    health_table.add_row("", "")
-    _add_company_health_rows(health_table, health["company_scraper"])
+        # Company Scraper
+        health_table.add_row("", "")
+        _add_company_health_rows(health_table, health["company_scraper"])
 
-    console.print(health_table)
+        console.print(health_table)
 
-    # Critical Issues
-    critical = health["critical_issues"]
-    if critical:
-        console.print("\n[bold red]⚠️  CRITICAL ISSUES:[/bold red]\n")
-        issues_table = Table(box=box.ROUNDED, show_header=False)
-        issues_table.add_column("Issue", style="white")
-        for issue in critical:
-            color = issue["severity"]
-            issues_table.add_row(f"[{color}]• {issue['message']}[/{color}]")
-            issues_table.add_row(f"[dim]  → {issue['action']}[/dim]")
-        console.print(issues_table)
-    else:
-        console.print("\n[bold green]✅ No critical issues detected[/bold green]")
+        # Critical Issues
+        critical = health["critical_issues"]
+        if critical:
+            console.print("\n[bold red]⚠️  CRITICAL ISSUES:[/bold red]\n")
+            issues_table = Table(box=box.ROUNDED, show_header=False)
+            issues_table.add_column("Issue", style="white")
+            for issue in critical:
+                color = issue["severity"]
+                issues_table.add_row(f"[{color}]• {issue['message']}[/{color}]")
+                issues_table.add_row(f"[dim]  → {issue['action']}[/dim]")
+            console.print(issues_table)
+        else:
+            console.print("\n[bold green]✅ No critical issues detected[/bold green]")
 
-    console.print(SEPARATOR_FULL)
+        console.print(SEPARATOR_FULL)
 
-    console.print(
-        "[dim]Actions: \\[f] LLM failures | \\[c] Company failures | \\[b] Back to menu[/dim]"
-    )
-    choice = Prompt.ask("\n[bold]Action[/bold]", choices=["f", "c", "b"], default="b")
+        console.print(
+            "[dim]Actions: \\[f] LLM failures | \\[c] Company failures | \\[b] Back to menu[/dim]"
+        )
+        choice = Prompt.ask("\n[bold]Action[/bold]", choices=["f", "c", "b"], default="b")
 
-    if choice == "f":
-        review_llm_failures()
-    elif choice == "c":
-        review_company_failures()
+        if choice == "b":
+            return
+        elif choice == "f":
+            review_llm_failures()
+        elif choice == "c":
+            review_company_failures()
 
 
 def show_extraction_metrics():  # pragma: no cover
@@ -1069,7 +1079,7 @@ def review_llm_failures():  # pragma: no cover
         console.print("  \\[r] Review specific failure (view details, retry, skip)")
         console.print("  \\[a] Retry all pending failures")
         console.print("  \\[s] Skip all pending failures")
-        console.print("  \\[b] Back to main menu")
+        console.print("  \\[b] Back")
 
         choice = Prompt.ask(SELECT_ACTION_PROMPT, choices=["r", "a", "s", "b"], default="b")
 
@@ -1667,7 +1677,7 @@ def manage_companies():  # pragma: no cover
     console.print("  [red]d#[/red]  - Delete/disable company # (e.g. d3)")
     console.print("  [cyan]r#[/cyan]  - Reset failures for company # (e.g. r7)")
     console.print("  [cyan]r[/cyan]   - Review all one by one")
-    console.print("  [cyan]b[/cyan]   - Back to main menu")
+    console.print("  [cyan]b[/cyan]   - Back")
 
     _inline_company_actions(combined, company_service)
 
