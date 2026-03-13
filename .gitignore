@@ -82,8 +82,9 @@ scratch_*
 /test_*
 src/test_*
 
-# Documentation PDFs (keep local but not in repo)
+# Documentation PDFs and architecture docs (keep local but not in repo)
 docs/**/*.pdf
+docs/architecture/
 coverage.xml
 
 # Exploration and temporary development files
@@ -104,3 +105,6 @@ data/profiles/
 data/profiles/*/connections.csv
 data/profiles/*/connections_cache.json
 docs/features/*/Connections.csv
+
+# Override global gitignore: track backup script
+!scripts/backup_database.sh
