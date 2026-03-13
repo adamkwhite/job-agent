@@ -119,6 +119,9 @@ def _handle_secondary_action(action: str | None) -> bool | None:
     elif action == "health":
         show_system_health()
         return True
+    elif action == "performance":
+        show_company_performance()
+        return True
 
     return None  # Main workflow action (scrape/digest/both)
 
@@ -791,6 +794,110 @@ def show_extraction_metrics():  # pragma: no cover
         console.print(SEPARATOR_BOTTOM)
 
 
+def _build_performers_table(
+    companies: list[dict[str, object]], title: str, limit: int = 10
+) -> Table:
+    """Build a Rich table of top or bottom performing companies."""
+    table = Table(title=title, box=box.ROUNDED, show_header=True, header_style=TABLE_HEADER_STYLE)
+    table.add_column("#", style="dim", width=4)
+    table.add_column("Company", style="white", width=25)
+    table.add_column("Scrapes", justify="right", width=8)
+    table.add_column("Total Jobs", justify="right", width=10)
+    table.add_column("Avg/Scrape", justify="right", width=10)
+    table.add_column("Fail %", justify="right", width=8)
+    table.add_column("Last Scraped", width=12)
+
+    for i, c in enumerate(companies[:limit], 1):
+        avg_raw = c.get("avg_jobs_per_scrape", 0) or 0
+        fail_raw = c.get("failure_rate", 0) or 0
+        avg = float(str(avg_raw))
+        fail = float(str(fail_raw))
+
+        avg_color = "green" if avg >= 5 else ("yellow" if avg >= 1 else "red")
+        fail_color = "red" if fail > 50 else ("yellow" if fail > 25 else "green")
+
+        table.add_row(
+            str(i),
+            str(c["company_name"]),
+            str(c.get("scrape_count", 0)),
+            str(c.get("total_jobs", 0)),
+            f"[{avg_color}]{avg:.1f}[/{avg_color}]",
+            f"[{fail_color}]{fail:.0f}%[/{fail_color}]",
+            str(c.get("last_scrape_date", ""))[:10],
+        )
+
+    return table
+
+
+def show_company_performance() -> None:  # pragma: no cover
+    """Show company scraping performance dashboard with top/bottom performers."""
+    from database import JobDatabase
+
+    db = JobDatabase()
+    days = 30
+
+    while True:
+        clear_screen()
+        show_header()
+        console.print(SEPARATOR_TOP)
+        console.print("[bold cyan]         🏢 COMPANY PERFORMANCE DASHBOARD          [/bold cyan]")
+        console.print(SEPARATOR_BOTTOM)
+
+        performance = db.get_company_performance_summary(days=days)
+        if not performance:
+            console.print(f"\n[yellow]No extraction metrics found for last {days} days.[/yellow]")
+            Prompt.ask("\nPress Enter to return")
+            return
+
+        # Summary stats
+        total_companies = len(performance)
+        total_jobs = sum(int(c.get("total_jobs", 0) or 0) for c in performance)
+        total_scrapes = sum(int(c.get("scrape_count", 0) or 0) for c in performance)
+        total_failures = sum(int(c.get("failure_count", 0) or 0) for c in performance)
+        overall_fail_rate = (total_failures / total_scrapes * 100) if total_scrapes else 0
+
+        summary = Table(box=box.ROUNDED, show_header=False)
+        summary.add_column("Metric", style="cyan", width=25)
+        summary.add_column("Value", style="white", width=20)
+        summary.add_row("Period", f"Last {days} days")
+        summary.add_row("Companies scraped", str(total_companies))
+        summary.add_row("Total scrapes", str(total_scrapes))
+        summary.add_row("Total jobs found", str(total_jobs))
+        fail_color = (
+            "red" if overall_fail_rate > 10 else "yellow" if overall_fail_rate > 5 else "green"
+        )
+        summary.add_row(
+            "Overall failure rate", f"[{fail_color}]{overall_fail_rate:.1f}%[/{fail_color}]"
+        )
+        console.print(summary)
+
+        # Top performers (by avg jobs per scrape)
+        top = sorted(
+            performance, key=lambda c: float(c.get("avg_jobs_per_scrape", 0) or 0), reverse=True
+        )
+        console.print()
+        console.print(_build_performers_table(top, "🏆 Top Performers (by avg jobs/scrape)"))
+
+        # Underperformers
+        underperformers = db.get_underperforming_companies(days=days)
+        if underperformers:
+            console.print()
+            console.print(
+                _build_performers_table(
+                    underperformers, "⚠️  Underperformers (>50% fail OR avg <1 job)", limit=20
+                )
+            )
+        else:
+            console.print("\n[green]✓ No underperforming companies found.[/green]")
+
+        # Action bar
+        console.print("\n[dim]Time window: [7] [30] [90] days | [b] Back[/dim]")
+        choice = Prompt.ask("Select", choices=["7", "30", "90", "b"], default="b")
+        if choice == "b":
+            return
+        days = int(choice)
+
+
 def _display_llm_budget() -> None:  # pragma: no cover
     """Display LLM budget status section."""
     import json
@@ -1170,6 +1277,7 @@ def select_action() -> str | None:
     table.add_row("f", "LLM Failures", "Review and retry failed LLM extractions")
     table.add_row("m", "LLM Metrics", "View regex vs LLM extraction comparison")
     table.add_row("h", "System Health", "View system health and error dashboard")
+    table.add_row("p", "Company Perf", "View company scraping performance and reliability")
     table.add_row("b", "Back", "Return to profile selection")
     table.add_row("q", "Quit", "Exit application")
 
@@ -1177,7 +1285,7 @@ def select_action() -> str | None:
 
     choice = Prompt.ask(
         SELECT_ACTION_PROMPT,
-        choices=["1", "2", "3", "c", "f", "m", "h", "b", "q"],
+        choices=["1", "2", "3", "c", "f", "m", "h", "p", "b", "q"],
         default="3",
     )
 
@@ -1189,6 +1297,7 @@ def select_action() -> str | None:
         "f": "failures",
         "m": "metrics",
         "h": "health",
+        "p": "performance",
         "1": "scrape",
         "2": "digest",
         "3": "both",

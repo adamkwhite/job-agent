@@ -1055,6 +1055,97 @@ class JobDatabase:
 
         return metrics
 
+    def get_company_performance_summary(self, days: int = 30) -> list[dict[str, object]]:
+        """Aggregate extraction metrics by company for performance analysis.
+
+        Args:
+            days: Number of days to look back
+
+        Returns:
+            List of per-company performance dicts, ordered by total_jobs DESC
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT
+                company_name,
+                COUNT(*) AS scrape_count,
+                SUM(total_jobs_found) AS total_jobs,
+                ROUND(AVG(total_jobs_found), 1) AS avg_jobs_per_scrape,
+                SUM(CASE WHEN fetch_success = 0 THEN 1 ELSE 0 END) AS failure_count,
+                ROUND(
+                    SUM(CASE WHEN fetch_success = 0 THEN 1.0 ELSE 0.0 END)
+                    / COUNT(*) * 100, 1
+                ) AS failure_rate,
+                MAX(scrape_date) AS last_scrape_date,
+                SUM(CASE WHEN total_jobs_found = 0 AND fetch_success = 1
+                    THEN 1 ELSE 0 END) AS zero_job_scrapes
+            FROM extraction_metrics
+            WHERE scrape_date >= date('now', '-' || ? || ' days')
+            GROUP BY company_name
+            ORDER BY total_jobs DESC
+            """,
+            (days,),
+        )
+
+        results = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return results
+
+    def get_underperforming_companies(
+        self, days: int = 30, min_scrapes: int = 3
+    ) -> list[dict[str, object]]:
+        """Get companies with high failure rates or low job yield.
+
+        Flags companies with >50% failure rate OR avg < 1 job per scrape,
+        with at least min_scrapes data points.
+
+        Args:
+            days: Number of days to look back
+            min_scrapes: Minimum scrapes required to be flagged
+
+        Returns:
+            List of underperforming company dicts
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT
+                company_name,
+                COUNT(*) AS scrape_count,
+                SUM(total_jobs_found) AS total_jobs,
+                ROUND(AVG(total_jobs_found), 1) AS avg_jobs_per_scrape,
+                SUM(CASE WHEN fetch_success = 0 THEN 1 ELSE 0 END) AS failure_count,
+                ROUND(
+                    SUM(CASE WHEN fetch_success = 0 THEN 1.0 ELSE 0.0 END)
+                    / COUNT(*) * 100, 1
+                ) AS failure_rate,
+                SUM(CASE WHEN total_jobs_found = 0 AND fetch_success = 1
+                    THEN 1 ELSE 0 END) AS zero_job_scrapes
+            FROM extraction_metrics
+            WHERE scrape_date >= date('now', '-' || ? || ' days')
+            GROUP BY company_name
+            HAVING COUNT(*) >= ?
+              AND (
+                SUM(CASE WHEN fetch_success = 0 THEN 1.0 ELSE 0.0 END)
+                / COUNT(*) > 0.5
+                OR AVG(total_jobs_found) < 1.0
+              )
+            ORDER BY failure_rate DESC, avg_jobs_per_scrape ASC
+            """,
+            (days, min_scrapes),
+        )
+
+        results = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return results
+
 
 if __name__ == "__main__":
     # Test the database
