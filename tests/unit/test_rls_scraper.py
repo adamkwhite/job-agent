@@ -88,6 +88,12 @@ class TestBuildJobDict:
         result = RLSJobBoardScraper._build_job_dict(SAMPLE_API_RESPONSE[2])
         assert result["location"] == "Berlin, Germany"
 
+    def test_remote_only_no_location(self) -> None:
+        """Remote status without a city shows just the status."""
+        job = {"remote_status": "Remote", "location": ""}
+        result = RLSJobBoardScraper._build_job_dict(job)
+        assert result["location"] == "Remote"
+
     def test_description_includes_experience(self) -> None:
         result = RLSJobBoardScraper._build_job_dict(SAMPLE_API_RESPONSE[0])
         assert "Experience: Senior" in result["description"]
@@ -246,29 +252,147 @@ class TestScrapeRlsJobs:
         assert stats["profile_scores"]["wes"][0] == (90, "A")
 
 
-class TestRetryDbOperation:
-    """Tests for database retry logic"""
+class TestStoreSingleJob:
+    """Tests for _store_single_job error handling paths"""
 
-    def test_succeeds_first_try(self) -> None:
-        result = RLSJobBoardScraper._retry_db_operation(lambda: 42)
-        assert result == 42
+    @patch("jobs.rls_scraper.get_multi_scorer")
+    @patch("jobs.rls_scraper.JobDatabase")
+    def test_unique_constraint_error(self, mock_db_cls: MagicMock, mock_scorer: MagicMock) -> None:
+        mock_db = MagicMock()
+        mock_db.add_job.side_effect = Exception("UNIQUE constraint failed")
+        mock_db_cls.return_value = mock_db
 
-    def test_retries_on_lock_error(self) -> None:
-        call_count = 0
+        scraper = RLSJobBoardScraper()
+        stats: dict[str, int] = {"jobs_stored": 0}
+        result = scraper._store_single_job("Test Job", {}, stats)
 
-        def flaky_op() -> int:
-            nonlocal call_count
-            call_count += 1
-            if call_count < 3:
-                raise Exception("database is locked")
-            return 99
+        assert result is None
+        assert stats["jobs_stored"] == 0
 
-        result = RLSJobBoardScraper._retry_db_operation(flaky_op)
-        assert result == 99
-        assert call_count == 3
+    @patch("jobs.rls_scraper.get_multi_scorer")
+    @patch("jobs.rls_scraper.JobDatabase")
+    def test_generic_db_error(self, mock_db_cls: MagicMock, mock_scorer: MagicMock) -> None:
+        mock_db = MagicMock()
+        mock_db.add_job.side_effect = Exception("disk full")
+        mock_db_cls.return_value = mock_db
 
-    def test_raises_non_lock_errors(self) -> None:
-        with pytest.raises(ValueError, match="bad data"):
-            RLSJobBoardScraper._retry_db_operation(
-                lambda: (_ for _ in ()).throw(ValueError("bad data"))
-            )
+        scraper = RLSJobBoardScraper()
+        stats: dict[str, int] = {"jobs_stored": 0}
+        result = scraper._store_single_job("Test Job", {}, stats)
+
+        assert result is None
+        assert stats["jobs_stored"] == 0
+
+
+class TestScoreSingleJob:
+    """Tests for _score_single_job edge cases"""
+
+    @patch("jobs.rls_scraper.get_multi_scorer")
+    @patch("jobs.rls_scraper.JobDatabase")
+    def test_empty_profile_scores(self, mock_db_cls: MagicMock, mock_scorer: MagicMock) -> None:
+        """When all profiles filter a job, stats still increment."""
+        mock_multi = MagicMock()
+        mock_multi.score_job_for_all.return_value = {}
+        mock_scorer.return_value = mock_multi
+
+        scraper = RLSJobBoardScraper()
+        stats: dict[str, object] = {"jobs_scored": 0, "profile_scores": {}}
+        scraper._score_single_job("Filtered Job", {}, 1, stats, 47)
+
+        assert stats["jobs_scored"] == 1
+        assert stats["profile_scores"] == {}
+
+    @patch("jobs.rls_scraper.get_multi_scorer")
+    @patch("jobs.rls_scraper.JobDatabase")
+    def test_scoring_exception(self, mock_db_cls: MagicMock, mock_scorer: MagicMock) -> None:
+        """Scoring exceptions are caught and don't crash the scraper."""
+        mock_multi = MagicMock()
+        mock_multi.score_job_for_all.side_effect = RuntimeError("scorer broke")
+        mock_scorer.return_value = mock_multi
+
+        scraper = RLSJobBoardScraper()
+        stats: dict[str, object] = {"jobs_scored": 0, "profile_scores": {}}
+        # Should not raise
+        scraper._score_single_job("Bad Job", {}, 1, stats, 47)
+
+        assert stats["jobs_scored"] == 0
+
+    @patch("jobs.rls_scraper.get_multi_scorer")
+    @patch("jobs.rls_scraper.JobDatabase")
+    def test_qualifying_job_threshold(
+        self, mock_db_cls: MagicMock, mock_scorer: MagicMock, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Jobs at or above min_score are flagged as qualifying."""
+        mock_multi = MagicMock()
+        mock_multi.score_job_for_all.return_value = {"adam": (85, "A")}
+        mock_scorer.return_value = mock_multi
+
+        scraper = RLSJobBoardScraper()
+        stats: dict[str, object] = {"jobs_scored": 0, "profile_scores": {}}
+        scraper._score_single_job("Great Job", {}, 1, stats, 80)
+
+        captured = capsys.readouterr()
+        assert "QUALIFYING JOB" in captured.out
+
+    @patch("jobs.rls_scraper.get_multi_scorer")
+    @patch("jobs.rls_scraper.JobDatabase")
+    def test_below_threshold_no_flag(
+        self, mock_db_cls: MagicMock, mock_scorer: MagicMock, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Jobs below min_score are not flagged."""
+        mock_multi = MagicMock()
+        mock_multi.score_job_for_all.return_value = {"adam": (40, "D")}
+        mock_scorer.return_value = mock_multi
+
+        scraper = RLSJobBoardScraper()
+        stats: dict[str, object] = {"jobs_scored": 0, "profile_scores": {}}
+        scraper._score_single_job("Meh Job", {}, 1, stats, 80)
+
+        captured = capsys.readouterr()
+        assert "QUALIFYING JOB" not in captured.out
+
+
+class TestPrintSummary:
+    """Tests for print_summary output"""
+
+    def test_basic_summary(self, capsys: pytest.CaptureFixture[str]) -> None:
+        stats = {"jobs_found": 10, "jobs_stored": 8, "jobs_scored": 8, "profile_scores": {}}
+        RLSJobBoardScraper.print_summary(stats)
+        captured = capsys.readouterr()
+        assert "Jobs found: 10" in captured.out
+        assert "Jobs stored: 8" in captured.out
+
+    def test_summary_with_profile_scores(self, capsys: pytest.CaptureFixture[str]) -> None:
+        stats = {
+            "jobs_found": 5,
+            "jobs_stored": 5,
+            "jobs_scored": 5,
+            "profile_scores": {
+                "adam": [(80, "B"), (90, "A"), (60, "C")],
+                "wes": [(95, "A"), (88, "A")],
+            },
+        }
+        RLSJobBoardScraper.print_summary(stats)
+        captured = capsys.readouterr()
+        assert "adam:" in captured.out
+        assert "Total: 3 jobs" in captured.out
+        assert "Avg score: 76.7" in captured.out
+        assert "wes:" in captured.out
+        assert "Total: 2 jobs" in captured.out
+
+    def test_summary_with_empty_scores_list(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """A profile with an empty scores list is skipped."""
+        stats = {
+            "jobs_found": 0,
+            "jobs_stored": 0,
+            "profile_scores": {"adam": []},
+        }
+        RLSJobBoardScraper.print_summary(stats)
+        captured = capsys.readouterr()
+        assert "adam:" not in captured.out
+
+    def test_summary_no_profile_scores(self, capsys: pytest.CaptureFixture[str]) -> None:
+        stats = {"jobs_found": 0, "jobs_stored": 0, "profile_scores": {}}
+        RLSJobBoardScraper.print_summary(stats)
+        captured = capsys.readouterr()
+        assert "Scores by profile:" not in captured.out

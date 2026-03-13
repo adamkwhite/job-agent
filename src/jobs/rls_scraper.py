@@ -11,19 +11,16 @@ Usage:
 
 import argparse
 import sys
-import time
-from collections.abc import Callable
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any
 
 import requests
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from database import JobDatabase
+from utils.db_retry import retry_db_operation
 from utils.multi_scorer import get_multi_scorer
-
-_T = TypeVar("_T")
 
 API_URL = "https://worker-production-a172.up.railway.app/api/jobs"
 
@@ -35,33 +32,6 @@ class RLSJobBoardScraper(object):  # noqa: UP004 (explicit object for SonarLint 
         self.profile = profile
         self.database = JobDatabase()
         self.multi_scorer = get_multi_scorer()
-
-    @staticmethod
-    def _retry_db_operation(
-        operation: Callable[[], _T],
-        max_retries: int = 3,
-        initial_delay: float = 0.1,
-    ) -> _T:
-        """Retry database operations with exponential backoff for lock errors"""
-        delay = initial_delay
-        last_exc: Exception | None = None
-
-        for attempt in range(max_retries):
-            try:
-                return operation()
-            except Exception as e:
-                last_exc = e
-                error_msg = str(e).lower()
-                if (
-                    "database is locked" in error_msg or "locked" in error_msg
-                ) and attempt < max_retries - 1:
-                    time.sleep(delay)
-                    delay *= 2
-                    continue
-                raise
-
-        assert last_exc is not None
-        raise last_exc
 
     def scrape_rls_jobs(self, min_score: int = 47) -> dict[str, Any]:
         """
@@ -144,7 +114,7 @@ class RLSJobBoardScraper(object):  # noqa: UP004 (explicit object for SonarLint 
     ) -> int | None:
         """Store a single job. Returns job_id or None if duplicate."""
         try:
-            job_id: int | None = self._retry_db_operation(lambda: self.database.add_job(job_dict))
+            job_id: int | None = retry_db_operation(lambda: self.database.add_job(job_dict))
             if job_id is None:
                 print(f"   ⊙ Duplicate: {job_title[:60]}")
                 return None
@@ -168,7 +138,7 @@ class RLSJobBoardScraper(object):  # noqa: UP004 (explicit object for SonarLint 
     ) -> None:
         """Score a single job for all profiles."""
         try:
-            profile_scores: dict[str, tuple[int, str]] = self._retry_db_operation(
+            profile_scores: dict[str, tuple[int, str]] = retry_db_operation(
                 lambda: self.multi_scorer.score_job_for_all(job_dict, job_id)
             )
             stats["jobs_scored"] += 1
