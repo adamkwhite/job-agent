@@ -19,7 +19,7 @@ import requests
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from database import JobDatabase
-from utils.db_retry import retry_db_operation
+from utils.db_retry import score_single_job, store_single_job
 from utils.multi_scorer import get_multi_scorer
 
 API_URL = "https://worker-production-a172.up.railway.app/api/jobs"
@@ -71,10 +71,12 @@ class RLSJobBoardScraper(object):  # noqa: UP004 (explicit object for SonarLint 
 
         for job in jobs:
             job_dict = self._build_job_dict(job)
-            job_id = self._store_single_job(job_dict["title"], job_dict, stats)
+            job_id = store_single_job(self.database, job_dict["title"], job_dict, stats)
             if job_id is None:
                 continue
-            self._score_single_job(job_dict["title"], job_dict, job_id, stats, min_score)
+            score_single_job(
+                self.multi_scorer, job_dict["title"], job_dict, job_id, stats, min_score
+            )
 
         return stats
 
@@ -108,61 +110,6 @@ class RLSJobBoardScraper(object):  # noqa: UP004 (explicit object for SonarLint 
             "salary": job.get("salary_range", ""),
             "job_type": job.get("role_type", "Full-time"),
         }
-
-    def _store_single_job(
-        self, job_title: str, job_dict: dict[str, Any], stats: dict[str, Any]
-    ) -> int | None:
-        """Store a single job. Returns job_id or None if duplicate."""
-        try:
-            job_id: int | None = retry_db_operation(lambda: self.database.add_job(job_dict))
-            if job_id is None:
-                print(f"   ⊙ Duplicate: {job_title[:60]}")
-                return None
-            stats["jobs_stored"] += 1
-            return job_id
-        except Exception as e:
-            error_msg = str(e).lower()
-            if "unique" in error_msg or "duplicate" in error_msg:
-                print(f"   ⊙ Duplicate: {job_title[:60]}")
-            else:
-                print(f"   ✗ Error storing job: {e}")
-            return None
-
-    def _score_single_job(
-        self,
-        job_title: str,
-        job_dict: dict[str, Any],
-        job_id: int,
-        stats: dict[str, Any],
-        min_score: int,
-    ) -> None:
-        """Score a single job for all profiles."""
-        try:
-            profile_scores: dict[str, tuple[int, str]] = retry_db_operation(
-                lambda: self.multi_scorer.score_job_for_all(job_dict, job_id)
-            )
-            stats["jobs_scored"] += 1
-
-            if not profile_scores:
-                print(f"   ⊘ {job_title[:50]}")
-                print("     All profiles filtered this job")
-                return
-
-            for profile_id, (score, grade) in profile_scores.items():
-                if profile_id not in stats["profile_scores"]:
-                    stats["profile_scores"][profile_id] = []
-                stats["profile_scores"][profile_id].append((score, grade))
-
-            scores_str = ", ".join(f"{pid}:{s}/{g}" for pid, (s, g) in profile_scores.items())
-            print(f"   ✓ {job_title[:50]}")
-            print(f"     Scores: {scores_str}")
-
-            max_score = max(score for score, _ in profile_scores.values())
-            if max_score >= min_score:
-                print(f"     🎯 QUALIFYING JOB (max score: {max_score})")
-
-        except Exception as e:
-            print(f"   ✗ Error scoring job: {e}")
 
     @staticmethod
     def print_summary(stats: dict[str, Any]) -> None:

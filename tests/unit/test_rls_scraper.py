@@ -133,60 +133,61 @@ class TestBuildJobDict:
 
 
 class TestScrapeRlsJobs:
-    """Tests for the full scrape flow"""
+    """Tests for the full scrape flow (store/score delegated to shared utils)"""
 
+    @patch("jobs.rls_scraper.score_single_job")
+    @patch("jobs.rls_scraper.store_single_job")
     @patch("jobs.rls_scraper.get_multi_scorer")
     @patch("jobs.rls_scraper.JobDatabase")
     @patch("jobs.rls_scraper.requests.get")
     def test_successful_scrape(
-        self, mock_get: MagicMock, mock_db_cls: MagicMock, mock_scorer: MagicMock
+        self,
+        mock_get: MagicMock,
+        mock_db_cls: MagicMock,
+        mock_scorer: MagicMock,
+        mock_store: MagicMock,
+        mock_score: MagicMock,
     ) -> None:
         mock_response = MagicMock()
         mock_response.json.return_value = SAMPLE_API_RESPONSE
         mock_response.raise_for_status.return_value = None
         mock_get.return_value = mock_response
 
-        mock_db = MagicMock()
-        mock_db.add_job.side_effect = [100, 101, 102]
-        mock_db_cls.return_value = mock_db
-
-        mock_multi = MagicMock()
-        mock_multi.score_job_for_all.return_value = {"adam": (75, "B")}
-        mock_scorer.return_value = mock_multi
+        mock_store.side_effect = [100, 101, 102]
 
         scraper = RLSJobBoardScraper()
         stats = scraper.scrape_rls_jobs()
 
         assert stats["jobs_found"] == 3
-        assert stats["jobs_stored"] == 3
-        assert stats["jobs_scored"] == 3
-        assert mock_db.add_job.call_count == 3
+        assert mock_store.call_count == 3
+        assert mock_score.call_count == 3
 
+    @patch("jobs.rls_scraper.score_single_job")
+    @patch("jobs.rls_scraper.store_single_job")
     @patch("jobs.rls_scraper.get_multi_scorer")
     @patch("jobs.rls_scraper.JobDatabase")
     @patch("jobs.rls_scraper.requests.get")
-    def test_duplicates_not_counted(
-        self, mock_get: MagicMock, mock_db_cls: MagicMock, mock_scorer: MagicMock
+    def test_duplicates_skip_scoring(
+        self,
+        mock_get: MagicMock,
+        mock_db_cls: MagicMock,
+        mock_scorer: MagicMock,
+        mock_store: MagicMock,
+        mock_score: MagicMock,
     ) -> None:
         mock_response = MagicMock()
         mock_response.json.return_value = SAMPLE_API_RESPONSE[:2]
         mock_response.raise_for_status.return_value = None
         mock_get.return_value = mock_response
 
-        mock_db = MagicMock()
-        mock_db.add_job.side_effect = [100, None]  # Second is duplicate
-        mock_db_cls.return_value = mock_db
-
-        mock_multi = MagicMock()
-        mock_multi.score_job_for_all.return_value = {"adam": (65, "C")}
-        mock_scorer.return_value = mock_multi
+        mock_store.side_effect = [100, None]  # Second is duplicate
 
         scraper = RLSJobBoardScraper()
         stats = scraper.scrape_rls_jobs()
 
         assert stats["jobs_found"] == 2
-        assert stats["jobs_stored"] == 1
-        assert stats["jobs_scored"] == 1
+        assert mock_store.call_count == 2
+        assert mock_score.call_count == 1  # Only scored non-duplicate
 
     @patch("jobs.rls_scraper.get_multi_scorer")
     @patch("jobs.rls_scraper.JobDatabase")
@@ -205,11 +206,16 @@ class TestScrapeRlsJobs:
         assert "error" in stats
         assert "Connection refused" in stats["error"]
 
+    @patch("jobs.rls_scraper.store_single_job")
     @patch("jobs.rls_scraper.get_multi_scorer")
     @patch("jobs.rls_scraper.JobDatabase")
     @patch("jobs.rls_scraper.requests.get")
     def test_empty_api_response(
-        self, mock_get: MagicMock, mock_db_cls: MagicMock, mock_scorer: MagicMock
+        self,
+        mock_get: MagicMock,
+        mock_db_cls: MagicMock,
+        mock_scorer: MagicMock,
+        mock_store: MagicMock,
     ) -> None:
         mock_response = MagicMock()
         mock_response.json.return_value = []
@@ -220,136 +226,41 @@ class TestScrapeRlsJobs:
         stats = scraper.scrape_rls_jobs()
 
         assert stats["jobs_found"] == 0
-        assert stats["jobs_stored"] == 0
+        assert mock_store.call_count == 0
 
+    @patch("jobs.rls_scraper.score_single_job")
+    @patch("jobs.rls_scraper.store_single_job")
     @patch("jobs.rls_scraper.get_multi_scorer")
     @patch("jobs.rls_scraper.JobDatabase")
     @patch("jobs.rls_scraper.requests.get")
-    def test_profile_scores_aggregated(
-        self, mock_get: MagicMock, mock_db_cls: MagicMock, mock_scorer: MagicMock
+    def test_passes_correct_args_to_store_and_score(
+        self,
+        mock_get: MagicMock,
+        mock_db_cls: MagicMock,
+        mock_scorer: MagicMock,
+        mock_store: MagicMock,
+        mock_score: MagicMock,
     ) -> None:
+        """Verify scraper passes database/scorer instances to shared functions."""
         mock_response = MagicMock()
-        mock_response.json.return_value = SAMPLE_API_RESPONSE[:2]
+        mock_response.json.return_value = SAMPLE_API_RESPONSE[:1]
         mock_response.raise_for_status.return_value = None
         mock_get.return_value = mock_response
 
-        mock_db = MagicMock()
-        mock_db.add_job.side_effect = [100, 101]
-        mock_db_cls.return_value = mock_db
-
-        mock_multi = MagicMock()
-        mock_multi.score_job_for_all.side_effect = [
-            {"adam": (80, "B"), "wes": (90, "A")},
-            {"adam": (60, "C")},
-        ]
-        mock_scorer.return_value = mock_multi
+        mock_store.return_value = 42
 
         scraper = RLSJobBoardScraper()
-        stats = scraper.scrape_rls_jobs()
+        scraper.scrape_rls_jobs(min_score=60)
 
-        assert len(stats["profile_scores"]["adam"]) == 2
-        assert len(stats["profile_scores"]["wes"]) == 1
-        assert stats["profile_scores"]["wes"][0] == (90, "A")
+        # store_single_job receives the database instance
+        store_call = mock_store.call_args
+        assert store_call[0][0] is scraper.database
 
-
-class TestStoreSingleJob:
-    """Tests for _store_single_job error handling paths"""
-
-    @patch("jobs.rls_scraper.get_multi_scorer")
-    @patch("jobs.rls_scraper.JobDatabase")
-    def test_unique_constraint_error(self, mock_db_cls: MagicMock, mock_scorer: MagicMock) -> None:
-        mock_db = MagicMock()
-        mock_db.add_job.side_effect = Exception("UNIQUE constraint failed")
-        mock_db_cls.return_value = mock_db
-
-        scraper = RLSJobBoardScraper()
-        stats: dict[str, int] = {"jobs_stored": 0}
-        result = scraper._store_single_job("Test Job", {}, stats)
-
-        assert result is None
-        assert stats["jobs_stored"] == 0
-
-    @patch("jobs.rls_scraper.get_multi_scorer")
-    @patch("jobs.rls_scraper.JobDatabase")
-    def test_generic_db_error(self, mock_db_cls: MagicMock, mock_scorer: MagicMock) -> None:
-        mock_db = MagicMock()
-        mock_db.add_job.side_effect = Exception("disk full")
-        mock_db_cls.return_value = mock_db
-
-        scraper = RLSJobBoardScraper()
-        stats: dict[str, int] = {"jobs_stored": 0}
-        result = scraper._store_single_job("Test Job", {}, stats)
-
-        assert result is None
-        assert stats["jobs_stored"] == 0
-
-
-class TestScoreSingleJob:
-    """Tests for _score_single_job edge cases"""
-
-    @patch("jobs.rls_scraper.get_multi_scorer")
-    @patch("jobs.rls_scraper.JobDatabase")
-    def test_empty_profile_scores(self, mock_db_cls: MagicMock, mock_scorer: MagicMock) -> None:
-        """When all profiles filter a job, stats still increment."""
-        mock_multi = MagicMock()
-        mock_multi.score_job_for_all.return_value = {}
-        mock_scorer.return_value = mock_multi
-
-        scraper = RLSJobBoardScraper()
-        stats: dict[str, object] = {"jobs_scored": 0, "profile_scores": {}}
-        scraper._score_single_job("Filtered Job", {}, 1, stats, 47)
-
-        assert stats["jobs_scored"] == 1
-        assert stats["profile_scores"] == {}
-
-    @patch("jobs.rls_scraper.get_multi_scorer")
-    @patch("jobs.rls_scraper.JobDatabase")
-    def test_scoring_exception(self, mock_db_cls: MagicMock, mock_scorer: MagicMock) -> None:
-        """Scoring exceptions are caught and don't crash the scraper."""
-        mock_multi = MagicMock()
-        mock_multi.score_job_for_all.side_effect = RuntimeError("scorer broke")
-        mock_scorer.return_value = mock_multi
-
-        scraper = RLSJobBoardScraper()
-        stats: dict[str, object] = {"jobs_scored": 0, "profile_scores": {}}
-        # Should not raise
-        scraper._score_single_job("Bad Job", {}, 1, stats, 47)
-
-        assert stats["jobs_scored"] == 0
-
-    @patch("jobs.rls_scraper.get_multi_scorer")
-    @patch("jobs.rls_scraper.JobDatabase")
-    def test_qualifying_job_threshold(
-        self, mock_db_cls: MagicMock, mock_scorer: MagicMock, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """Jobs at or above min_score are flagged as qualifying."""
-        mock_multi = MagicMock()
-        mock_multi.score_job_for_all.return_value = {"adam": (85, "A")}
-        mock_scorer.return_value = mock_multi
-
-        scraper = RLSJobBoardScraper()
-        stats: dict[str, object] = {"jobs_scored": 0, "profile_scores": {}}
-        scraper._score_single_job("Great Job", {}, 1, stats, 80)
-
-        captured = capsys.readouterr()
-        assert "QUALIFYING JOB" in captured.out
-
-    @patch("jobs.rls_scraper.get_multi_scorer")
-    @patch("jobs.rls_scraper.JobDatabase")
-    def test_below_threshold_no_flag(
-        self, mock_db_cls: MagicMock, mock_scorer: MagicMock, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """Jobs below min_score are not flagged."""
-        mock_multi = MagicMock()
-        mock_multi.score_job_for_all.return_value = {"adam": (40, "D")}
-        mock_scorer.return_value = mock_multi
-
-        scraper = RLSJobBoardScraper()
-        stats: dict[str, object] = {"jobs_scored": 0, "profile_scores": {}}
-        scraper._score_single_job("Meh Job", {}, 1, stats, 80)
-
-        captured = capsys.readouterr()
-        assert "QUALIFYING JOB" not in captured.out
+        # score_single_job receives the multi_scorer instance
+        score_call = mock_score.call_args
+        assert score_call[0][0] is scraper.multi_scorer
+        assert score_call[0][3] == 42  # job_id
+        assert score_call[0][5] == 60  # min_score
 
 
 class TestPrintSummary:
