@@ -4,9 +4,32 @@
 - [ ] Company Location Management in TUI (Issue #193)
 ## Open Backlog (Low Priority)
 - Issue #79: Enhanced statistics tracking for scraper observability
-- Issue #180: Performance monitoring dashboard for company scraping costs
 
-## Recently Completed (Mar 9, 2026)
+## Recently Completed (Mar 13, 2026)
+- [x] Migrate cron jobs from WSL to Hostinger VPS (PR #381)
+  - VPS: Ubuntu 25.10, `ssh hostinger`, timezone America/Toronto
+  - Scraper at 6am ET, backup at 3am ET
+  - Deploy script: `scripts/deploy_to_vps.sh`
+  - Fixed lxml dependency conflict (6.0.2 → >=5.3,<6)
+  - Tracked `backup_database.sh` (was excluded by global gitignore)
+- [x] WSL auto-start via Windows Task Scheduler (kept as convenience)
+
+## Previously Completed (Mar 12, 2026)
+- [x] Company performance dashboard in TUI (Issue #180, PR #379)
+  - Database aggregation methods for scraping metrics
+  - Top/bottom performer tables with failure rates, time window switching
+- [x] RLS Job Board scraper — Rands Leadership Slack (PR #377)
+  - JSON API integration, field mapping, multi-profile scoring
+  - Integrated into weekly unified scraper pipeline
+- [x] Shared scraper utilities extracted to `utils/db_retry.py`
+  - `retry_db_operation()`, `store_single_job()`, `score_single_job()`, `print_profile_score_summary()`
+  - Protocol types for structural typing without inheritance
+  - Eliminated cross-scraper code duplication (SonarCloud 5.7% → 0%)
+- [x] Simplified backup to daily-only retention, 7-day keep (PR #376)
+- [x] Cleaned up: test profile, stale logs, hallucinated URLs, Figure AI re-enabled
+- [x] RLS Job Board PRD (local doc, not public GH issue)
+
+## Previously Completed (Mar 9, 2026)
 - [x] TUI onboarding wizard with PromptKit DI (Issue #349, PR #368)
 - [x] Daily scraping + frequency-aware digests (Issue #3)
   - Cron: daily 6am full scrape, daily digests always, weekly digests on Mondays
