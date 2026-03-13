@@ -4,7 +4,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from utils.db_retry import retry_db_operation, score_single_job, store_single_job
+from utils.db_retry import (
+    print_profile_score_summary,
+    retry_db_operation,
+    score_single_job,
+    store_single_job,
+)
 
 
 class TestRetryDbOperation:
@@ -144,3 +149,32 @@ class TestScoreSingleJob:
 
         captured = capsys.readouterr()
         assert "QUALIFYING JOB" not in captured.out
+
+
+class TestPrintProfileScoreSummary:
+    """Tests for the shared print_profile_score_summary function"""
+
+    def test_prints_profile_breakdown(self, capsys: pytest.CaptureFixture[str]) -> None:
+        stats: dict[str, object] = {
+            "profile_scores": {
+                "adam": [(80, "B"), (90, "A")],
+                "wes": [(95, "A")],
+            }
+        }
+        print_profile_score_summary(stats)
+        captured = capsys.readouterr()
+        assert "adam:" in captured.out
+        assert "Total: 2 jobs" in captured.out
+        assert "wes:" in captured.out
+
+    def test_skips_empty_scores(self, capsys: pytest.CaptureFixture[str]) -> None:
+        stats: dict[str, object] = {"profile_scores": {"adam": []}}
+        print_profile_score_summary(stats)
+        captured = capsys.readouterr()
+        assert "adam:" not in captured.out
+
+    def test_no_output_when_missing(self, capsys: pytest.CaptureFixture[str]) -> None:
+        stats: dict[str, object] = {"profile_scores": {}}
+        print_profile_score_summary(stats)
+        captured = capsys.readouterr()
+        assert "Scores by profile:" not in captured.out

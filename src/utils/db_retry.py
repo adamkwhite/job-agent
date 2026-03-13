@@ -129,3 +129,29 @@ def score_single_job(
 
     except Exception as e:
         print(f"   ✗ Error scoring job: {e}")
+
+
+def print_profile_score_summary(
+    stats: dict[str, object],
+) -> None:
+    """Print per-profile scoring breakdown from stats["profile_scores"].
+
+    Shared by RLS, Ministry, TestDevJobs scrapers.
+    """
+    profile_scores = stats.get("profile_scores")
+    if not profile_scores or not isinstance(profile_scores, dict):
+        return
+
+    print("Scores by profile:")
+    for profile_id, scores in profile_scores.items():
+        if not scores:
+            continue
+        grade_counts: dict[str, int] = {}
+        for _score, grade in scores:
+            grade_counts[grade] = grade_counts.get(grade, 0) + 1
+        total = len(scores)
+        avg_score = sum(s for s, _ in scores) / total if total > 0 else 0
+        print(f"  {profile_id}:")
+        print(f"    Total: {total} jobs")
+        print(f"    Avg score: {avg_score:.1f}")
+        print(f"    Grades: {', '.join(f'{g}={c}' for g, c in sorted(grade_counts.items()))}")

@@ -19,7 +19,7 @@ import requests
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from database import JobDatabase
-from utils.db_retry import score_single_job, store_single_job
+from utils.db_retry import print_profile_score_summary, score_single_job, store_single_job
 from utils.multi_scorer import get_multi_scorer
 
 API_URL = "https://worker-production-a172.up.railway.app/api/jobs"
@@ -121,24 +121,7 @@ class RLSJobBoardScraper(object):  # noqa: UP004 (explicit object for SonarLint 
         print(f"Jobs stored: {stats['jobs_stored']}")
         print(f"Jobs scored: {stats.get('jobs_scored', 0)}")
         print()
-
-        if stats.get("profile_scores"):
-            print("Scores by profile:")
-            for profile_id, scores in stats["profile_scores"].items():
-                if not scores:
-                    continue
-                grade_counts: dict[str, int] = {}
-                for _score, grade in scores:
-                    grade_counts[grade] = grade_counts.get(grade, 0) + 1
-                total = len(scores)
-                avg_score = sum(s for s, _ in scores) / total if total > 0 else 0
-                print(f"  {profile_id}:")
-                print(f"    Total: {total} jobs")
-                print(f"    Avg score: {avg_score:.1f}")
-                print(
-                    f"    Grades: {', '.join(f'{g}={c}' for g, c in sorted(grade_counts.items()))}"
-                )
-
+        print_profile_score_summary(stats)
         print("=" * 80 + "\n")
 
 
