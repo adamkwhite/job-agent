@@ -58,7 +58,7 @@ def show_header():
     clear_screen()
     header = """
 [bold cyan]╔═══════════════════════════════════════════════╗[/bold cyan]
-[bold cyan]║[/bold cyan]     [bold white]Job Agent Pipeline Controller[/bold white]       [bold cyan]║[/bold cyan]
+[bold cyan]║[/bold cyan]        [bold white]Job Agent Pipeline Controller[/bold white]         [bold cyan]║[/bold cyan]
 [bold cyan]╚═══════════════════════════════════════════════╝[/bold cyan]
     """
     console.print(header)
@@ -534,6 +534,18 @@ def _add_company_health_rows(health_table: Table, company_health: dict) -> None:
         health_table.add_row(
             "Auto-Disabled (5 failures)",
             f"[red]{company_health['auto_disabled_count']} companies[/red]",
+        )
+
+    if company_health.get("pending_review_count", 0) > 0:
+        health_table.add_row(
+            "Pending Review",
+            f"[yellow]{company_health['pending_review_count']} auto-discovered[/yellow]",
+        )
+
+    if company_health.get("companies_with_failures", 0) > 0:
+        health_table.add_row(
+            "Companies with Failures",
+            f"[red]{company_health['companies_with_failures']} companies[/red]",
         )
 
     health_table.add_row(
