@@ -48,6 +48,7 @@ claude_extraction_result.json
 data/jobs.db
 data/*.db
 data/backups/*.db
+data/manual_career_pages.txt
 *.db-journal
 
 # Logs
