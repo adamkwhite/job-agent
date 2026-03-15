@@ -595,6 +595,8 @@ class TestCompanyScraperHealth:
                 (0,),  # total_failures
                 None,  # last_scrape_time
                 (0,),  # recent_scrape_count
+                (0,),  # pending_review_count
+                (0,),  # companies_with_failures
             ]
             mock_conn.cursor.return_value = mock_cursor
             mock_connect.return_value = mock_conn
@@ -624,6 +626,8 @@ class TestCompanyScraperHealth:
                 (0,),  # total_failures
                 ("2026-02-13T10:00:00",),  # last_scrape_time
                 (25,),  # recent_scrape_count
+                (0,),  # pending_review_count
+                (0,),  # companies_with_failures
             ]
             mock_conn.cursor.return_value = mock_cursor
             mock_connect.return_value = mock_conn
@@ -655,6 +659,8 @@ class TestCompanyScraperHealth:
                 (19,),  # total_failures
                 ("2026-02-13T10:00:00",),  # last_scrape_time
                 (40,),  # recent_scrape_count
+                (3,),  # pending_review_count
+                (19,),  # companies_with_failures
             ]
             mock_conn.cursor.return_value = mock_cursor
             mock_connect.return_value = mock_conn
@@ -684,6 +690,8 @@ class TestCompanyScraperHealth:
                 (10,),  # total_failures (among active)
                 ("2026-02-13T10:00:00",),  # last_scrape_time
                 (30,),  # recent_scrape_count
+                (2,),  # pending_review_count
+                (15,),  # companies_with_failures
             ]
             mock_conn.cursor.return_value = mock_cursor
             mock_connect.return_value = mock_conn

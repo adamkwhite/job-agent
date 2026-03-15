@@ -278,6 +278,8 @@ class SystemHealthChecker(object):  # noqa: UP004 (explicit object for SonarLint
             - success_rate: Percentage of companies with 0 failures
             - last_scrape_time: Most recent company scrape timestamp
             - recent_scrape_count: Companies checked in last 24h
+            - pending_review_count: Auto-discovered companies awaiting review
+            - companies_with_failures: Total companies with any failures
         """
         conn = self.db.db_path
         db_conn = None
@@ -340,6 +342,20 @@ class SystemHealthChecker(object):  # noqa: UP004 (explicit object for SonarLint
             """)
             recent_scrape_count = cursor.fetchone()[0]
 
+            # Auto-discovered companies pending review (inactive with Auto-discovered note)
+            cursor.execute("""
+                SELECT COUNT(*) FROM companies
+                WHERE active = 0 AND notes LIKE '%Auto-discovered%'
+            """)
+            pending_review_count = cursor.fetchone()[0]
+
+            # Companies with any failures (active or not)
+            cursor.execute("""
+                SELECT COUNT(*) FROM companies
+                WHERE consecutive_failures > 0
+            """)
+            companies_with_failures = cursor.fetchone()[0]
+
         except sqlite3.Error as e:
             logger.error(f"Database error in _get_company_scraper_health: {e}")
             # Return default values on error
@@ -352,6 +368,8 @@ class SystemHealthChecker(object):  # noqa: UP004 (explicit object for SonarLint
                 "success_rate": 0,
                 "last_scrape_time": None,
                 "recent_scrape_count": 0,
+                "pending_review_count": 0,
+                "companies_with_failures": 0,
             }
         finally:
             if db_conn is not None:
@@ -366,6 +384,8 @@ class SystemHealthChecker(object):  # noqa: UP004 (explicit object for SonarLint
             "success_rate": success_rate,
             "last_scrape_time": last_scrape_time,
             "recent_scrape_count": recent_scrape_count,
+            "pending_review_count": pending_review_count,
+            "companies_with_failures": companies_with_failures,
         }
 
     def _get_critical_issues(self) -> list[dict[str, Any]]:
