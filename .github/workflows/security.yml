@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     # Skip SonarCloud on draft PRs — local SonarLint covers quality during
     # active development. SonarCloud runs when PR is marked ready for review.
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.actor != 'dependabot[bot]' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     permissions:
       contents: read
 
