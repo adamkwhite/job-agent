@@ -195,8 +195,20 @@ def _build_validation_warning(job: dict) -> str:
     )
 
 
+def _show_company_fit_column(profile: Profile) -> bool:
+    """Show Company Fit column only when profile has non-zero adjustments."""
+    filtering = profile.scoring.get("filtering", {})
+    return (
+        filtering.get("hardware_company_boost", 0) != 0
+        or filtering.get("software_company_penalty", 0) != 0
+    )
+
+
 def _generate_job_table_rows(
-    jobs: list[dict], connections_manager: ConnectionsManager | None = None
+    jobs: list[dict],
+    connections_manager: ConnectionsManager | None = None,
+    *,
+    show_company_fit: bool = True,
 ) -> str:
     """Generate HTML table rows for job listings"""
     import urllib.parse
@@ -211,6 +223,12 @@ def _generate_job_table_rows(
         connections_cell = _build_connections_cell(job["company"], connections_manager)
         linkedin_search_url = f"https://www.linkedin.com/search/results/people/?keywords={urllib.parse.quote(job['company'])}&network=%5B%22F%22%5D"
         validation_warning = _build_validation_warning(job)
+
+        company_fit_cell = (
+            f'<td class="score-cell">{breakdown.get("company_classification", 0):+d}</td>'
+            if show_company_fit
+            else ""
+        )
 
         rows += f"""
                 <tr>
@@ -227,7 +245,7 @@ def _generate_job_table_rows(
                     <td class="score-cell">{breakdown.get("role_type", 0)}</td>
                     <td class="score-cell">{breakdown.get("location", 0)}</td>
                     <td class="score-cell">{breakdown.get("technical", 0)}</td>
-                    <td class="score-cell">{breakdown.get("company_classification", 0):+d}</td>
+                    {company_fit_cell}
                     <td class="score-cell">
                         <span class="score grade-{grade}">{score}</span>
                     </td>
@@ -479,13 +497,18 @@ def generate_email_html(
             <strong>📊 Summary:</strong><br>
             • <strong>{len(high_scoring)}</strong> excellent matches ({Grade.B.value}+ score)<br>
             • <strong>{len(good_scoring)}</strong> good matches ({Grade.C.value}-{Grade.B.value - 1} score)<br>
-            • Scored on: Seniority (30), Domain (25), Role Type (20), Location (15 if unrestricted remote/Canada-friendly), Technical (10), Company Fit (±20)
+            • Scored on: Seniority (30), Domain (25), Role Type (20), Location (15 if unrestricted remote/Canada-friendly), Technical (10){"" if not _show_company_fit_column(profile) else ", Company Fit (±20)"}
         </div>
     """
 
+    show_company_fit = _show_company_fit_column(profile)
+    company_fit_header = (
+        '<th style="text-align: center;">Company<br>Fit</th>' if show_company_fit else ""
+    )
+
     if high_scoring:
         html += f"<h2>⭐ Top Matches ({Grade.B.value}+ Score)</h2>"
-        html += """
+        html += f"""
         <table>
             <thead>
                 <tr>
@@ -497,13 +520,15 @@ def generate_email_html(
                     <th style="text-align: center;">Role<br>/20</th>
                     <th style="text-align: center;">Location<br>/15</th>
                     <th style="text-align: center;">Tech<br>/10</th>
-                    <th style="text-align: center;">Company<br>Fit</th>
+                    {company_fit_header}
                     <th style="text-align: center;">Total<br>/100</th>
                 </tr>
             </thead>
             <tbody>
         """
-        html += _generate_job_table_rows(high_scoring, connections_manager)
+        html += _generate_job_table_rows(
+            high_scoring, connections_manager, show_company_fit=show_company_fit
+        )
         html += """
             </tbody>
         </table>
@@ -511,7 +536,7 @@ def generate_email_html(
 
     if good_scoring:
         html += f"<h2>✅ Also Worth Considering ({Grade.C.value}-{Grade.B.value - 1} Score)</h2>"
-        html += """
+        html += f"""
         <table>
             <thead>
                 <tr>
@@ -523,13 +548,15 @@ def generate_email_html(
                     <th style="text-align: center;">Role<br>/20</th>
                     <th style="text-align: center;">Location<br>/15</th>
                     <th style="text-align: center;">Tech<br>/10</th>
-                    <th style="text-align: center;">Company<br>Fit</th>
+                    {company_fit_header}
                     <th style="text-align: center;">Total<br>/100</th>
                 </tr>
             </thead>
             <tbody>
         """
-        html += _generate_job_table_rows(good_scoring, connections_manager)
+        html += _generate_job_table_rows(
+            good_scoring, connections_manager, show_company_fit=show_company_fit
+        )
         html += """
             </tbody>
         </table>
@@ -538,6 +565,17 @@ def generate_email_html(
     # Add connections section
     connections_section = _generate_connections_section(jobs, connections_manager)
     html += connections_section
+
+    filtering = profile.scoring.get("filtering", {})
+    company_fit_legend = ""
+    if show_company_fit:
+        boost = filtering.get("hardware_company_boost", 0)
+        penalty = filtering.get("software_company_penalty", 0)
+        company_fit_legend = (
+            f"<li><strong>Company Fit (±20):</strong> "
+            f"Hardware/robotics companies get +{boost} boost. "
+            f"Software-only companies get {penalty} adjustment.</li>"
+        )
 
     html += f"""
         <div class="footer">
@@ -548,6 +586,7 @@ def generate_email_html(
                 <li><strong>Role Type (0-20):</strong> {_format_role_types(profile)}</li>
                 <li><strong>Location (0-15):</strong> {_format_location_prefs(profile)}</li>
                 <li><strong>Technical (0-10):</strong> Technical keyword matches</li>
+                {company_fit_legend}
             </ul>
 
             <p style="margin-top: 20px;">
