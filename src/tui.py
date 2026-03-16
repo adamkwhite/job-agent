@@ -963,9 +963,58 @@ def _display_llm_budget() -> None:  # pragma: no cover
         console.print(f"[red]Error reading LLM budget: {e}[/red]")
 
 
+def _grep_log(
+    pattern: str,
+    log_path: str = "logs/unified_scraper.log",
+    last_run_only: bool = False,
+) -> list[str]:
+    """Grep log file for pattern, return matching lines.
+
+    If last_run_only=True, only search from the second-to-last 'Completed:' line
+    onwards (i.e., the most recent complete run).
+    """
+    import re
+    import subprocess
+
+    if last_run_only:
+        # Find line numbers of all "Completed:" markers
+        result = subprocess.run(
+            ["grep", "-n", "^Completed:", log_path],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            completed_lines = result.stdout.strip().split("\n")
+            # Start from second-to-last Completed (start of last run)
+            start_line = completed_lines[-2].split(":")[0] if len(completed_lines) >= 2 else "1"
+            result = subprocess.run(
+                ["tail", "-n", f"+{start_line}", log_path],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0:
+                return [
+                    line
+                    for line in result.stdout.split("\n")
+                    if re.search(pattern, line, re.IGNORECASE)
+                ]
+        return []
+
+    result = subprocess.run(
+        ["grep", "-i", pattern, log_path],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 0 and result.stdout.strip():
+        return result.stdout.strip().split("\n")
+    return []
+
+
 def _display_firecrawl_status() -> None:  # pragma: no cover
     """Display Firecrawl API status section."""
-    import subprocess
     from pathlib import Path
 
     console.print("\n\n[bold yellow]🔥 Firecrawl API[/bold yellow]\n")
@@ -975,21 +1024,41 @@ def _display_firecrawl_status() -> None:  # pragma: no cover
     firecrawl_table.add_column("Status", style="white", width=25)
 
     try:
-        result = subprocess.run(
-            ["tail", "-100", "logs/unified_scraper.log"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        log_path = Path("logs/unified_scraper.log")
 
-        if result.returncode == 0 and "companies checked:" in result.stdout.lower():
-            lines = result.stdout.split("\n")
-            for line in reversed(lines):
-                if "companies checked:" in line.lower():
-                    firecrawl_table.add_row(LAST_RUN_LABEL, "[green]✓ Successful[/green]")
-                    break
+        if log_path.exists():
+            log_str = str(log_path)
+
+            # Companies checked
+            matches = _grep_log("companies checked:", log_str)
+            if matches:
+                firecrawl_table.add_row(LAST_RUN_LABEL, f"[green]✓ {matches[-1].strip()}[/green]")
             else:
-                firecrawl_table.add_row(LAST_RUN_LABEL, "[dim]No recent runs[/dim]")
+                firecrawl_table.add_row(LAST_RUN_LABEL, "[dim]No company scrape runs found[/dim]")
+
+            # Last completed timestamp
+            completed = _grep_log("^Completed:", log_str)
+            if completed:
+                timestamp = completed[-1].replace("Completed: ", "").split(" (")[0]
+                firecrawl_table.add_row("Last Completed", f"[dim]{timestamp}[/dim]")
+
+            # Scraping errors (last run only)
+            errors = _grep_log('"scraping_errors":', log_str, last_run_only=True)
+            if errors:
+                last_error = errors[-1].strip()
+                count = last_error.split(":")[-1].strip().rstrip(",")
+                error_color = "green" if count == "0" else "yellow"
+                firecrawl_table.add_row(
+                    "Scraping Errors", f"[{error_color}]{count}[/{error_color}]"
+                )
+
+            # Firecrawl fallbacks (last run only)
+            fallbacks = _grep_log("Firecrawl fallback found", log_str, last_run_only=True)
+            if fallbacks:
+                firecrawl_table.add_row(
+                    "Firecrawl Fallbacks",
+                    f"[dim]{len(fallbacks)} companies rescued[/dim]",
+                )
         else:
             firecrawl_table.add_row(LAST_RUN_LABEL, "[dim]No logs found[/dim]")
 
@@ -997,7 +1066,6 @@ def _display_firecrawl_status() -> None:  # pragma: no cover
             "API Key",
             "[green]✓ Configured[/green]" if Path(".env").exists() else "[red]✗ Missing[/red]",
         )
-        firecrawl_table.add_row("Rate Limits", "[dim]No known issues[/dim]")
 
     except Exception as e:
         firecrawl_table.add_row("Status", f"[red]Error: {e}[/red]")
