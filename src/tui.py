@@ -976,7 +976,7 @@ def _display_firecrawl_status() -> None:  # pragma: no cover
 
     try:
         result = subprocess.run(
-            ["tail", "-100", "logs/unified_weekly_scraper.log"],
+            ["tail", "-100", "logs/unified_scraper.log"],
             capture_output=True,
             text=True,
             check=False,
