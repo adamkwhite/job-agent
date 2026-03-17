@@ -722,6 +722,177 @@ def test_add_discovered_company_notes_extracted_lever_url(temp_db):
     assert "lever.co" in company["careers_url"]
 
 
+# ===== Delete Company Tests =====
+
+
+def test_delete_company_success(temp_db):
+    """Test successfully deleting a company"""
+    result = temp_db.add_company("Delete Me", "https://deleteme.com/careers")
+    company_id = result["company"]["id"]
+
+    deleted = temp_db.delete_company(company_id)
+
+    assert deleted is True
+    assert temp_db.get_company(company_id) is None
+
+
+def test_delete_company_nonexistent(temp_db):
+    """Test deleting a non-existent company returns False"""
+    deleted = temp_db.delete_company(999)
+
+    assert deleted is False
+
+
+def test_delete_company_does_not_affect_others(temp_db):
+    """Test that deleting one company doesn't affect others"""
+    temp_db.add_company("Keep A", "https://a.com/careers")
+    result_b = temp_db.add_company("Delete B", "https://b.com/careers")
+    temp_db.add_company("Keep C", "https://c.com/careers")
+
+    temp_db.delete_company(result_b["company"]["id"])
+
+    remaining = temp_db.get_all_companies(active_only=False)
+    assert len(remaining) == 2
+    assert {c["name"] for c in remaining} == {"Keep A", "Keep C"}
+
+
+# ===== Rename Company Tests =====
+
+
+def test_rename_company_success(temp_db):
+    """Test successfully renaming a company"""
+    result = temp_db.add_company("Old Name", "https://old.com/careers")
+    company_id = result["company"]["id"]
+
+    renamed = temp_db.rename_company(company_id, "New Name")
+
+    assert renamed is True
+    company = temp_db.get_company(company_id)
+    assert company["name"] == "New Name"
+    assert company["careers_url"] == "https://old.com/careers"  # URL unchanged
+
+
+def test_rename_company_nonexistent(temp_db):
+    """Test renaming a non-existent company returns False"""
+    renamed = temp_db.rename_company(999, "New Name")
+
+    assert renamed is False
+
+
+def test_rename_company_updates_timestamp(temp_db):
+    """Test that renaming updates the updated_at timestamp"""
+    import time
+
+    result = temp_db.add_company("Timestamp Co", "https://ts.com/careers")
+    company_id = result["company"]["id"]
+    original = temp_db.get_company(company_id)
+
+    time.sleep(0.1)
+    temp_db.rename_company(company_id, "Renamed Co")
+    updated = temp_db.get_company(company_id)
+
+    assert updated["updated_at"] > original["updated_at"]
+
+
+# ===== Update Company URL Tests =====
+
+
+def test_update_company_url_success(temp_db):
+    """Test updating careers URL resets failures and re-enables"""
+    result = temp_db.add_company("URL Co", "https://old-url.com/careers")
+    company_id = result["company"]["id"]
+
+    # Simulate failures and disable
+    temp_db.increment_company_failures(company_id, "404")
+    temp_db.increment_company_failures(company_id, "404")
+    temp_db.disable_company(company_id)
+
+    # Update URL
+    updated = temp_db.update_company_url(company_id, "https://new-url.com/careers")
+
+    assert updated is True
+    company = temp_db.get_company(company_id)
+    assert company["careers_url"] == "https://new-url.com/careers"
+    assert company["consecutive_failures"] == 0
+    assert company["active"] == 1
+    assert company["auto_disabled_at"] is None
+
+
+def test_update_company_url_nonexistent(temp_db):
+    """Test updating URL for non-existent company returns False"""
+    updated = temp_db.update_company_url(999, "https://new.com/careers")
+
+    assert updated is False
+
+
+# ===== Activate Company Tests =====
+
+
+def test_activate_company_success(temp_db):
+    """Test activating a discovered company"""
+    result = temp_db.add_discovered_company("Discovered Co", source="email")
+    company_id = result["company"]["id"]
+
+    activated = temp_db.activate_company(
+        company_id, "https://real-careers.com/jobs", notes="Verified from TUI"
+    )
+
+    assert activated is True
+    company = temp_db.get_company(company_id)
+    assert company["active"] == 1
+    assert company["careers_url"] == "https://real-careers.com/jobs"
+    assert company["notes"] == "Verified from TUI"
+
+
+def test_activate_company_nonexistent(temp_db):
+    """Test activating non-existent company returns False"""
+    activated = temp_db.activate_company(999, "https://url.com/careers")
+
+    assert activated is False
+
+
+# ===== Disable Company with Notes Tests =====
+
+
+def test_disable_company_with_notes(temp_db):
+    """Test disabling company stores notes alongside reason"""
+    result = temp_db.add_company("Manual Disable", "https://manual.com/careers")
+    company_id = result["company"]["id"]
+
+    temp_db.disable_company(
+        company_id,
+        reason="manually_disabled",
+        notes="Manually disabled from TUI. Was aggregator site",
+    )
+
+    company = temp_db.get_company(company_id)
+    assert company["active"] == 0
+    assert company["last_failure_reason"] == "manually_disabled"
+    assert "Manually disabled from TUI" in company["notes"]
+
+
+# ===== Reset Failures Re-enables Company Tests =====
+
+
+def test_reset_failures_re_enables_disabled_company(temp_db):
+    """Test that reset_company_failures also re-enables and clears auto_disabled_at"""
+    result = temp_db.add_company("Re-enable Co", "https://reenable.com/careers")
+    company_id = result["company"]["id"]
+
+    # Disable the company
+    temp_db.disable_company(company_id)
+    company = temp_db.get_company(company_id)
+    assert company["active"] == 0
+    assert company["auto_disabled_at"] is not None
+
+    # Reset failures should re-enable
+    temp_db.reset_company_failures(company_id)
+    company = temp_db.get_company(company_id)
+    assert company["active"] == 1
+    assert company["auto_disabled_at"] is None
+    assert company["consecutive_failures"] == 0
+
+
 def test_add_discovered_company_notes_generic_fallback_not_three_slashes(temp_db):
     """Test that deep URL paths don't trigger generic fallback warning"""
     # URL with more than 3 slashes should get "auto-extracted" notes, not "generic fallback"

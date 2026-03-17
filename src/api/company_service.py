@@ -448,7 +448,7 @@ class CompanyService:
 
     def reset_company_failures(self, company_id: int) -> None:
         """
-        Reset consecutive_failures counter to 0 after successful scrape
+        Reset consecutive_failures counter, clear failure state, and re-enable.
 
         Args:
             company_id: Company ID to reset
@@ -463,6 +463,8 @@ class CompanyService:
             UPDATE companies
             SET consecutive_failures = 0,
                 last_failure_reason = NULL,
+                active = 1,
+                auto_disabled_at = NULL,
                 updated_at = ?
             WHERE id = ?
         """,
@@ -472,13 +474,77 @@ class CompanyService:
         conn.commit()
         conn.close()
 
-    def disable_company(self, company_id: int, reason: str = "auto_disabled_5_failures") -> None:
+    def disable_company(
+        self, company_id: int, reason: str = "auto_disabled_5_failures", *, notes: str | None = None
+    ) -> None:
         """
         Disable a company (set active = 0) and record auto-disable timestamp
 
         Args:
             company_id: Company ID to disable
             reason: Reason for disabling (default: auto-disabled after 5 failures)
+            notes: Optional notes to store (for manual disabling from TUI)
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        now = datetime.now().isoformat()
+
+        if notes is not None:
+            cursor.execute(
+                """
+                UPDATE companies
+                SET active = 0, auto_disabled_at = ?,
+                    last_failure_reason = ?, notes = ?, updated_at = ?
+                WHERE id = ?
+            """,
+                (now, reason, notes, now, company_id),
+            )
+        else:
+            cursor.execute(
+                """
+                UPDATE companies
+                SET active = 0, auto_disabled_at = ?,
+                    last_failure_reason = ?, updated_at = ?
+                WHERE id = ?
+            """,
+                (now, reason, now, company_id),
+            )
+
+        conn.commit()
+        conn.close()
+
+    def delete_company(self, company_id: int) -> bool:
+        """
+        Delete a company from the database.
+
+        Args:
+            company_id: Company ID to delete
+
+        Returns:
+            True if company was deleted, False if not found
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("DELETE FROM companies WHERE id = ?", (company_id,))
+        deleted = cursor.rowcount > 0
+
+        conn.commit()
+        conn.close()
+
+        return deleted
+
+    def rename_company(self, company_id: int, new_name: str) -> bool:
+        """
+        Rename a company.
+
+        Args:
+            company_id: Company ID to rename
+            new_name: New company name
+
+        Returns:
+            True if company was renamed, False if not found
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -488,17 +554,81 @@ class CompanyService:
         cursor.execute(
             """
             UPDATE companies
-            SET active = 0,
-                auto_disabled_at = ?,
-                last_failure_reason = ?,
-                updated_at = ?
+            SET name = ?, updated_at = ?
             WHERE id = ?
         """,
-            (now, reason, now, company_id),
+            (new_name, now, company_id),
         )
+        updated = cursor.rowcount > 0
 
         conn.commit()
         conn.close()
+
+        return updated
+
+    def update_company_url(self, company_id: int, careers_url: str) -> bool:
+        """
+        Update careers URL and reset failures/re-enable company.
+
+        Args:
+            company_id: Company ID to update
+            careers_url: New careers page URL
+
+        Returns:
+            True if company was updated, False if not found
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        now = datetime.now().isoformat()
+
+        cursor.execute(
+            """
+            UPDATE companies
+            SET careers_url = ?, consecutive_failures = 0, active = 1,
+                auto_disabled_at = NULL, updated_at = ?
+            WHERE id = ?
+        """,
+            (careers_url, now, company_id),
+        )
+        updated = cursor.rowcount > 0
+
+        conn.commit()
+        conn.close()
+
+        return updated
+
+    def activate_company(self, company_id: int, careers_url: str, notes: str | None = None) -> bool:
+        """
+        Activate an auto-discovered company with a verified careers URL.
+
+        Args:
+            company_id: Company ID to activate
+            careers_url: Verified careers page URL
+            notes: Optional notes (appended to existing notes)
+
+        Returns:
+            True if company was activated, False if not found
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        now = datetime.now().isoformat()
+
+        cursor.execute(
+            """
+            UPDATE companies
+            SET careers_url = ?, active = 1, notes = ?, updated_at = ?
+            WHERE id = ?
+        """,
+            (careers_url, notes or "", now, company_id),
+        )
+        updated = cursor.rowcount > 0
+
+        conn.commit()
+        conn.close()
+
+        return updated
 
     def get_auto_disabled_companies(self) -> list[dict]:
         """

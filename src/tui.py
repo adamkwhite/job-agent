@@ -1955,21 +1955,17 @@ def _handle_delete_company(  # pragma: no cover
     company: dict, company_service: CompanyService, is_failure: bool
 ) -> None:
     """Handle delete/disable action for a company."""
-    import sqlite3
-
     label = "Disable" if is_failure else "Delete"
     if Confirm.ask(f"\n[red]{label} '{company.get('name')}'?[/red]", default=False):
-        conn = sqlite3.connect(company_service.db_path)
-        cursor = conn.cursor()
         if is_failure:
-            cursor.execute(
-                "UPDATE companies SET active = 0, notes = ? WHERE id = ?",
-                (f"Manually disabled from TUI. {company.get('notes', '')}", company.get("id")),
+            existing_notes = company.get("notes", "")
+            company_service.disable_company(
+                company.get("id"),
+                reason="manually_disabled",
+                notes=f"Manually disabled from TUI. {existing_notes}",
             )
         else:
-            cursor.execute("DELETE FROM companies WHERE id = ?", (company.get("id"),))
-        conn.commit()
-        conn.close()
+            company_service.delete_company(company.get("id"))
         console.print(f"[red]✓ {label}d[/red]")
     else:
         console.print(f"[yellow]⊘ {label} cancelled[/yellow]")
@@ -1979,28 +1975,12 @@ def _handle_reset_failures(
     company: dict, company_service: CompanyService
 ) -> None:  # pragma: no cover
     """Reset consecutive failures and re-enable a company."""
-    import sqlite3
-    from datetime import datetime
-
-    conn = sqlite3.connect(company_service.db_path)
-    cursor = conn.cursor()
-    now = datetime.now().isoformat()
-    cursor.execute(
-        """UPDATE companies
-           SET consecutive_failures = 0, active = 1, auto_disabled_at = NULL, updated_at = ?
-           WHERE id = ?""",
-        (now, company.get("id")),
-    )
-    conn.commit()
-    conn.close()
+    company_service.reset_company_failures(company.get("id"))
     console.print(f"[green]✓ Reset failures for {company.get('name')} — re-enabled[/green]")
 
 
 def _handle_update_url(company: dict, company_service: CompanyService) -> bool:  # pragma: no cover
     """Update careers URL and reset failures. Returns True if updated."""
-    import sqlite3
-    from datetime import datetime
-
     careers_url = Prompt.ask(
         "\n[bold]Enter new careers page URL[/bold]",
         default=company.get("careers_url", ""),
@@ -2009,18 +1989,7 @@ def _handle_update_url(company: dict, company_service: CompanyService) -> bool: 
         console.print("[yellow]⊘ URL unchanged[/yellow]")
         return False
 
-    conn = sqlite3.connect(company_service.db_path)
-    cursor = conn.cursor()
-    now = datetime.now().isoformat()
-    cursor.execute(
-        """UPDATE companies
-           SET careers_url = ?, consecutive_failures = 0, active = 1,
-               auto_disabled_at = NULL, updated_at = ?
-           WHERE id = ?""",
-        (careers_url, now, company.get("id")),
-    )
-    conn.commit()
-    conn.close()
+    company_service.update_company_url(company.get("id"), careers_url)
     console.print(f"[green]✓ Updated URL and reset failures for {company.get('name')}[/green]")
     console.print(f"[dim]   New URL: {careers_url}[/dim]")
     return True
@@ -2030,7 +1999,6 @@ def _handle_activate_company(  # pragma: no cover
     company: dict, company_service: CompanyService
 ) -> bool:
     """Activate an auto-discovered company. Returns True if activated."""
-    import sqlite3
     from datetime import datetime
 
     careers_url = Prompt.ask(
@@ -2039,22 +2007,9 @@ def _handle_activate_company(  # pragma: no cover
     )
 
     if careers_url and careers_url != "https://placeholder.com/careers":
-        conn = sqlite3.connect(company_service.db_path)
-        cursor = conn.cursor()
         now = datetime.now().isoformat()
-        cursor.execute(
-            """UPDATE companies
-               SET careers_url = ?, active = 1, notes = ?, updated_at = ?
-               WHERE id = ?""",
-            (
-                careers_url,
-                f"Activated from TUI on {now}. Originally: {company.get('notes', '')}",
-                now,
-                company.get("id"),
-            ),
-        )
-        conn.commit()
-        conn.close()
+        notes = f"Activated from TUI on {now}. Originally: {company.get('notes', '')}"
+        company_service.activate_company(company.get("id"), careers_url, notes=notes)
         console.print(f"[green]✓ Activated: {company.get('name')}[/green]")
         console.print(f"[dim]   URL: {careers_url}[/dim]")
         return True
