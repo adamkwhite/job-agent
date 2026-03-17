@@ -357,8 +357,8 @@ class TestSendDigestToProfilePreValidated:
 
     @patch("src.send_profile_digest.get_profile_manager")
     @patch("src.send_profile_digest.JobDatabase")
-    def test_skips_digest_when_no_displayable_jobs(self, mock_db_cls, mock_manager):
-        """Issue #388: Don't send digest when all jobs score below C grade."""
+    def test_sends_empty_state_digest_when_no_displayable_jobs(self, mock_db_cls, mock_manager):
+        """Issue #388: Send distinct empty-state email when all jobs score below C grade."""
         profile = _make_profile("wes", "Wes")
         mock_manager.return_value.get_profile.return_value = profile
         mock_db_cls.return_value = MagicMock()
@@ -376,8 +376,8 @@ class TestSendDigestToProfilePreValidated:
                 "wes", dry_run=True, pre_validated_jobs=low_scoring_jobs
             )
 
-            # Should return False — no email sent
-            assert result is False
+            # Dry run returns True (would send empty-state email)
+            assert result is True
 
 
 # ── send_all_digests integration ─────────────────────────────────────
