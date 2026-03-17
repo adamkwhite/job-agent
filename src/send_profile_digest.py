@@ -361,6 +361,69 @@ def _format_location_prefs(profile: Profile) -> str:
     return ", ".join(parts) if parts else "Not specified"
 
 
+def _generate_empty_state_html(profile: Profile) -> str:
+    """Generate a short, encouraging email when no jobs matched this period."""
+    target_seniority = ", ".join(profile.get_target_seniority()[:3])
+    target_domains = ", ".join(profile.get_domain_keywords()[:5])
+
+    return f"""
+    <html>
+    <head>
+        <style>
+            body {{
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+            }}
+            .message-box {{
+                background: #f8f9fa;
+                border-left: 4px solid #3498db;
+                padding: 20px 24px;
+                border-radius: 4px;
+                margin: 30px 0;
+            }}
+            .footer {{
+                margin-top: 40px;
+                padding-top: 20px;
+                border-top: 2px solid #ecf0f1;
+                font-size: 14px;
+                color: #7f8c8d;
+            }}
+        </style>
+    </head>
+    <body>
+        <h1 style="color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px;">
+            Job Digest Update
+        </h1>
+
+        <p>Hi {profile.name.split()[0]},</p>
+
+        <div class="message-box">
+            <p style="margin: 0; font-size: 16px;">
+                No new matches scored 55+ today for your profile
+                targeting <strong>{target_seniority}</strong> roles
+                in <strong>{target_domains}</strong>.
+            </p>
+            <p style="margin: 12px 0 0 0; color: #7f8c8d;">
+                This is normal — the system is running and scanning daily.
+                You'll hear from us as soon as strong matches appear.
+            </p>
+        </div>
+
+        <div class="footer">
+            <p>
+                Generated on {datetime.now().strftime("%Y-%m-%d at %H:%M")}<br>
+                Powered by Job Agent
+            </p>
+        </div>
+    </body>
+    </html>
+    """
+
+
 def generate_email_html(
     jobs: list[dict], profile: Profile, connections_manager: ConnectionsManager | None = None
 ) -> str:
@@ -935,6 +998,47 @@ def _get_email_credentials(profile: Profile) -> tuple[str | None, str | None]:
     return gmail_user, gmail_password
 
 
+def _send_empty_state_email(profile: Profile, profile_id: str) -> bool:
+    """Send a short 'no matches today' email so the user knows the system is running."""
+    gmail_user, gmail_password = _get_email_credentials(profile)
+    if not gmail_user or not gmail_password:
+        print(f"  ✗ No email credentials available for {profile_id}")
+        return False
+
+    html_body = _generate_empty_state_html(profile)
+    subject = _build_subject_line(0, 0)
+
+    text_body = (
+        f"\nHi {profile.name.split()[0]},\n\n"
+        f"No new matches scored 55+ today. The system is running and scanning daily.\n"
+        f"You'll hear from us as soon as strong matches appear.\n\n"
+        f"Generated on {datetime.now().strftime('%Y-%m-%d at %H:%M')}\n"
+    )
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = gmail_user
+    msg["To"] = profile.email
+    cc_email = "adamkwhite@gmail.com"
+    msg["Cc"] = cc_email
+
+    msg.attach(MIMEText(text_body, "plain"))
+    msg.attach(MIMEText(html_body, "html"))
+
+    try:
+        print(f"\nSending empty-state digest to {profile.email}...")
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(gmail_user, gmail_password)
+        server.send_message(msg, to_addrs=[profile.email, cc_email])
+        server.quit()
+        print(f"✓ Empty-state digest sent to {profile.email}")
+        return True
+    except Exception as e:
+        print(f"✗ Error sending empty-state email: {e}")
+        return False
+
+
 def _send_email(
     profile: Profile,
     profile_id: str,
@@ -1068,10 +1172,15 @@ def send_digest_to_profile(
     print(f"  - {len(good_scoring)} good matches ({Grade.C.value}-{Grade.B.value - 1})")
     print(f"  - {len(high_scoring) + len(good_scoring)} total matches ({Grade.C.value}+)")
 
-    # Step 3b: Skip sending when no displayable jobs (reduces noise for recipients)
+    # Step 3b: Send distinct empty-state email when no displayable jobs
     if not high_scoring and not good_scoring:
-        print(f"\n⏸  No matches scoring {Grade.C.value}+ for {profile.name} — skipping digest")
-        return False
+        print(
+            f"\n📭 No matches scoring {Grade.C.value}+ for {profile.name} — sending empty-state digest"
+        )
+        if dry_run:
+            print(f"  🧪 DRY RUN — would send empty-state digest to {profile.email}")
+            return True
+        return _send_empty_state_email(profile, profile_id)
 
     # Step 4: Dry run or send
     if dry_run:

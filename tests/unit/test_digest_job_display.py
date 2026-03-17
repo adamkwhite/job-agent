@@ -10,7 +10,7 @@ Addresses Issue #135 - Digest count mismatch (summary vs displayed jobs)
 import re
 from unittest.mock import MagicMock
 
-from src.send_profile_digest import generate_email_html
+from src.send_profile_digest import _generate_empty_state_html, generate_email_html
 
 
 class TestDigestJobDisplay:
@@ -178,6 +178,29 @@ class TestDigestJobDisplay:
         assert "<html>" in html
         assert "0</strong> excellent matches" in html
         assert "0</strong> good matches" in html
+
+    def test_empty_state_html_is_distinct(self):
+        """Issue #388: Empty-state template is short, encouraging, and has no job tables."""
+        profile = self._create_mock_profile()
+
+        html = _generate_empty_state_html(profile)
+
+        # Valid HTML
+        assert "<html>" in html
+        assert "</html>" in html
+
+        # Contains encouraging message, not empty table
+        assert "No new matches scored 55+ today" in html
+        assert "system is running" in html
+
+        # Does NOT contain job table elements
+        assert "<table>" not in html
+        assert "excellent matches" not in html
+        assert "score-cell" not in html
+
+        # Contains profile targeting info
+        assert "director" in html or "vp" in html
+        assert "robotics" in html or "automation" in html
 
     def test_regression_issue_135_elis_case(self):
         """
