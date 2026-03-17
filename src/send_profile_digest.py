@@ -1068,6 +1068,11 @@ def send_digest_to_profile(
     print(f"  - {len(good_scoring)} good matches ({Grade.C.value}-{Grade.B.value - 1})")
     print(f"  - {len(high_scoring) + len(good_scoring)} total matches ({Grade.C.value}+)")
 
+    # Step 3b: Skip sending when no displayable jobs (reduces noise for recipients)
+    if not high_scoring and not good_scoring:
+        print(f"\n⏸  No matches scoring {Grade.C.value}+ for {profile.name} — skipping digest")
+        return False
+
     # Step 4: Dry run or send
     if dry_run:
         return _handle_dry_run(profile, jobs, len(high_scoring), len(good_scoring))

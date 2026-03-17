@@ -355,6 +355,30 @@ class TestSendDigestToProfilePreValidated:
         result = send_digest_to_profile("wes", dry_run=True, pre_validated_jobs=[])
         assert result is False
 
+    @patch("src.send_profile_digest.get_profile_manager")
+    @patch("src.send_profile_digest.JobDatabase")
+    def test_skips_digest_when_no_displayable_jobs(self, mock_db_cls, mock_manager):
+        """Issue #388: Don't send digest when all jobs score below C grade."""
+        profile = _make_profile("wes", "Wes")
+        mock_manager.return_value.get_profile.return_value = profile
+        mock_db_cls.return_value = MagicMock()
+
+        # Jobs exist but all score below 55 (D/F grade — not displayed)
+        low_scoring_jobs = [
+            _make_job(score=40, grade="D", company="LowCo1", job_hash="h1"),
+            _make_job(score=30, grade="F", company="LowCo2", job_hash="h2"),
+        ]
+
+        with patch("src.send_profile_digest.JobFilterPipeline") as mock_filter_cls:
+            mock_filter_cls.return_value.apply_hard_filters.return_value = (True, None)
+
+            result = send_digest_to_profile(
+                "wes", dry_run=True, pre_validated_jobs=low_scoring_jobs
+            )
+
+            # Should return False — no email sent
+            assert result is False
+
 
 # ── send_all_digests integration ─────────────────────────────────────
 
