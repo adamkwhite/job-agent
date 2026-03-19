@@ -1445,7 +1445,6 @@ def review_company_classifications():  # pragma: no cover
 
 def _auto_classify_unknown(companies: dict[str, str], db) -> None:  # pragma: no cover
     """Fast keyboard-driven classification: s/h/b per company, enter=skip, q=quit."""
-    from urllib.parse import urlparse
 
     console.print(
         "\n[bold]s[/bold]=software  [bold]h[/bold]=hardware  "
@@ -1459,9 +1458,10 @@ def _auto_classify_unknown(companies: dict[str, str], db) -> None:  # pragma: no
 
     for i, name in enumerate(sorted_names, 1):
         url = companies[name]
-        domain = urlparse(url).netloc if url else ""
-        hint = f" [dim]({domain})[/dim]" if domain else ""
-        choice = Prompt.ask(f"[dim]{i:3d}/{total}[/dim] [bold]{name}[/bold]{hint}", default="")
+        console.print(f"[dim]{i:3d}/{total}[/dim] [bold]{name}[/bold]")
+        if url:
+            console.print(f"       [link={url}]{url}[/link]")
+        choice = Prompt.ask("       ", default="")
         if choice.lower() == "q":
             break
         if choice.lower() in type_map:
