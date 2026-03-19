@@ -655,9 +655,9 @@ def show_system_health():  # pragma: no cover
         console.print(SEPARATOR_FULL)
 
         console.print(
-            "[dim]Actions: \\[f] LLM failures | \\[c] Company failures | \\[b] Back to menu[/dim]"
+            "[dim]Actions: \\[f] LLM failures | \\[c] Company failures | \\[t] Company types | \\[b] Back to menu[/dim]"
         )
-        choice = Prompt.ask("\n[bold]Action[/bold]", choices=["f", "c", "b"], default="b")
+        choice = Prompt.ask("\n[bold]Action[/bold]", choices=["f", "c", "t", "b"], default="b")
 
         if choice == "b":
             return
@@ -665,6 +665,8 @@ def show_system_health():  # pragma: no cover
             review_llm_failures()
         elif choice == "c":
             review_company_failures()
+        elif choice == "t":
+            review_company_classifications()
 
 
 def show_extraction_metrics():  # pragma: no cover
@@ -1349,6 +1351,138 @@ def review_company_failures():  # pragma: no cover
     which handles both auto-discovered and failing companies interactively.
     """
     manage_companies()
+
+
+def review_company_classifications():  # pragma: no cover
+    """Review and classify companies that have unknown type."""
+    import json
+    import sqlite3
+
+    from database import JobDatabase
+
+    db = JobDatabase()
+
+    while True:
+        clear_screen()
+        show_header()
+
+        console.print(SEPARATOR_TOP)
+        console.print("[bold cyan]         🏢 COMPANY TYPE CLASSIFICATIONS          [/bold cyan]")
+        console.print(SEPARATOR_BOTTOM)
+
+        # Get unclassified companies from recent jobs
+        conn = sqlite3.connect(db.db_path)
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT DISTINCT j.company, js.classification_metadata
+            FROM job_scores js
+            JOIN jobs j ON j.id = js.job_id
+            WHERE j.received_at >= datetime('now', '-30 days')
+            AND js.classification_metadata IS NOT NULL
+            """
+        )
+
+        unknown = []
+        classified = {"software": 0, "hardware": 0, "both": 0, "unknown": 0}
+        for row in cursor.fetchall():
+            meta = json.loads(row[1] or "{}")
+            ct = meta.get("company_type", "unknown")
+            classified[ct] = classified.get(ct, 0) + 1
+            if ct == "unknown":
+                unknown.append(row[0])
+
+        conn.close()
+
+        # Show summary
+        total = sum(classified.values())
+        coverage = (total - len(unknown)) / total * 100 if total else 0
+        summary = Table(box=box.ROUNDED, show_header=False)
+        summary.add_column("Metric", style="bold cyan", width=25)
+        summary.add_column("Value", width=40)
+        summary.add_row("Total companies (30d)", f"{total}")
+        summary.add_row("Software", f"[blue]{classified['software']}[/blue]")
+        summary.add_row("Hardware", f"[green]{classified['hardware']}[/green]")
+        summary.add_row("Both", f"[yellow]{classified['both']}[/yellow]")
+        unknown_color = "red" if len(unknown) > 50 else "yellow"
+        summary.add_row("Unknown", f"[{unknown_color}]{len(unknown)}[/{unknown_color}]")
+        coverage_color = "green" if coverage > 80 else "yellow"
+        summary.add_row("Coverage", f"[{coverage_color}]{coverage:.0f}%[/{coverage_color}]")
+        console.print(summary)
+
+        if not unknown:
+            console.print("\n[bold green]All companies classified![/bold green]")
+            press_enter_to_continue()
+            return
+
+        console.print("\n[dim]Press enter to start classifying, or 'b' to go back[/dim]")
+        choice = Prompt.ask("[bold]Action[/bold]", default="")
+
+        if choice.lower() == "b":
+            return
+
+        _auto_classify_unknown(sorted(unknown), db)
+
+
+def _auto_classify_unknown(companies: list[str], db) -> None:  # pragma: no cover
+    """Fast keyboard-driven classification: s/h/b per company, enter=skip, q=quit."""
+    console.print(
+        "\n[bold]s[/bold]=software  [bold]h[/bold]=hardware  "
+        "[bold]b[/bold]=both  [bold]enter[/bold]=skip  [bold]q[/bold]=quit\n"
+    )
+    type_map = {"s": "software", "h": "hardware", "b": "both"}
+    classified_count = 0
+    colors = {"software": "blue", "hardware": "green", "both": "yellow"}
+
+    for i, name in enumerate(companies, 1):
+        choice = Prompt.ask(f"[dim]{i:3d}/{len(companies)}[/dim] [bold]{name}[/bold]", default="")
+        if choice.lower() == "q":
+            break
+        if choice.lower() in type_map:
+            ct = type_map[choice.lower()]
+            _store_manual_classification(name, ct, db)
+            console.print(f"       [{colors[ct]}]→ {ct}[/{colors[ct]}]")
+            classified_count += 1
+
+    console.print(f"\n[bold green]Classified {classified_count} companies[/bold green]")
+    press_enter_to_continue()
+
+
+def _store_manual_classification(company_name: str, classification: str, db) -> None:
+    """Store a manual company classification in the database."""
+    import json
+    import sqlite3
+    from datetime import datetime
+
+    conn = sqlite3.connect(db.db_path)
+    cursor = conn.cursor()
+    now = datetime.now().isoformat()
+    signals = json.dumps({"manual": {"source": "tui", "classified_at": now}})
+
+    # Upsert: update if manual entry exists, insert otherwise
+    cursor.execute(
+        "SELECT id FROM company_classifications WHERE company_name = ? AND source = 'manual'",
+        (company_name,),
+    )
+    existing = cursor.fetchone()
+
+    if existing:
+        cursor.execute(
+            """UPDATE company_classifications
+               SET classification = ?, confidence_score = 1.0, signals = ?, updated_at = ?
+               WHERE id = ?""",
+            (classification, signals, now, existing[0]),
+        )
+    else:
+        cursor.execute(
+            """INSERT INTO company_classifications
+               (company_name, classification, confidence_score, source, signals, created_at, updated_at)
+               VALUES (?, ?, 1.0, 'manual', ?, ?, ?)""",
+            (company_name, classification, signals, now, now),
+        )
+
+    conn.commit()
+    conn.close()
 
 
 def select_action() -> str | None:
