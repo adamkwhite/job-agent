@@ -59,6 +59,39 @@ class TestCompanyExtraction:
         company = scraper._extract_company(title="QA Engineer", location="United States")
         assert company == "Unknown Company", f"Expected 'Unknown Company' but got '{company}'"
 
+    def test_extract_company_rejects_job_title_as_company(self):
+        """Issue #399: Job titles like 'Software Engineering Manager' should not be extracted as company"""
+        scraper = MinistryOfTestingScraper()
+
+        # "Software Engineering Manager - Software" was being stored as company="Software Engineering Manager"
+        company = scraper._extract_company(
+            title="Software Engineering Manager - Software", location="Remote"
+        )
+        assert company == "Unknown Company"
+
+        # Other title-like patterns that should be rejected
+        assert (
+            scraper._extract_company(title="Head of Engineering - Platform", location="Remote")
+            == "Unknown Company"
+        )
+        assert (
+            scraper._extract_company(title="Senior Product Manager - Growth", location="Remote")
+            == "Unknown Company"
+        )
+        assert (
+            scraper._extract_company(
+                title="Firmware Engineering Manager - Robotics", location="Remote"
+            )
+            == "Unknown Company"
+        )
+
+        # Real company names should still work
+        assert scraper._extract_company(title="Tesla - QA Lead", location="Remote") == "Tesla"
+        assert (
+            scraper._extract_company(title="Acme Corp - Senior QA Engineer", location="Remote")
+            == "Acme Corp"
+        )
+
 
 class TestJobParsing:
     """Test parsing jobs from markdown"""
