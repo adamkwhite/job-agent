@@ -545,3 +545,50 @@ class TestJobFilterPipelineIntegration:
 
         assert should_continue is True
         assert reason is None
+
+
+class TestExcludeCountryFilter:
+    """Test location-based country exclusion filter"""
+
+    @pytest.fixture
+    def us_excluded_pipeline(self):
+        return JobFilterPipeline(
+            {
+                "location_preferences": {"exclude_countries": ["united states"]},
+            }
+        )
+
+    @pytest.fixture
+    def no_exclusion_pipeline(self):
+        return JobFilterPipeline({})
+
+    def test_blocks_us_state_abbreviation(self, us_excluded_pipeline):
+        job = {"title": "QA Manager", "location": "New York, NY"}
+        passed, reason = us_excluded_pipeline.apply_hard_filters(job)
+        assert passed is False
+        assert reason == "hard_filter_excluded_country"
+
+    def test_blocks_us_country_name(self, us_excluded_pipeline):
+        job = {"title": "QA Manager", "location": "United States"}
+        passed, reason = us_excluded_pipeline.apply_hard_filters(job)
+        assert passed is False
+
+    def test_passes_canadian_location(self, us_excluded_pipeline):
+        job = {"title": "QA Manager", "location": "Toronto, ON"}
+        passed, _ = us_excluded_pipeline.apply_hard_filters(job)
+        assert passed is True
+
+    def test_passes_remote(self, us_excluded_pipeline):
+        job = {"title": "QA Manager", "location": "Remote"}
+        passed, _ = us_excluded_pipeline.apply_hard_filters(job)
+        assert passed is True
+
+    def test_no_exclusion_passes_all(self, no_exclusion_pipeline):
+        job = {"title": "QA Manager", "location": "New York, NY"}
+        passed, _ = no_exclusion_pipeline.apply_hard_filters(job)
+        assert passed is True
+
+    def test_empty_location_passes(self, us_excluded_pipeline):
+        job = {"title": "QA Manager", "location": ""}
+        passed, _ = us_excluded_pipeline.apply_hard_filters(job)
+        assert passed is True
