@@ -37,11 +37,26 @@ class SystemHealthChecker(object):  # noqa: UP004 (explicit object for SonarLint
         """
         self.db = db
         self.budget_service = LLMBudgetService(
-            # From config/llm-extraction-settings.json
-            monthly_limit=15.0,
+            monthly_limit=self._read_budget_limit(),
             alert_threshold=0.8,
         )
         self.config = self._load_config(config_path)
+
+    @staticmethod
+    def _read_budget_limit() -> float:
+        """Read monthly budget limit from LLM config."""
+        import json
+        from pathlib import Path
+
+        config_path = (
+            Path(__file__).parent.parent.parent / "config" / "llm-extraction-settings.json"
+        )
+        try:
+            with open(config_path) as f:
+                config = json.load(f)
+            return float(config.get("budget", {}).get("monthly_limit_usd", 5.0))
+        except (FileNotFoundError, json.JSONDecodeError, ValueError):
+            return 5.0
 
     @staticmethod
     def _load_config(config_path: str) -> dict[str, Any]:
