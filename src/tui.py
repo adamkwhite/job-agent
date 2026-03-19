@@ -1395,16 +1395,17 @@ def review_company_classifications():  # pragma: no cover
             if company in classified_companies:
                 continue
 
-            # Check manual/DB classification first, fall back to job metadata
+            # Check DB classification first, fall back to job metadata
             if company in known_classifications:
                 ct = known_classifications[company]
+                # Already in DB (even if "unknown") — don't show for review again
+                classified_companies[company] = ct
             else:
                 meta = json.loads(row[1] or "{}")
                 ct = meta.get("company_type", "unknown")
-
-            classified_companies[company] = ct
-            if ct == "unknown":
-                unknown_with_urls[company] = row[2] or ""
+                classified_companies[company] = ct
+                if ct == "unknown":
+                    unknown_with_urls[company] = row[2] or ""
 
         classified = {"software": 0, "hardware": 0, "both": 0, "unknown": 0}
         for ct in classified_companies.values():
