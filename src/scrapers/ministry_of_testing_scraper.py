@@ -328,10 +328,46 @@ class MinistryOfTestingScraper:
         # Default: Unknown (company will be researched later)
         return UNKNOWN_COMPANY
 
+    # Words that indicate a job title, not a company name
+    TITLE_KEYWORDS = {
+        "manager",
+        "director",
+        "engineer",
+        "lead",
+        "head",
+        "president",
+        "analyst",
+        "architect",
+        "developer",
+        "specialist",
+        "coordinator",
+        "supervisor",
+        "principal",
+        "senior",
+        "junior",
+        "founding",
+        "staff",
+        "product",
+        "project",
+        "program",
+        "technical",
+        "software",
+        "hardware",
+        "firmware",
+        "infrastructure",
+        "engineering",
+        "development",
+        "qa",
+        "quality",
+        "automation",
+        "systems",
+        "platform",
+        "experience",
+    }
+
     def _try_extract_company_from_title(self, title: str) -> str | None:
         """
         Try to extract company from title in "Company - Title" format.
-        Extracted to reduce cognitive complexity.
 
         Args:
             title: Job title
@@ -339,11 +375,19 @@ class MinistryOfTestingScraper:
         Returns:
             Company name if found, None otherwise
         """
-        if " - " in title:
-            parts = title.split(" - ", 1)
-            if len(parts[0]) < 50:  # Reasonable company name length
-                return parts[0].strip()
-        return None
+        if " - " not in title:
+            return None
+
+        candidate = title.split(" - ", 1)[0].strip()
+        if len(candidate) >= 50:
+            return None
+
+        # Reject if the candidate looks like a job title
+        candidate_words = {w.lower() for w in candidate.split()}
+        if candidate_words & self.TITLE_KEYWORDS:
+            return None
+
+        return candidate
 
     def _is_known_location_element(self, location_part: str) -> bool:
         """
