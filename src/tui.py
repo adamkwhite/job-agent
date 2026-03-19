@@ -1452,6 +1452,7 @@ def _auto_classify_unknown(companies: dict[str, str], db) -> None:  # pragma: no
     )
     type_map = {"s": "software", "h": "hardware", "b": "both"}
     classified_count = 0
+    skipped_count = 0
     colors = {"software": "blue", "hardware": "green", "both": "yellow"}
     sorted_names = sorted(companies.keys())
     total = len(sorted_names)
@@ -1469,8 +1470,14 @@ def _auto_classify_unknown(companies: dict[str, str], db) -> None:  # pragma: no
             _store_manual_classification(name, ct, db)
             console.print(f"       [{colors[ct]}]→ {ct}[/{colors[ct]}]")
             classified_count += 1
+        else:
+            # Mark as reviewed (keeps unknown classification) so it doesn't reappear
+            _store_manual_classification(name, "unknown", db)
+            skipped_count += 1
 
-    console.print(f"\n[bold green]Classified {classified_count} companies[/bold green]")
+    console.print(
+        f"\n[bold green]Classified {classified_count}, skipped {skipped_count}[/bold green]"
+    )
     press_enter_to_continue()
 
 
