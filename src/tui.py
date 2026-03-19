@@ -1383,14 +1383,21 @@ def review_company_classifications():  # pragma: no cover
             """
         )
 
-        unknown = []
-        classified = {"software": 0, "hardware": 0, "both": 0, "unknown": 0}
+        unknown = set()
+        classified_companies: dict[str, str] = {}
         for row in cursor.fetchall():
+            company = row[0]
+            if company in classified_companies:
+                continue  # Already seen this company
             meta = json.loads(row[1] or "{}")
             ct = meta.get("company_type", "unknown")
-            classified[ct] = classified.get(ct, 0) + 1
+            classified_companies[company] = ct
             if ct == "unknown":
-                unknown.append(row[0])
+                unknown.add(company)
+
+        classified = {"software": 0, "hardware": 0, "both": 0, "unknown": 0}
+        for ct in classified_companies.values():
+            classified[ct] = classified.get(ct, 0) + 1
 
         conn.close()
 
@@ -1459,9 +1466,9 @@ def _store_manual_classification(company_name: str, classification: str, db) -> 
     now = datetime.now().isoformat()
     signals = json.dumps({"manual": {"source": "tui", "classified_at": now}})
 
-    # Upsert: update if manual entry exists, insert otherwise
+    # Upsert: update existing entry (any source) or insert new
     cursor.execute(
-        "SELECT id FROM company_classifications WHERE company_name = ? AND source = 'manual'",
+        "SELECT id FROM company_classifications WHERE company_name = ?",
         (company_name,),
     )
     existing = cursor.fetchone()
@@ -1469,7 +1476,8 @@ def _store_manual_classification(company_name: str, classification: str, db) -> 
     if existing:
         cursor.execute(
             """UPDATE company_classifications
-               SET classification = ?, confidence_score = 1.0, signals = ?, updated_at = ?
+               SET classification = ?, confidence_score = 1.0, source = 'manual',
+                   signals = ?, updated_at = ?
                WHERE id = ?""",
             (classification, signals, now, existing[0]),
         )
