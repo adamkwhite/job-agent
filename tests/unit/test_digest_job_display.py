@@ -42,7 +42,7 @@ class TestDigestJobDisplay:
             "location": "Remote",
             "fit_score": score,
             "fit_grade": grade,
-            "score_breakdown": '{"seniority": 20, "domain": 15, "role_type": 10, "location": 15, "technical": 5, "company_classification": 0}',
+            "score_breakdown": '{"seniority": 20, "domain": 15, "role_type": 10, "location": 15, "technical": 5}',
         }
 
     def test_all_excellent_matches_displayed_no_limit(self):

@@ -2,10 +2,38 @@
 
 ## Open Features
 - [ ] Company Location Management in TUI (Issue #193)
+- [ ] Test and fix updated company careers URLs (Issue #366)
+
 ## Open Backlog (Low Priority)
 - Issue #79: Enhanced statistics tracking for scraper observability
+- Issue #373: Company scraper diagnostic tool in TUI System Health
 
-## Recently Completed (Mar 13, 2026)
+## Recently Completed (Mar 16, 2026)
+- [x] Hide Company Fit column for profiles with zero adjustments (PR #391)
+  - Column hidden for Mark B, Mark Lennox, Adam, Mario; shown for Wes, Eli
+  - Added Company Fit explanation to footer legend when column is shown
+- [x] Add CRUD methods to CompanyService, remove raw SQL from TUI (PR #392, Issue #387)
+  - New: delete_company(), rename_company(), update_company_url(), activate_company()
+  - Enhanced: reset_company_failures() re-enables, disable_company() accepts notes
+  - 13 new tests (56 total for CompanyService)
+- [x] Distinct empty-state digest template (PR #393 → #394, Issue #388)
+  - Sends short encouraging "no matches today" email instead of empty table
+  - Confirms system is running for daily digest recipients
+
+## Previously Completed (Mar 15, 2026)
+- [x] Gitignore manual_career_pages.txt (PR #383)
+- [x] Add company review stats to health check + fix header centering (PR #384)
+  - Pending review count and companies with failures shown in system health
+- [x] Optimize GitHub Actions — concurrency groups, skip drafts (PR #385)
+- [x] Fix Firecrawl health check log filename (PR #386)
+- [x] Enhanced Firecrawl health display with last-run stats (PR #389)
+  - Shows companies checked, last completed, scraping errors, fallback count
+  - `_grep_log()` helper with `last_run_only` flag
+- [x] Bump cryptography 46.0.3 → 46.0.5 (CVE-2026-26007)
+- [x] Figure AI cleanup — removed dead Lever URL, renamed to "Figure AI"
+- [x] Created issues #387 (CompanyService CRUD) and #388 (empty digest template)
+
+## Previously Completed (Mar 13, 2026)
 - [x] Migrate cron jobs from WSL to Hostinger VPS (PR #381)
   - VPS: Ubuntu 25.10, `ssh hostinger`, timezone America/Toronto
   - Scraper at 6am ET, backup at 3am ET

@@ -145,8 +145,8 @@ class BaseScorer:
         tech_score = self._score_technical_keywords(title, company, description)
         breakdown["technical"] = tech_score
 
-        # 6. Company Classification Adjustment (filtering penalties/boosts)
-        company_adjustment, classification_metadata = classify_and_score_company(
+        # 6. Company Classification (filtering only, no score adjustment)
+        _company_adjustment, classification_metadata = classify_and_score_company(
             company_classifier=self.company_classifier,
             company_name=company_display,
             job_title=job["title"],
@@ -155,9 +155,7 @@ class BaseScorer:
             filtering_config=self._get_filtering_config(),
         )
 
-        breakdown["company_classification"] = company_adjustment
-
-        # Total score (max 100 + adjustments)
+        # Total score (max 100)
         total_score = sum(breakdown.values())
 
         # Grade (using shared utility)

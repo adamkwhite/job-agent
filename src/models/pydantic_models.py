@@ -75,12 +75,6 @@ class Filtering(BaseModel):
     software_engineering_avoid: list[str] = Field(
         default_factory=list, description="Software engineering keywords to avoid"
     )
-    hardware_company_boost: int = Field(
-        default=0, ge=-50, le=50, description="Score boost for hardware companies"
-    )
-    software_company_penalty: int = Field(
-        default=0, ge=-50, le=50, description="Score penalty for software companies"
-    )
     role_software_penalty: int = Field(
         default=0, ge=-50, le=0, description="Penalty for software dev leadership titles"
     )

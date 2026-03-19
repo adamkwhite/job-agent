@@ -85,29 +85,14 @@ class TestFiltering:
         filtering = Filtering(
             aggression_level="moderate",
             software_engineering_avoid=["software engineer", "frontend"],
-            hardware_company_boost=10,
-            software_company_penalty=-20,
         )
         assert filtering.aggression_level == "moderate"
-        assert filtering.hardware_company_boost == 10
 
     def test_invalid_aggression_level_fails(self):
         """Test invalid aggression level raises validation error"""
         with pytest.raises(ValidationError) as exc_info:
             Filtering(aggression_level="extreme")
         assert "aggression_level must be one of" in str(exc_info.value)
-
-    def test_boost_out_of_range_fails(self):
-        """Test boost value out of range fails"""
-        with pytest.raises(ValidationError) as exc_info:
-            Filtering(hardware_company_boost=100)
-        assert "hardware_company_boost" in str(exc_info.value)
-
-    def test_penalty_out_of_range_fails(self):
-        """Test penalty value out of range fails"""
-        with pytest.raises(ValidationError) as exc_info:
-            Filtering(software_company_penalty=-100)
-        assert "software_company_penalty" in str(exc_info.value)
 
 
 class TestRoleTypes:
@@ -427,8 +412,6 @@ class TestRealProfileValidation:
                         "backend",
                         "full stack",
                     ],
-                    hardware_company_boost=10,
-                    software_company_penalty=-20,
                 ),
                 hard_filter_keywords=HardFilterKeywords(
                     seniority_blocks=["junior", "intern", "coordinator"],
@@ -484,8 +467,6 @@ class TestRealProfileValidation:
                 filtering=Filtering(
                     aggression_level="conservative",
                     software_engineering_avoid=[],
-                    hardware_company_boost=0,
-                    software_company_penalty=0,
                 ),
             ),
             digest=Digest(
@@ -529,8 +510,6 @@ class TestRealProfileValidation:
                 filtering=Filtering(
                     aggression_level="moderate",
                     software_engineering_avoid=["software engineer", "software engineering"],
-                    hardware_company_boost=0,
-                    software_company_penalty=-20,
                 ),
             ),
             digest=Digest(

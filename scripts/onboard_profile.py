@@ -130,8 +130,6 @@ def _gather_scoring_info(kit: PromptKit | None = None) -> dict[str, Any]:
                 "backend",
                 "full stack",
             ],
-            "hardware_company_boost": 0,
-            "software_company_penalty": 0,
         },
     }
 

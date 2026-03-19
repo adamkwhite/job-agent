@@ -65,8 +65,6 @@ def mario_profile():
             },
             "filtering": {
                 "aggression_level": "moderate",
-                "hardware_company_boost": 10,
-                "software_company_penalty": -20,
             },
         },
         profile_id="mario",
@@ -90,8 +88,6 @@ def wes_profile():
             },
             "filtering": {
                 "aggression_level": "moderate",
-                "hardware_company_boost": 10,
-                "software_company_penalty": -20,
             },
         },
         profile_id="wes",
@@ -115,8 +111,6 @@ def adam_profile():
             },
             "filtering": {
                 "aggression_level": "moderate",
-                "hardware_company_boost": 10,
-                "software_company_penalty": -20,
             },
         },
         profile_id="adam",
@@ -140,8 +134,6 @@ def eli_profile():
             },
             "filtering": {
                 "aggression_level": "moderate",
-                "hardware_company_boost": 10,
-                "software_company_penalty": -20,
             },
         },
         profile_id="eli",
