@@ -1370,9 +1370,14 @@ def review_company_classifications():  # pragma: no cover
         console.print("[bold cyan]         🏢 COMPANY TYPE CLASSIFICATIONS          [/bold cyan]")
         console.print(SEPARATOR_BOTTOM)
 
-        # Get unclassified companies from recent jobs
+        # Get companies from recent jobs and cross-ref with manual classifications
         conn = sqlite3.connect(db.db_path)
         cursor = conn.cursor()
+
+        # Load all manual/existing classifications
+        cursor.execute("SELECT company_name, classification FROM company_classifications")
+        known_classifications = {row[0]: row[1] for row in cursor.fetchall()}
+
         cursor.execute(
             """
             SELECT DISTINCT j.company, js.classification_metadata
@@ -1388,9 +1393,15 @@ def review_company_classifications():  # pragma: no cover
         for row in cursor.fetchall():
             company = row[0]
             if company in classified_companies:
-                continue  # Already seen this company
-            meta = json.loads(row[1] or "{}")
-            ct = meta.get("company_type", "unknown")
+                continue
+
+            # Check manual/DB classification first, fall back to job metadata
+            if company in known_classifications:
+                ct = known_classifications[company]
+            else:
+                meta = json.loads(row[1] or "{}")
+                ct = meta.get("company_type", "unknown")
+
             classified_companies[company] = ct
             if ct == "unknown":
                 unknown.add(company)
