@@ -655,9 +655,9 @@ def show_system_health():  # pragma: no cover
         console.print(SEPARATOR_FULL)
 
         console.print(
-            "[dim]Actions: \\[f] LLM failures | \\[c] Company failures | \\[b] Back to menu[/dim]"
+            "[dim]Actions: \\[f] LLM failures | \\[c] Company failures | \\[t] Company types | \\[b] Back to menu[/dim]"
         )
-        choice = Prompt.ask("\n[bold]Action[/bold]", choices=["f", "c", "b"], default="b")
+        choice = Prompt.ask("\n[bold]Action[/bold]", choices=["f", "c", "t", "b"], default="b")
 
         if choice == "b":
             return
@@ -665,6 +665,8 @@ def show_system_health():  # pragma: no cover
             review_llm_failures()
         elif choice == "c":
             review_company_failures()
+        elif choice == "t":
+            review_company_classifications()
 
 
 def show_extraction_metrics():  # pragma: no cover
@@ -1349,6 +1351,166 @@ def review_company_failures():  # pragma: no cover
     which handles both auto-discovered and failing companies interactively.
     """
     manage_companies()
+
+
+def review_company_classifications():  # pragma: no cover
+    """Review and classify companies that have unknown type."""
+    import json
+    import sqlite3
+
+    from database import JobDatabase
+
+    db = JobDatabase()
+
+    while True:
+        clear_screen()
+        show_header()
+
+        console.print(SEPARATOR_TOP)
+        console.print("[bold cyan]         🏢 COMPANY TYPE CLASSIFICATIONS          [/bold cyan]")
+        console.print(SEPARATOR_BOTTOM)
+
+        # Get companies from recent jobs and cross-ref with manual classifications
+        conn = sqlite3.connect(db.db_path)
+        cursor = conn.cursor()
+
+        # Load all manual/existing classifications
+        cursor.execute("SELECT company_name, classification FROM company_classifications")
+        known_classifications = {row[0]: row[1] for row in cursor.fetchall()}
+
+        cursor.execute(
+            """
+            SELECT j.company, js.classification_metadata, j.link
+            FROM job_scores js
+            JOIN jobs j ON j.id = js.job_id
+            WHERE j.received_at >= datetime('now', '-30 days')
+            AND js.classification_metadata IS NOT NULL
+            """
+        )
+
+        unknown_with_urls: dict[str, str] = {}  # company -> sample link
+        classified_companies: dict[str, str] = {}
+        for row in cursor.fetchall():
+            company = row[0]
+            if company in classified_companies:
+                continue
+
+            # Check DB classification first, fall back to job metadata
+            if company in known_classifications:
+                ct = known_classifications[company]
+                # Already in DB (even if "unknown") — don't show for review again
+                classified_companies[company] = ct
+            else:
+                meta = json.loads(row[1] or "{}")
+                ct = meta.get("company_type", "unknown")
+                classified_companies[company] = ct
+                if ct == "unknown":
+                    unknown_with_urls[company] = row[2] or ""
+
+        classified = {"software": 0, "hardware": 0, "both": 0, "unknown": 0}
+        for ct in classified_companies.values():
+            classified[ct] = classified.get(ct, 0) + 1
+
+        conn.close()
+
+        # Show summary
+        total = sum(classified.values())
+        coverage = (total - len(unknown_with_urls)) / total * 100 if total else 0
+        summary = Table(box=box.ROUNDED, show_header=False)
+        summary.add_column("Metric", style="bold cyan", width=25)
+        summary.add_column("Value", width=40)
+        summary.add_row("Total companies (30d)", f"{total}")
+        summary.add_row("Software", f"[blue]{classified['software']}[/blue]")
+        summary.add_row("Hardware", f"[green]{classified['hardware']}[/green]")
+        summary.add_row("Both", f"[yellow]{classified['both']}[/yellow]")
+        unknown_color = "red" if len(unknown_with_urls) > 50 else "yellow"
+        summary.add_row("Unknown", f"[{unknown_color}]{len(unknown_with_urls)}[/{unknown_color}]")
+        coverage_color = "green" if coverage > 80 else "yellow"
+        summary.add_row("Coverage", f"[{coverage_color}]{coverage:.0f}%[/{coverage_color}]")
+        console.print(summary)
+
+        if not unknown_with_urls:
+            console.print("\n[bold green]All companies classified![/bold green]")
+            press_enter_to_continue()
+            return
+
+        console.print("\n[dim]Actions: \\[enter] Start classifying | \\[b/q] Back[/dim]")
+        choice = Prompt.ask("[bold]Action[/bold]", default="")
+
+        if choice.lower() in ("b", "q"):
+            return
+
+        _auto_classify_unknown(unknown_with_urls, db)
+        return
+
+
+def _auto_classify_unknown(companies: dict[str, str], db) -> None:  # pragma: no cover
+    """Fast keyboard-driven classification: s/h/b per company, enter=skip, q=quit."""
+
+    console.print(
+        "\n[bold]s[/bold]=software  [bold]h[/bold]=hardware  "
+        "[bold]b[/bold]=both  [bold]enter[/bold]=skip  [bold]q[/bold]=quit\n"
+    )
+    type_map = {"s": "software", "h": "hardware", "b": "both"}
+    classified_count = 0
+    colors = {"software": "blue", "hardware": "green", "both": "yellow"}
+    sorted_names = sorted(companies.keys())
+    total = len(sorted_names)
+
+    for i, name in enumerate(sorted_names, 1):
+        url = companies[name]
+        console.print(f"[dim]{i:3d}/{total}[/dim] [bold]{name}[/bold]")
+        if url:
+            console.print(f"       [link={url}]{url}[/link]")
+        choice = Prompt.ask("       ", default="")
+        if choice.lower() == "q":
+            break
+        if choice.lower() in type_map:
+            ct = type_map[choice.lower()]
+            _store_manual_classification(name, ct, db)
+            console.print(f"       [{colors[ct]}]→ {ct}[/{colors[ct]}]")
+            classified_count += 1
+
+    console.print(f"\n[bold green]Classified {classified_count} companies[/bold green]")
+    press_enter_to_continue()
+
+
+def _store_manual_classification(company_name: str, classification: str, db) -> None:
+    """Store a manual company classification in the database."""
+    import json
+    import sqlite3
+    from datetime import datetime
+
+    conn = sqlite3.connect(db.db_path)
+    cursor = conn.cursor()
+    now = datetime.now().isoformat()
+    signals = json.dumps({"manual": {"source": "tui", "classified_at": now}})
+
+    # Upsert: update existing entry (any source) or insert new
+    cursor.execute(
+        "SELECT id FROM company_classifications WHERE company_name = ?",
+        (company_name,),
+    )
+    existing = cursor.fetchone()
+
+    if existing:
+        cursor.execute(
+            """UPDATE company_classifications
+               SET classification = ?, confidence_score = 1.0, source = 'manual',
+                   signals = ?, updated_at = ?
+               WHERE id = ?""",
+            (classification, signals, now, existing[0]),
+        )
+    else:
+        cursor.execute(
+            """INSERT INTO company_classifications
+               (company_name, classification, confidence_score, source, signals, created_at, updated_at)
+               VALUES (?, ?, 1.0, 'manual', ?, ?, ?)""",
+            (company_name, classification, signals, now, now),
+        )
+
+    conn.commit()
+    conn.close()
 
 
 def select_action() -> str | None:
