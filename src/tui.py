@@ -242,31 +242,27 @@ def select_sources() -> tuple[list[str], str | None]:
                       Note: "companies" includes Ministry of Testing
             - inbox_profile: Profile ID if email selected, else None
     """
-    console.print("\n[bold yellow]Step 1:[/bold yellow] Select Job Sources\n")
+    console.print("\n[bold yellow]Choose Action[/bold yellow]\n")
 
     table = Table(box=box.ROUNDED, show_header=True, header_style=TABLE_HEADER_STYLE)
-    table.add_column("Source", style="cyan", width=8)
-    table.add_column("Description", style="white", width=40)
+    table.add_column("Key", style="cyan", width=8)
+    table.add_column("Action", style="white", width=40)
 
+    table.add_row("[bold]Scrape[/bold]", "")
     table.add_row("1", "Company Monitoring")
     table.add_row("2", "Email Processing")
-    table.add_row("a", "Select All Sources")
-    table.add_row("", "")  # Blank row separator
+    table.add_row("a", "All Sources")
+    table.add_row("", "")
+    table.add_row("[bold]Tools[/bold]", "")
     table.add_row("n", "New Profile (Onboarding Wizard)")
     table.add_row("api", "API Credits (Check LLM/Firecrawl status)")
     table.add_row("h", "System Health")
     table.add_row("q", "Quit")
 
     console.print(table)
-    console.print(
-        "\n[dim]Note: Company monitoring is profile-agnostic (jobs scored for ALL profiles).[/dim]"
-    )
-    console.print("[dim]      Email processing requires selecting which inbox to check.[/dim]")
-    console.print(
-        "\n[dim]Enter comma-separated options (e.g., '1,2' or 'all'). Default is 'all'.[/dim]"
-    )
+    console.print("\n[dim]Scrape: Enter source number(s), e.g. '1,2' or 'a' for all.[/dim]")
 
-    choice = Prompt.ask("\n[bold]Select sources[/bold]", default="a").lower().strip()
+    choice = Prompt.ask("\n[bold]Action[/bold]", default="a").lower().strip()
 
     # Handle utility actions
     utility_map = {
@@ -1374,8 +1370,11 @@ def review_company_classifications():  # pragma: no cover
         conn = sqlite3.connect(db.db_path)
         cursor = conn.cursor()
 
-        # Load all manual/existing classifications
-        cursor.execute("SELECT company_name, classification FROM company_classifications")
+        # Load manually reviewed classifications (skip auto/unknown entries)
+        cursor.execute(
+            """SELECT company_name, classification FROM company_classifications
+               WHERE source = 'manual' OR classification != 'unknown'"""
+        )
         known_classifications = {row[0]: row[1] for row in cursor.fetchall()}
 
         cursor.execute(
