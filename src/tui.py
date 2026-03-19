@@ -1380,7 +1380,7 @@ def review_company_classifications():  # pragma: no cover
 
         cursor.execute(
             """
-            SELECT DISTINCT j.company, js.classification_metadata
+            SELECT j.company, js.classification_metadata, j.link
             FROM job_scores js
             JOIN jobs j ON j.id = js.job_id
             WHERE j.received_at >= datetime('now', '-30 days')
@@ -1388,7 +1388,7 @@ def review_company_classifications():  # pragma: no cover
             """
         )
 
-        unknown = set()
+        unknown_with_urls: dict[str, str] = {}  # company -> sample link
         classified_companies: dict[str, str] = {}
         for row in cursor.fetchall():
             company = row[0]
@@ -1404,7 +1404,7 @@ def review_company_classifications():  # pragma: no cover
 
             classified_companies[company] = ct
             if ct == "unknown":
-                unknown.add(company)
+                unknown_with_urls[company] = row[2] or ""
 
         classified = {"software": 0, "hardware": 0, "both": 0, "unknown": 0}
         for ct in classified_companies.values():
@@ -1414,7 +1414,7 @@ def review_company_classifications():  # pragma: no cover
 
         # Show summary
         total = sum(classified.values())
-        coverage = (total - len(unknown)) / total * 100 if total else 0
+        coverage = (total - len(unknown_with_urls)) / total * 100 if total else 0
         summary = Table(box=box.ROUNDED, show_header=False)
         summary.add_column("Metric", style="bold cyan", width=25)
         summary.add_column("Value", width=40)
@@ -1422,13 +1422,13 @@ def review_company_classifications():  # pragma: no cover
         summary.add_row("Software", f"[blue]{classified['software']}[/blue]")
         summary.add_row("Hardware", f"[green]{classified['hardware']}[/green]")
         summary.add_row("Both", f"[yellow]{classified['both']}[/yellow]")
-        unknown_color = "red" if len(unknown) > 50 else "yellow"
-        summary.add_row("Unknown", f"[{unknown_color}]{len(unknown)}[/{unknown_color}]")
+        unknown_color = "red" if len(unknown_with_urls) > 50 else "yellow"
+        summary.add_row("Unknown", f"[{unknown_color}]{len(unknown_with_urls)}[/{unknown_color}]")
         coverage_color = "green" if coverage > 80 else "yellow"
         summary.add_row("Coverage", f"[{coverage_color}]{coverage:.0f}%[/{coverage_color}]")
         console.print(summary)
 
-        if not unknown:
+        if not unknown_with_urls:
             console.print("\n[bold green]All companies classified![/bold green]")
             press_enter_to_continue()
             return
@@ -1439,12 +1439,14 @@ def review_company_classifications():  # pragma: no cover
         if choice.lower() in ("b", "q"):
             return
 
-        _auto_classify_unknown(sorted(unknown), db)
+        _auto_classify_unknown(unknown_with_urls, db)
         return
 
 
-def _auto_classify_unknown(companies: list[str], db) -> None:  # pragma: no cover
+def _auto_classify_unknown(companies: dict[str, str], db) -> None:  # pragma: no cover
     """Fast keyboard-driven classification: s/h/b per company, enter=skip, q=quit."""
+    from urllib.parse import urlparse
+
     console.print(
         "\n[bold]s[/bold]=software  [bold]h[/bold]=hardware  "
         "[bold]b[/bold]=both  [bold]enter[/bold]=skip  [bold]q[/bold]=quit\n"
@@ -1452,9 +1454,14 @@ def _auto_classify_unknown(companies: list[str], db) -> None:  # pragma: no cove
     type_map = {"s": "software", "h": "hardware", "b": "both"}
     classified_count = 0
     colors = {"software": "blue", "hardware": "green", "both": "yellow"}
+    sorted_names = sorted(companies.keys())
+    total = len(sorted_names)
 
-    for i, name in enumerate(companies, 1):
-        choice = Prompt.ask(f"[dim]{i:3d}/{len(companies)}[/dim] [bold]{name}[/bold]", default="")
+    for i, name in enumerate(sorted_names, 1):
+        url = companies[name]
+        domain = urlparse(url).netloc if url else ""
+        hint = f" [dim]({domain})[/dim]" if domain else ""
+        choice = Prompt.ask(f"[dim]{i:3d}/{total}[/dim] [bold]{name}[/bold]{hint}", default="")
         if choice.lower() == "q":
             break
         if choice.lower() in type_map:
