@@ -17,6 +17,7 @@ from agents.filter_handlers import (
     AdministrativeRoleFilter,
     AssociateFilter,
     CoordinatorFilter,
+    ExcludeCountryFilter,
     FilterHandler,
     FinanceRoleFilter,
     HRRoleFilter,
@@ -41,6 +42,7 @@ FilterReason = Literal[
     "hard_filter_marketing_role",
     "hard_filter_administrative",
     "hard_filter_retail",
+    "hard_filter_excluded_country",
     "context_filter_software_engineering",
     "context_filter_contract_low_seniority",
     "stale_job_age",
@@ -100,11 +102,14 @@ class JobFilterPipeline:
         sales = SalesRoleFilter(self.profile)
         admin = AdministrativeRoleFilter(self.profile)
         retail = RetailRoleFilter(self.profile)
+        exclude_country = ExcludeCountryFilter(self.profile)
 
         # Chain handlers together
         junior.set_next(intern).set_next(coordinator).set_next(associate).set_next(hr).set_next(
             finance
-        ).set_next(legal).set_next(marketing).set_next(sales).set_next(admin).set_next(retail)
+        ).set_next(legal).set_next(marketing).set_next(sales).set_next(admin).set_next(
+            retail
+        ).set_next(exclude_country)
 
         return junior  # Return head of chain
 

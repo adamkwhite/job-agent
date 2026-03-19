@@ -282,3 +282,96 @@ class RetailRoleFilter(FilterHandler):
                 return (True, "hard_filter_retail")
 
         return (False, None)
+
+
+class ExcludeCountryFilter(FilterHandler):
+    """Block jobs from excluded countries based on location field."""
+
+    # US state abbreviations and common US location indicators
+    US_INDICATORS = {
+        "united states",
+        "usa",
+        ", us",
+        "u.s.",
+        ", al",
+        ", ak",
+        ", az",
+        ", ar",
+        ", ca",
+        ", co",
+        ", ct",
+        ", de",
+        ", fl",
+        ", ga",
+        ", hi",
+        ", id",
+        ", il",
+        ", in",
+        ", ia",
+        ", ks",
+        ", ky",
+        ", la",
+        ", me",
+        ", md",
+        ", ma",
+        ", mi",
+        ", mn",
+        ", ms",
+        ", mo",
+        ", mt",
+        ", ne",
+        ", nv",
+        ", nh",
+        ", nj",
+        ", nm",
+        ", ny",
+        ", nc",
+        ", nd",
+        ", oh",
+        ", ok",
+        ", or",
+        ", pa",
+        ", ri",
+        ", sc",
+        ", sd",
+        ", tn",
+        ", tx",
+        ", ut",
+        ", vt",
+        ", va",
+        ", wa",
+        ", wv",
+        ", wi",
+        ", wy",
+    }
+
+    def check(self, job: dict) -> tuple[bool, FilterReason | None]:
+        location_prefs = self._get_location_preferences()
+        exclude_countries = location_prefs.get("exclude_countries", [])
+        if not exclude_countries:
+            return (False, None)
+
+        location = job.get("location", "").lower()
+        if not location:
+            return (False, None)
+
+        for country in exclude_countries:
+            country_lower = country.lower()
+            if (
+                country_lower == "united states"
+                and self._is_us_location(location)
+                or country_lower in location
+            ):
+                return (True, "hard_filter_excluded_country")
+
+        return (False, None)
+
+    def _is_us_location(self, location: str) -> bool:
+        """Check if location is in the United States."""
+        return any(indicator in location for indicator in self.US_INDICATORS)
+
+    def _get_location_preferences(self) -> dict:
+        """Get location preferences from profile."""
+        if isinstance(self.profile, dict):
+            return self.profile.get("location_preferences", {})
+        return self.profile.scoring.get("location_preferences", {})
