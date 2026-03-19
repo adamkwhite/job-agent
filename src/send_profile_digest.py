@@ -215,6 +215,9 @@ def _generate_job_table_rows(
 
         rows += f"""
                 <tr>
+                    <td class="score-cell">
+                        <span class="score grade-{grade}">{score}</span>
+                    </td>
                     <td>
                         <div><a href="{linkedin_search_url}" target="_blank" style="color: #2c3e50; text-decoration: none; font-weight: 600;">{job["company"]}</a></div>
                         <div class="company">📌 {location}</div>
@@ -228,9 +231,6 @@ def _generate_job_table_rows(
                     <td class="score-cell">{breakdown.get("role_type", 0)}</td>
                     <td class="score-cell">{breakdown.get("location", 0)}</td>
                     <td class="score-cell">{breakdown.get("technical", 0)}</td>
-                    <td class="score-cell">
-                        <span class="score grade-{grade}">{score}</span>
-                    </td>
                 </tr>
             """
     return rows
@@ -552,6 +552,7 @@ def generate_email_html(
         <table>
             <thead>
                 <tr>
+                    <th style="text-align: center;">Score<br>/100</th>
                     <th>Company</th>
                     <th>Job Title</th>
                     <th style="text-align: center;">Connections</th>
@@ -560,7 +561,6 @@ def generate_email_html(
                     <th style="text-align: center;">Role<br>/20</th>
                     <th style="text-align: center;">Location<br>/15</th>
                     <th style="text-align: center;">Tech<br>/10</th>
-                    <th style="text-align: center;">Total<br>/100</th>
                 </tr>
             </thead>
             <tbody>
@@ -577,6 +577,7 @@ def generate_email_html(
         <table>
             <thead>
                 <tr>
+                    <th style="text-align: center;">Score<br>/100</th>
                     <th>Company</th>
                     <th>Job Title</th>
                     <th style="text-align: center;">Connections</th>
@@ -585,7 +586,6 @@ def generate_email_html(
                     <th style="text-align: center;">Role<br>/20</th>
                     <th style="text-align: center;">Location<br>/15</th>
                     <th style="text-align: center;">Tech<br>/10</th>
-                    <th style="text-align: center;">Total<br>/100</th>
                 </tr>
             </thead>
             <tbody>
