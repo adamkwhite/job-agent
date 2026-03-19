@@ -1422,10 +1422,10 @@ def review_company_classifications():  # pragma: no cover
             press_enter_to_continue()
             return
 
-        console.print("\n[dim]Actions: \\[enter] Start classifying | \\[b] Back[/dim]")
+        console.print("\n[dim]Actions: \\[enter] Start classifying | \\[b/q] Back[/dim]")
         choice = Prompt.ask("[bold]Action[/bold]", default="")
 
-        if choice.lower() == "b":
+        if choice.lower() in ("b", "q"):
             return
 
         _auto_classify_unknown(sorted(unknown), db)
