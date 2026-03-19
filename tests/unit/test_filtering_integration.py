@@ -43,8 +43,7 @@ class TestRealWorldExamples:
         }
 
         score, grade, breakdown, classification_metadata = scorer.score_job(job)
-        assert classification_metadata.get("hardware_boost_applied") is True
-        assert breakdown.get("company_classification") == 10
+        assert "company_classification" not in breakdown
         assert classification_metadata.get("filtered") is False
         assert classification_metadata.get("company_type") == "hardware"
 
@@ -60,7 +59,7 @@ class TestRealWorldExamples:
 
         score, grade, breakdown, classification_metadata = scorer.score_job(job)
         assert classification_metadata.get("filtered") is True
-        assert breakdown.get("company_classification") == -20
+        assert "company_classification" not in breakdown
         assert classification_metadata.get("company_type") == "software"
         assert (
             classification_metadata.get("filter_reason")

@@ -60,8 +60,6 @@ def eli_profile():
             },
             "filtering": {
                 "aggression_level": "moderate",
-                "hardware_company_boost": 10,
-                "software_company_penalty": -20,
             },
         },
         digest_min_grade="C",

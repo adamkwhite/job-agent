@@ -689,10 +689,8 @@ def classify_and_score_company(
         f"type={company_classification.type}, confidence={company_classification.confidence:.2f}"
     )
 
-    # Get filtering config values (with defaults)
+    # Get filtering config values
     aggression_level = filtering_config.get("aggression_level", "moderate")
-    software_penalty = filtering_config.get("software_company_penalty", -20)
-    hardware_boost = filtering_config.get("hardware_company_boost", 10)
 
     # Build profile dict for should_filter_job
     profile_dict = {
@@ -700,7 +698,7 @@ def classify_and_score_company(
         "filtering": filtering_config,
     }
 
-    # Check if job should be filtered
+    # Check if job should be filtered (title-based filtering, no score adjustment)
     should_filter, filter_reason = should_filter_job(
         job_title=job_title,
         company_name=company_name,
@@ -709,35 +707,13 @@ def classify_and_score_company(
         aggression_level=aggression_level,
     )
 
-    # Apply filtering penalty or boost
-    score_adjustment = 0
-    if should_filter:
-        score_adjustment = software_penalty
-        classification_metadata["filtered"] = True
-        classification_metadata["filter_reason"] = filter_reason
-        logger.info(
-            f"Applying software role filter to '{job_title}' at '{company_name}': "
-            f"{software_penalty} points (reason: {filter_reason})"
-        )
-    elif company_classification.type == "hardware":
-        # Hardware company boost for engineering roles
-        score_adjustment = hardware_boost
-        classification_metadata["filtered"] = False
-        classification_metadata["filter_reason"] = filter_reason
-        classification_metadata["hardware_boost_applied"] = True
-        logger.info(
-            f"Applying hardware company boost to '{job_title}' at '{company_name}': "
-            f"+{hardware_boost} points"
-        )
-    else:
-        classification_metadata["filtered"] = False
-        classification_metadata["filter_reason"] = filter_reason
-        logger.debug(
-            f"No filtering adjustment for '{job_title}' at '{company_name}' "
-            f"(reason: {filter_reason})"
-        )
+    classification_metadata["filtered"] = should_filter
+    classification_metadata["filter_reason"] = filter_reason
 
-    return score_adjustment, classification_metadata
+    if should_filter:
+        logger.info(f"Filtering '{job_title}' at '{company_name}' (reason: {filter_reason})")
+
+    return 0, classification_metadata
 
 
 def should_filter_job(

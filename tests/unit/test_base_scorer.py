@@ -65,8 +65,6 @@ def test_profile():
             },
             "filtering": {
                 "aggression_level": "moderate",
-                "hardware_company_boost": 10,
-                "software_company_penalty": -20,
             },
         }
     )
@@ -355,7 +353,7 @@ class TestScoreJobOrchestration:
         assert "role_type" in breakdown
         assert "location" in breakdown
         assert "technical" in breakdown
-        assert "company_classification" in breakdown
+        assert "company_classification" not in breakdown
 
     def test_total_score_is_sum_of_breakdown(self, test_profile):
         """Total score equals sum of breakdown values"""

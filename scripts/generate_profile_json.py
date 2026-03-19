@@ -98,8 +98,6 @@ def build_profile_json(config: dict) -> dict:
             "filtering": {
                 "aggression_level": config.get("filtering_aggression", "moderate"),
                 "software_engineering_avoid": [],
-                "hardware_company_boost": config.get("hardware_company_boost", 0),
-                "software_company_penalty": config.get("software_company_penalty", 0),
             },
         },
         "digest": {

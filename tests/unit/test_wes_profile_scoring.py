@@ -482,8 +482,6 @@ class TestScorerFilteringIntegration:
         scorer.profile.scoring["filtering"] = {
             "aggression_level": "conservative",
             "software_engineering_avoid": ["software engineering", "backend engineering"],
-            "software_company_penalty": -20,
-            "hardware_company_boost": 10,
             "role_software_penalty": -5,
         }
 
@@ -494,30 +492,9 @@ class TestScorerFilteringIntegration:
         }
 
         score, grade, breakdown, classification_metadata = scorer.score_job(job)
-        assert breakdown["company_classification"] == -20
+        assert "company_classification" not in breakdown
         assert classification_metadata["filtered"] is True
         assert classification_metadata["company_type"] == "software"
-
-    def test_hardware_company_boost_applied(self, scorer):
-        """Test that hardware company engineering roles receive +10 boost"""
-        scorer.profile.scoring["filtering"] = {
-            "aggression_level": "moderate",
-            "software_company_penalty": -20,
-            "hardware_company_boost": 10,
-            "role_software_penalty": -5,
-        }
-
-        job = {
-            "title": "VP of Engineering",
-            "company": "Boston Dynamics",
-            "location": "Remote, USA",
-        }
-
-        score, grade, breakdown, classification_metadata = scorer.score_job(job)
-        assert breakdown["company_classification"] == 10
-        assert classification_metadata["filtered"] is False
-        assert classification_metadata.get("hardware_boost_applied") is True
-        assert classification_metadata["company_type"] == "hardware"
 
     def test_product_leadership_unaffected_by_filtering(self, scorer):
         """Test that product leadership roles are never filtered
@@ -528,15 +505,13 @@ class TestScorerFilteringIntegration:
         """
         scorer.profile.scoring["filtering"] = {
             "aggression_level": "moderate",
-            "software_company_penalty": -20,
-            "hardware_company_boost": 10,
             "role_software_penalty": -5,
         }
 
         job = {"title": "Chief Product Officer", "company": "Stripe", "location": "Remote, USA"}
 
         _, _, breakdown, classification_metadata = scorer.score_job(job)
-        assert breakdown.get("company_classification", 0) == 0
+        assert "company_classification" not in breakdown
         assert classification_metadata["filtered"] is False
         assert classification_metadata.get("filter_reason") == "product_leadership_any_company"
 

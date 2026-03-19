@@ -148,8 +148,6 @@ def _build_wes_profile() -> Profile:
                     "saas",
                     "fintech software",
                 ],
-                "hardware_company_boost": 10,
-                "software_company_penalty": -20,
                 "role_software_penalty": -5,
             },
             "hard_filter_keywords": {
@@ -256,8 +254,6 @@ def _build_mario_profile() -> Profile:
             },
             "filtering": {
                 "aggression_level": "moderate",
-                "hardware_company_boost": 10,
-                "software_company_penalty": -20,
             },
         },
         digest_min_grade="C",

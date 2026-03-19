@@ -74,8 +74,6 @@ def sample_profile():
                     "backend",
                     "full stack",
                 ],
-                "hardware_company_boost": 0,
-                "software_company_penalty": 0,
             },
         },
         "digest": {

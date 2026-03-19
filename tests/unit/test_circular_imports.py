@@ -49,26 +49,6 @@ class TestCircularImports:
         with pytest.raises(ModuleNotFoundError):
             import agents.job_scorer  # noqa: F401
 
-    def test_classify_and_score_company_location(self):
-        """Test that classify_and_score_company is in the correct module"""
-        import inspect
-
-        from utils.company_classifier import classify_and_score_company
-
-        sig = inspect.signature(classify_and_score_company)
-        params = list(sig.parameters.keys())
-
-        expected_params = [
-            "company_classifier",
-            "company_name",
-            "job_title",
-            "domain_keywords",
-            "role_types",
-            "filtering_config",
-        ]
-
-        assert params == expected_params
-
     def test_no_runtime_imports_in_scoring_utils(self):
         """Test that scoring_utils has no 'from X import Y' inside functions"""
         import inspect
