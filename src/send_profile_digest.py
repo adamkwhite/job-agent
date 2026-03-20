@@ -1115,13 +1115,20 @@ def send_digest_to_profile(
         profile, profile_id, db, force_resend, max_age_days, pre_validated_jobs
     )
     if not jobs:
-        return False
+        print(f"\n📭 No unsent jobs for {profile.name} — sending empty-state digest")
+        if dry_run:
+            print(f"  🧪 DRY RUN — would send empty-state digest to {profile.email}")
+            return True
+        return _send_empty_state_email(profile, profile_id)
 
     # Step 2: Apply hard filters and deduplication
     jobs = _apply_hard_filters_and_dedup(jobs, profile)
     if not jobs:
-        print("\n⏸  No valid jobs to send after filtering")
-        return False
+        print(f"\n📭 No jobs passed filters for {profile.name} — sending empty-state digest")
+        if dry_run:
+            print(f"  🧪 DRY RUN — would send empty-state digest to {profile.email}")
+            return True
+        return _send_empty_state_email(profile, profile_id)
 
     # Step 3: Split by grade
     high_scoring = [j for j in jobs if j.get("fit_score", 0) >= Grade.B.value]
