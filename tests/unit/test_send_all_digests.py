@@ -343,17 +343,18 @@ class TestSendDigestToProfilePreValidated:
             result = send_digest_to_profile("wes", dry_run=True, pre_validated_jobs=[blocked_job])
 
             mock_filter_cls.return_value.apply_hard_filters.assert_called_once()
-            assert result is False  # No jobs after filtering
+            assert result is True  # Sends empty-state digest (dry run)
 
     @patch("src.send_profile_digest.get_profile_manager")
     @patch("src.send_profile_digest.JobDatabase")
-    def test_empty_pre_validated_returns_false(self, mock_db_cls, mock_manager):
+    def test_empty_pre_validated_sends_empty_state(self, mock_db_cls, mock_manager):
+        """Empty pre-validated jobs should send empty-state digest, not skip."""
         profile = _make_profile("wes", "Wes")
         mock_manager.return_value.get_profile.return_value = profile
         mock_db_cls.return_value = MagicMock()
 
         result = send_digest_to_profile("wes", dry_run=True, pre_validated_jobs=[])
-        assert result is False
+        assert result is True  # Sends empty-state digest (dry run)
 
     @patch("src.send_profile_digest.get_profile_manager")
     @patch("src.send_profile_digest.JobDatabase")
