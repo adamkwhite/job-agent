@@ -415,6 +415,8 @@ The job agent supports multiple user profiles with separate email accounts, scor
 
 **📖 For multi-profile system architecture, see: [`docs/development/MULTI_PROFILE_GUIDE.md`](docs/development/MULTI_PROFILE_GUIDE.md)**
 
+**Onboarding email template**: [`config/onboarding-email-template.md`](config/onboarding-email-template.md) — send from `adamwhite.jobalerts@gmail.com` to gather requirements before creating a profile.
+
 **Interactive Onboarding (PR #348)**:
 ```bash
 PYTHONPATH=$PWD job-agent-venv/bin/python scripts/onboard_profile.py
@@ -422,10 +424,13 @@ PYTHONPATH=$PWD job-agent-venv/bin/python scripts/onboard_profile.py
 Walks through all steps: gather info → save JSON → validate → backfill scores → dry-run digest → generate onboarding message.
 
 Quick manual summary:
-1. Create `profiles/yourname.json` with scoring criteria
-2. (Optional) Set up `yourname.jobalerts@gmail.com` with app password and add to `.env`
-3. Test with `--profile yourname` flag
-4. Profile automatically appears in TUI
+1. Send onboarding email template to new user (gather requirements)
+2. Create `profiles/yourname.json` with scoring criteria
+3. Upload LinkedIn connections: `python scripts/upload_connections.py --profile yourname ~/path/to/Connections.csv`
+4. Backfill scores: `PYTHONPATH=$PWD job-agent-venv/bin/python src/utils/rescore_jobs.py --mode backfill --profile yourname`
+5. Test digest: `PYTHONPATH=$PWD job-agent-venv/bin/python src/send_profile_digest.py --profile yourname --dry-run --force-resend`
+6. Deploy profile + connections to VPS: `scp profiles/yourname.json hostinger:job-agent/profiles/`
+7. Profile automatically appears in TUI and nightly digests
 
 
 ### Configuration
